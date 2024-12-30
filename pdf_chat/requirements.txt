@@ -1,0 +1,7 @@
+streamlit~=1.41.1
+watchdog
+pillow~=11.0.0
+openai
+load_dotenv
+pypdf2
+simplejson
