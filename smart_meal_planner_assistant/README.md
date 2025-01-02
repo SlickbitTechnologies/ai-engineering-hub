@@ -17,7 +17,7 @@ Follow these steps to set up the project locally.
 ### Steps
 
 1. **Clone the repository**
-   - git clone https://github.com/SlickbitTechnologies/ai-menu-generator.git
+   - git clone https://github.com/SlickbitTechnologies/ai-engineering-hub.git
   
 2. **Navigate into the project directory**
     - cd smart_meal_planner_assistant
