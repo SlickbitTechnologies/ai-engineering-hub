@@ -3,7 +3,6 @@ import { openai } from "../utils.mjs";
 export const fetchRecipe = async(req, res) => {
     try{
         const recipeList = req.body;
-        console.log(req.body, 'dlskfhdjksf')
         let prompt = `You are kitchen assistant. 
         You are asked to provide a recipe for the following ingredients: 
         ${JSON.stringify(recipeList)}.
@@ -18,7 +17,6 @@ export const fetchRecipe = async(req, res) => {
             model: "gpt-3.5-turbo-16k",
           });
         const result = response.choices[0].message.content.trim();
-        console.log(response, 'dslkfsdfj')
         return res.status(200).json({message: 'Recipe fetched successfully', result})
     }
     catch(err){

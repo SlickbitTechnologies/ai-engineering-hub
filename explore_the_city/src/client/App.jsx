@@ -22,7 +22,6 @@ function App() {
       // }
     }
   }
-  console.log(data, 'dslkfjs')
 
   return (
     <div className="App" style={{width: '100%', }}>
