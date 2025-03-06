@@ -1,0 +1,31 @@
+2025-03-06 14:32:53,293 - advisorkhoj_crawler - INFO - Chrome WebDriver setup successful
+2025-03-06 14:34:11,263 - advisorkhoj_crawler - INFO - Fetching data from URL: https://www.advisorkhoj.com/mutual-funds-research/Quant-Small-Cap-Fund-Growth-Regular-Plan
+2025-03-06 14:34:25,483 - advisorkhoj_crawler - ERROR - Error crawling Advisorkhoj: Message: 
+Stacktrace:
+0   chromedriver                        0x0000000102d63922 chromedriver + 5843234
+1   chromedriver                        0x0000000102d5b5ea chromedriver + 5809642
+2   chromedriver                        0x0000000102837dfe chromedriver + 421374
+3   chromedriver                        0x000000010288bb69 chromedriver + 764777
+4   chromedriver                        0x000000010288bf51 chromedriver + 765777
+5   chromedriver                        0x00000001028db664 chromedriver + 1091172
+6   chromedriver                        0x00000001028b2c0d chromedriver + 924685
+7   chromedriver                        0x00000001028d863a chromedriver + 1078842
+8   chromedriver                        0x00000001028b29b3 chromedriver + 924083
+9   chromedriver                        0x000000010287cec3 chromedriver + 704195
+10  chromedriver                        0x000000010287dda1 chromedriver + 708001
+11  chromedriver                        0x0000000102d2bd40 chromedriver + 5614912
+12  chromedriver                        0x0000000102d2e773 chromedriver + 5625715
+13  chromedriver                        0x0000000102d2e2eb chromedriver + 5624555
+14  chromedriver                        0x0000000102d2ebd5 chromedriver + 5626837
+15  chromedriver                        0x0000000102d10cef chromedriver + 5504239
+16  chromedriver                        0x0000000102d2eebc chromedriver + 5627580
+17  chromedriver                        0x0000000102d018f4 chromedriver + 5441780
+18  chromedriver                        0x0000000102d4b4f8 chromedriver + 5743864
+19  chromedriver                        0x0000000102d4b6be chromedriver + 5744318
+20  chromedriver                        0x0000000102d5b1b8 chromedriver + 5808568
+21  libsystem_pthread.dylib             0x00007ff819aa3253 _pthread_start + 99
+22  libsystem_pthread.dylib             0x00007ff819a9ebef thread_start + 15
+
+2025-03-06 14:46:21,459 - advisorkhoj_crawler - WARNING - Main container not found in HTML
+2025-03-06 14:46:21,460 - advisorkhoj_crawler - INFO - Falling back to Scrapy
+2025-03-06 14:46:22,146 - advisorkhoj_crawler - WARNING - No stocks found using Scrapy
