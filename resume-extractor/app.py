@@ -94,12 +94,14 @@ def process_resume(text, model):
     return education_table, skills_summary
 
 def main():
-    st.title("Resume Information Extractor")
+    st.title("Software Engineer Resume Information Extractor")
     
     # Setup API key configuration
     api_configured = initialize_gemini_api()
     if not api_configured:
-        st.info("Please enter your Google API key in the sidebar to proceed. You can get an API key from the Google Cloud Console.")
+        st.info("
+This Streamlit application analyzes resumes (PDF or DOCX format) using Google's Gemini LLM to extract and present key information in a structured format. It provides both educational background details and a comprehensive skills analysis focused on Python development and AI/ML capabilities.")
+        st.info("Please enter your Google API key in the sidebar and press enter to proceed. You can get an API key from the Google Cloud Console.")
         api_configured = setup_api_key()
         if not api_configured:
             st.stop()
