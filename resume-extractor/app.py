@@ -7,7 +7,7 @@ import os
 from io import BytesIO
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables (if available)
 load_dotenv()
 
 def initialize_gemini_api():
@@ -30,7 +30,7 @@ def setup_api_key():
     api_key_input = st.sidebar.text_input(
         "Enter your Google API Key",
         type="password",
-        help="Get your API key from Google Cloud Console",
+        help="Get your API key from Google Cloud Console. You can either set it in .env file or enter it here.",
         key="api_key_input"
     )
     
@@ -99,9 +99,9 @@ def main():
     # Setup API key configuration
     api_configured = initialize_gemini_api()
     if not api_configured:
+        st.info("Please enter your Google API key in the sidebar to proceed. You can get an API key from the Google Cloud Console.")
         api_configured = setup_api_key()
         if not api_configured:
-            st.warning("Please provide your Google API key in the sidebar to proceed")
             st.stop()
     
     try:
