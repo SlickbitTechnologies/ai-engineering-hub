@@ -10,14 +10,34 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini API
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-if not GOOGLE_API_KEY:
-    st.error("Please set your GOOGLE_API_KEY in the .env file")
-    st.stop()
+def initialize_gemini_api():
+    # Try to get API key from environment first
+    api_key = os.getenv('GOOGLE_API_KEY')
+    
+    # If no API key in environment, check session state
+    if not api_key and 'GOOGLE_API_KEY' in st.session_state:
+        api_key = st.session_state.GOOGLE_API_KEY
+    
+    if api_key:
+        genai.configure(api_key=api_key)
+        return True
+    return False
 
-genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+def setup_api_key():
+    st.sidebar.markdown("## API Configuration")
+    
+    # Add API key input in sidebar
+    api_key_input = st.sidebar.text_input(
+        "Enter your Google API Key",
+        type="password",
+        help="Get your API key from Google Cloud Console",
+        key="api_key_input"
+    )
+    
+    if api_key_input:
+        st.session_state.GOOGLE_API_KEY = api_key_input
+        return True
+    return False
 
 def extract_text_from_pdf(pdf_file):
     pdf_reader = PyPDF2.PdfReader(pdf_file)
@@ -33,7 +53,7 @@ def extract_text_from_docx(docx_file):
         text += paragraph.text + "\n"
     return text
 
-def process_resume(text):
+def process_resume(text, model):
     # Education information extraction
     education_prompt = f"""
     Extract education information from the following resume text and format it as a table.
@@ -74,8 +94,24 @@ def process_resume(text):
     return education_table, skills_summary
 
 def main():
-    st.title("Resume Education Information Extractor")
-    st.write("Upload a resume (PDF or DOCX) to extract education information")
+    st.title("Resume Information Extractor")
+    
+    # Setup API key configuration
+    api_configured = initialize_gemini_api()
+    if not api_configured:
+        api_configured = setup_api_key()
+        if not api_configured:
+            st.warning("Please provide your Google API key in the sidebar to proceed")
+            st.stop()
+    
+    try:
+        # Initialize model after API key is configured
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        st.error("Error initializing Gemini model. Please check your API key.")
+        st.stop()
+    
+    st.write("Upload a resume (PDF or DOCX) to extract information")
     
     uploaded_file = st.file_uploader("Choose a file", type=['pdf', 'docx'])
     
@@ -89,7 +125,7 @@ def main():
             
             # Process the resume
             with st.spinner("Processing resume..."):
-                education_table, skills_summary = process_resume(text)
+                education_table, skills_summary = process_resume(text, model)
                 
                 # Display the education table
                 st.markdown("### Education Information")
