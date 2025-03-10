@@ -94,14 +94,68 @@ def process_resume(text, model):
     return education_table, skills_summary
 
 def main():
-    st.title("Software Engineer Resume Information Extractor")
+    # Set page configuration
+    st.set_page_config(
+        page_title="Software Engineer Resume Analyzer",
+        page_icon="📝",
+        layout="wide"
+    )
+
+    # Add custom CSS
+    st.markdown("""
+        <style>
+        .main {
+            padding: 2rem;
+        }
+        .stTitle {
+            color: #2E4053;
+            font-size: 2.5rem !important;
+            padding-bottom: 2rem;
+        }
+        .info-box {
+            background-color: #F8F9FA;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+        .upload-section {
+            background-color: #F8F9FA;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-top: 2rem;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Main title with icon
+    st.markdown("<h1 style='text-align: center;'>📝 Software Engineer Resume Analyzer</h1>", unsafe_allow_html=True)
     
     # Setup API key configuration
     api_configured = initialize_gemini_api()
     if not api_configured:
-        st.info("
-This Streamlit application analyzes resumes (PDF or DOCX format) using Google's Gemini LLM to extract and present key information in a structured format. It provides both educational background details and a comprehensive skills analysis focused on Python development and AI/ML capabilities.")
-        st.info("Please enter your Google API key in the sidebar and press enter to proceed. You can get an API key from the Google Cloud Console.")
+        # Application description
+        st.markdown("""
+            <div class='info-box'>
+                <h3>Welcome to Resume Analyzer! 👋</h3>
+                <p>This application uses Google's Gemini LLM to analyze resumes and extract key information:</p>
+                <ul>
+                    <li>📚 Educational background details</li>
+                    <li>💻 Technical skills analysis</li>
+                    <li>🐍 Python development capabilities</li>
+                    <li>🤖 AI/ML expertise evaluation</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # API key instruction
+        st.markdown("""
+            <div class='info-box'>
+                <h4>🔑 API Key Required</h4>
+                <p>Please enter your Google API key in the sidebar to proceed. You can get an API key from the 
+                <a href='https://console.cloud.google.com/' target='_blank'>Google Cloud Console</a>.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
         api_configured = setup_api_key()
         if not api_configured:
             st.stop()
@@ -113,9 +167,12 @@ This Streamlit application analyzes resumes (PDF or DOCX format) using Google's 
         st.error("Error initializing Gemini model. Please check your API key.")
         st.stop()
     
-    st.write("Upload a resume (PDF or DOCX) to extract information")
-    
+    # File upload section with styling
+    st.markdown("<div class='upload-section'>", unsafe_allow_html=True)
+    st.markdown("### 📤 Upload Resume")
+    st.write("Upload your resume in PDF or DOCX format to get started")
     uploaded_file = st.file_uploader("Choose a file", type=['pdf', 'docx'])
+    st.markdown("</div>", unsafe_allow_html=True)
     
     if uploaded_file is not None:
         try:
@@ -126,16 +183,21 @@ This Streamlit application analyzes resumes (PDF or DOCX format) using Google's 
                 text = extract_text_from_docx(uploaded_file)
             
             # Process the resume
-            with st.spinner("Processing resume..."):
+            with st.spinner("🔄 Analyzing resume..."):
                 education_table, skills_summary = process_resume(text, model)
                 
+                # Create columns for results
+                col1, col2 = st.columns(2)
+                
                 # Display the education table
-                st.markdown("### Education Information")
-                st.markdown(education_table)
+                with col1:
+                    st.markdown("### 📚 Education Information")
+                    st.markdown(education_table)
                 
                 # Display the skills summary
-                st.markdown("### Skills Summary for Python/AI Development")
-                st.markdown(skills_summary)
+                with col2:
+                    st.markdown("### 💻 Skills Summary")
+                    st.markdown(skills_summary)
                 
                 # Convert markdown table to pandas DataFrame for download
                 try:
@@ -151,14 +213,17 @@ This Streamlit application analyzes resumes (PDF or DOCX format) using Google's 
                     
                     df = pd.DataFrame(data, columns=headers)
                     
-                    # Add download button
+                    # Add download button with styling
+                    st.markdown("<div style='text-align: center; padding: 2rem;'>", unsafe_allow_html=True)
                     csv = df.to_csv(index=False)
                     st.download_button(
-                        label="Download CSV",
+                        label="📥 Download Education Info (CSV)",
                         data=csv,
                         file_name="education_info.csv",
                         mime="text/csv"
                     )
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    
                 except Exception as e:
                     st.error(f"Error creating CSV: {str(e)}")
                     
