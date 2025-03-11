@@ -347,13 +347,20 @@ def main():
     # Initialize data variable
     data = None
 
-    # Check for API key
-    if not os.getenv('ANTHROPIC_API_KEY'):
-        st.error("Anthropic API Key not found. Please add your API key to the .env file.")
-        return
-
     # Move file upload to sidebar
     with st.sidebar:
+        st.header("Configuration")
+        
+        # API Key input
+        api_key = st.text_input("Anthropic API Key", type="password", value=os.getenv('ANTHROPIC_API_KEY', ''))
+        if api_key:
+            os.environ['ANTHROPIC_API_KEY'] = api_key
+            client = anthropic.Client(api_key=api_key)
+            st.success("API Key updated successfully!")
+        else:
+            st.error("Please enter your Anthropic API Key to continue")
+            return
+
         st.header("Upload Protocol")
         uploaded_file = st.file_uploader("Choose a PDF file", type=['pdf'])
         
