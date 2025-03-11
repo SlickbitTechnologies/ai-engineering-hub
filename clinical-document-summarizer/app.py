@@ -11,11 +11,22 @@ from docx import Document
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-# Load environment variables
+# Try to load from .env file for local development
 load_dotenv()
 
-# Configure API key
-client = anthropic.Client(api_key=os.getenv('ANTHROPIC_API_KEY'))
+def get_api_key():
+    """Get API key from environment variables or Streamlit secrets"""
+    # First try to get from Streamlit secrets (for cloud deployment)
+    try:
+        return st.secrets["ANTHROPIC_API_KEY"]
+    except:
+        # If not in secrets, try environment variable (for local development)
+        return os.getenv('ANTHROPIC_API_KEY', '')
+
+# Initialize API client
+api_key = get_api_key()
+if api_key:
+    client = anthropic.Client(api_key=api_key)
 
 # Define the Claude model to use
 CLAUDE_MODEL = "claude-3-5-haiku-20241022"  # Update this when newer versions are available
@@ -352,13 +363,14 @@ def main():
         st.header("Configuration")
         
         # API Key input
-        api_key = st.text_input("Anthropic API Key", type="password", value=os.getenv('ANTHROPIC_API_KEY', ''))
+        api_key = st.text_input("Anthropic API Key", type="password", value=get_api_key())
         if api_key:
             os.environ['ANTHROPIC_API_KEY'] = api_key
             client = anthropic.Client(api_key=api_key)
-            st.success("API Key updated successfully!")
+            st.success("API Key configured successfully!")
         else:
-            st.error("Please enter your Anthropic API Key to continue")
+            st.error("Please enter your Anthropic API Key to continue. You can get one from https://console.anthropic.com/")
+            st.info("For Streamlit Cloud deployment, add your API key in the secrets management section.")
             return
 
         st.header("Upload Protocol")
