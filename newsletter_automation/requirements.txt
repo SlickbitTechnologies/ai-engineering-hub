@@ -1,0 +1,6 @@
+streamlit
+python-dotenv
+google-generativeai
+beautifulsoup4
+requests
+secure-smtplib
