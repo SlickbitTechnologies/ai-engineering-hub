@@ -23,10 +23,11 @@ def get_api_key():
         # If not in secrets, try environment variable (for local development)
         return os.getenv('ANTHROPIC_API_KEY', '')
 
-# Initialize API client
-api_key = get_api_key()
-if api_key:
-    client = anthropic.Client(api_key=api_key)
+def initialize_client(api_key):
+    """Initialize Anthropic client with the provided API key"""
+    if api_key:
+        return anthropic.Client(api_key=api_key)
+    return None
 
 # Define the Claude model to use
 CLAUDE_MODEL = "claude-3-5-haiku-20241022"  # Update this when newer versions are available
@@ -357,21 +358,40 @@ def main():
 
     # Initialize data variable
     data = None
-
+    
     # Move file upload to sidebar
     with st.sidebar:
         st.header("Configuration")
         
-        # API Key input
-        api_key = st.text_input("Anthropic API Key", type="password", value=get_api_key())
+        # Get initial API key
+        initial_api_key = get_api_key()
+        
+        # API Key input field
+        api_key = st.text_input(
+            "Anthropic API Key", 
+            type="password",
+            value=initial_api_key,
+            help="Enter your Anthropic API key. For Streamlit Cloud deployment, set this in your app's secrets."
+        )
+
+        # Initialize or update client
         if api_key:
-            os.environ['ANTHROPIC_API_KEY'] = api_key
-            client = anthropic.Client(api_key=api_key)
-            st.success("API Key configured successfully!")
+            try:
+                global client
+                client = initialize_client(api_key)
+                if client:
+                    st.success("✅ API Key configured successfully!")
+                else:
+                    st.error("❌ Invalid API Key format")
+                    st.stop()
+            except Exception as e:
+                st.error(f"❌ Error initializing client: {str(e)}")
+                st.stop()
         else:
-            st.error("Please enter your Anthropic API Key to continue. You can get one from https://console.anthropic.com/")
-            st.info("For Streamlit Cloud deployment, add your API key in the secrets management section.")
-            return
+            st.error("❌ Please provide your Anthropic API Key")
+            st.info("💡 You can get an API key from [Anthropic Console](https://console.anthropic.com)")
+            st.info("📝 For Streamlit Cloud: Add your API key in Settings → Secrets")
+            st.stop()
 
         st.header("Upload Protocol")
         uploaded_file = st.file_uploader("Choose a PDF file", type=['pdf'])
