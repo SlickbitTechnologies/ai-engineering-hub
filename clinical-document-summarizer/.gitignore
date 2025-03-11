@@ -41,4 +41,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
-*.log 
+*.log
+
+# Streamlit secrets
+.streamlit/secrets.toml 

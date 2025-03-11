@@ -32,6 +32,9 @@ def initialize_client(api_key):
 # Define the Claude model to use
 CLAUDE_MODEL = "claude-3-5-haiku-20241022"  # Update this when newer versions are available
 
+# Initialize client variable
+client = None
+
 def extract_text_from_pdf(pdf_file):
     """Extract text from uploaded PDF file with better formatting"""
     pdf_reader = PdfReader(pdf_file)
