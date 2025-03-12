@@ -1,492 +1,312 @@
 import streamlit as st
 import anthropic
+import google.generativeai as genai
 import os
-from dotenv import load_dotenv
-from PyPDF2 import PdfReader
-from fpdf import FPDF
+import fitz  # PyMuPDF
 import json
-import tempfile
-from fpdf.enums import XPos, YPos
 from docx import Document
-from docx.shared import Inches, Pt
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from dotenv import load_dotenv
+from fpdf import FPDF
+import tempfile
 
-# Try to load from .env file for local development
-load_dotenv()
-
-def get_api_key():
-    """Get API key from environment variables or Streamlit secrets"""
-    # First try to get from Streamlit secrets (for cloud deployment)
+# Load API keys from environment variables or secrets
+def get_api_keys():
+    """Get API keys from environment variables or Streamlit secrets"""
     try:
-        return st.secrets["ANTHROPIC_API_KEY"]
+        anthropic_key = st.secrets["ANTHROPIC_API_KEY"]
+        gemini_key = st.secrets["GEMINI_API_KEY"]
     except:
-        # If not in secrets, try environment variable (for local development)
-        return os.getenv('ANTHROPIC_API_KEY', '')
+        load_dotenv()
+        anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+        gemini_key = os.getenv("GEMINI_API_KEY", "")
+    return anthropic_key, gemini_key
 
-def initialize_client(api_key):
-    """Initialize Anthropic client with the provided API key"""
-    if api_key:
-        return anthropic.Client(api_key=api_key)
-    return None
+# Initialize AI clients
+def initialize_clients(anthropic_key, gemini_key):
+    """Initialize both Anthropic and Gemini clients"""
+    try:
+        anthropic_client = anthropic.Client(api_key=anthropic_key) if anthropic_key else None
+        if gemini_key:
+            genai.configure(api_key=gemini_key)
+            gemini_client = genai.GenerativeModel("gemini-1.5-pro")
+        else:
+            gemini_client = None
+        return anthropic_client, gemini_client
+    except Exception as e:
+        st.error(f"Error initializing clients: {str(e)}")
+        return None, None
 
-# Define the Claude model to use
-CLAUDE_MODEL = "claude-3-5-haiku-20241022"  # Update this when newer versions are available
-
-# Initialize client variable
-client = None
-
-def extract_text_from_pdf(pdf_file):
-    """Extract text from uploaded PDF file with better formatting"""
-    pdf_reader = PdfReader(pdf_file)
+# Extract text from PDF using PyMuPDF
+def extract_text_from_pdf(uploaded_file):
+    """Extract text from an uploaded PDF file"""
     text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text() + "\n"
-    return text
+    try:
+        # Create a temporary file to store the uploaded content
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+            # Write the uploaded file content to the temporary file
+            tmp_file.write(uploaded_file.getvalue())
+            tmp_file.flush()
+            
+            # Open the temporary file with PyMuPDF
+            with fitz.open(tmp_file.name) as doc:
+                for page in doc:
+                    text += page.get_text("text") + "\n"
+            
+            # Delete the temporary file
+            os.unlink(tmp_file.name)
+            
+        return text.strip()
+    except Exception as e:
+        st.error(f"Error extracting text from PDF: {str(e)}")
+        return ""
 
-def parse_document_with_claude(text):
-    """Use Claude to parse and structure the document with improved prompting"""
+# Use Gemini 1.5 Pro to parse the full document
+def parse_document_with_gemini(text, gemini_client):
     prompt = f"""
-    Analyze this clinical protocol document and extract key information in JSON format.
-    Return ONLY a valid JSON object with the following structure, no other text:
-    {{
-        "study_title": "string",
-        "clinical_phase": "string",
-        "study_objectives": {{
-            "primary": "string",
-            "secondary": "string",
-            "exploratory": "string"
-        }},
-        "study_rationale": "string",
-        "study_population": "string",
-        "inclusion_exclusion_criteria": "string",
-        "primary_endpoints": "string",
-        "secondary_exploratory_endpoints": "string",
-        "study_design": "string",
-        "subject_number": "string",
-        "treatment_duration": "string",
-        "duration_of_follow_up": "string",
-        "dose_levels": "string",
-        "route_of_delivery": "string",
-        "data_safety_monitoring": "string",
-        "stopping_rules": "string",
-        "immune_monitoring": "string",
-        "supporting_studies": "string",
-        "assays_methodologies": "string",
-        "statistical_analysis": "string",
-        "outcome_criteria": "string",
-        "risks": "string",
-        "clinical_sites": "string",
-        "clinical_operations": "string",
-        "enrollment": "string",
-        "long_term_follow_up": "string",
-        "timeline": "string"
-    }}
-
-    Use "Not specified" if information is not found.
-    Format lists as comma-separated strings.
-    Avoid newlines in values.
-
-    Document text:
+    Analyze this clinical protocol document and extract its complete content.
+    Maintain all the important details, context, and relationships between different sections.
+    Format the response as detailed text that preserves the document's information and structure.
+    
+    Document:
     {text}
     """
-    
     try:
-        message = client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=4000,
-            temperature=0.0,
-            system="You are a clinical protocol analyzer. Return only valid JSON without any markdown formatting or additional text.",
-            messages=[{
-                "role": "user",
-                "content": prompt
-            }]
-        )
-        
-        # Get the response text
-        if not message.content or not message.content[0].text:
-            raise ValueError("Empty response from Claude")
-            
-        response_text = message.content[0].text.strip()
-        
-        # Remove any markdown formatting if present
-        if response_text.startswith("```"):
-            response_text = response_text.split("```")[1]
-            if response_text.startswith("json"):
-                response_text = response_text[4:]
-        response_text = response_text.strip()
-        
-        # Parse the JSON response
-        try:
-            parsed_data = json.loads(response_text)
-        except json.JSONDecodeError:
-            st.error("Failed to parse JSON response. Raw response:")
-            st.code(response_text)
-            raise
-        
-        # Validate required keys
-        required_keys = [
-            "study_title", "clinical_phase", "study_objectives", "study_rationale",
-            "study_population", "inclusion_exclusion_criteria", "primary_endpoints",
-            "secondary_exploratory_endpoints", "study_design", "subject_number",
-            "treatment_duration", "duration_of_follow_up", "dose_levels",
-            "route_of_delivery", "data_safety_monitoring", "stopping_rules",
-            "immune_monitoring", "supporting_studies", "assays_methodologies",
-            "statistical_analysis", "outcome_criteria", "risks", "clinical_sites",
-            "clinical_operations", "enrollment", "long_term_follow_up", "timeline"
-        ]
-        
-        # Ensure all required keys exist
-        for key in required_keys:
-            if key not in parsed_data:
-                parsed_data[key] = "Not specified"
-            elif not parsed_data[key]:
-                parsed_data[key] = "Not specified"
-        
-        return parsed_data
-        
-    except json.JSONDecodeError as e:
-        st.error(f"Error parsing JSON response: {str(e)}")
-        return None
+        response = gemini_client.generate_content(prompt)
+        return response.text, None
     except Exception as e:
-        st.error(f"An error occurred while parsing the document: {str(e)}")
-        return None
+        return None, str(e)
 
-def summarize_with_claude(section_content, section_name):
-    """Use Claude to generate concise summaries with context-aware prompting"""
-    if not section_content or section_content == "Not specified":
-        return "Not specified"
-        
+# Use Claude to parse the full document
+def parse_document_with_claude(text, claude_client):
     prompt = f"""
-    Create a clear and concise summary of this {section_name} section from a clinical protocol.
+    Analyze this clinical protocol document and extract its complete content.
+    Maintain all the important details, context, and relationships between different sections.
+    Format the response as detailed text that preserves the document's information and structure.
+    
+    Document:
+    {text}
+    """
+    try:
+        response = claude_client.messages.create(
+            model="claude-3-5-haiku-20241022",
+            max_tokens=4000,
+            temperature=0.1,
+            system="You are a clinical protocol analyst. Extract and structure the complete document content.",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.content[0].text.strip(), None
+    except Exception as e:
+        return None, str(e)
+
+# Parse document with fallback
+def parse_document(text, gemini_client, claude_client):
+    """Parse document using Gemini first, falling back to Claude if Gemini fails"""
+    
+    # Try Gemini first
+    if gemini_client:
+        st.info("🔄 Attempting to parse with Gemini...")
+        content, error = parse_document_with_gemini(text, gemini_client)
+        if content:
+            st.success("✅ Document parsed successfully with Gemini")
+            return content
+        else:
+            st.warning(f"⚠️ Gemini parsing failed: {error}")
+    
+    # Fall back to Claude
+    if claude_client:
+        st.info("🔄 Falling back to Claude for parsing...")
+        content, error = parse_document_with_claude(text, claude_client)
+        if content:
+            st.success("✅ Document parsed successfully with Claude")
+            return content
+        else:
+            st.error(f"❌ Claude parsing failed: {error}")
+    
+    # If both fail, return original text
+    st.error("❌ Both parsing attempts failed. Using original text.")
+    return text
+
+# Use Claude to extract and format specific fields
+def extract_field_with_claude(parsed_content, field_title, field_description, anthropic_client):
+    prompt = f"""
+    You are analyzing a clinical study protocol. For the field specified below, extract and summarize the most relevant information from the parsed document.
+    
+    Field Title: {field_title}
+    Expected Content: {field_description}
     
     Guidelines:
-    - Keep critical information
-    - Use professional medical language
-    - Format in clear paragraphs
-    - Maintain list format for criteria
-    - Be concise but complete
+    1. Focus specifically on content relevant to this field
+    2. Provide comprehensive but concise information
+    3. Maintain professional medical terminology
+    4. Include all relevant details and context
+    5. Format the response in clear, readable paragraphs
     
-    Content to summarize:
-    {section_content}
+    Parsed Document Content:
+    {parsed_content}
     """
     
     try:
-        message = client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=2000,
-            temperature=0.3,
-            system="You are a clinical protocol summarizer. Create clear, professional summaries.",
-            messages=[{
-                "role": "user",
-                "content": prompt
-            }]
+        response = anthropic_client.messages.create(
+            model="claude-3-5-haiku-20241022",
+            max_tokens=1000,
+            temperature=0.1,
+            system="You are a clinical protocol analyst. Extract and format relevant information for the specified field.",
+            messages=[{"role": "user", "content": prompt}]
         )
-        
-        if not message.content or not message.content[0].text:
-            return "Error: No summary generated"
-            
-        summary = message.content[0].text.strip()
-        return summary if summary else "Not specified"
-        
+        content = response.content[0].text.strip()
+        return content if content else "No relevant information found for this field."
     except Exception as e:
-        st.error(f"Error generating summary for {section_name}: {str(e)}")
-        return "Error generating summary"
+        st.error(f"Error extracting field with Claude: {str(e)}")
+        return f"Error processing {field_title}: {str(e)}"
 
-def clean_text_for_pdf(text):
-    """Clean text to handle special characters"""
-    if not text:
-        return "Not specified"
-    # Replace problematic characters with their closest ASCII equivalents
-    replacements = {
-        '≥': '>=',
-        '≤': '<=',
-        '±': '+/-',
-        '×': 'x',
-        '°': 'deg',
-        '–': '-',
-        '—': '-',
-        '"': '"',
-        '"': '"',
-        ''': "'",
-        ''': "'",
-        '…': '...',
-        '•': '*'
-    }
-    for old, new in replacements.items():
-        text = text.replace(old, new)
-    return text
-
-def generate_pdf_summary(data):
-    """Generate PDF summary with better space handling"""
-    class PDF(FPDF):
-        def header(self):
-            self.set_font('Helvetica', 'B', 16)
-            self.cell(0, 10, "CLINICAL PROTOCOL SYNOPSIS", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
-            self.ln(10)
-
-    # Create PDF with A4 format
-    pdf = PDF(format='A4')
-    
-    # Set margins (left, top, right)
-    pdf.set_margins(25, 25, 25)
-    
-    # Set font
-    pdf.set_font('Helvetica', size=12)
-    
-    # Add first page
-    pdf.add_page()
-    
-    # Enable auto page break
-    pdf.set_auto_page_break(auto=True, margin=15)
-    
-    # Protocol Information Section
-    sections = [
-        ("STUDY TITLE", data["study_title"]),
-        ("CLINICAL PHASE", data["clinical_phase"]),
-        ("STUDY OBJECTIVES", f"Primary Objectives:\n{data['study_objectives']['primary']}\n\nSecondary Objectives:\n{data['study_objectives']['secondary']}\n\nExploratory Objectives:\n{data['study_objectives']['exploratory']}"),
-        ("STUDY RATIONALE", data["study_rationale"]),
-        ("STUDY POPULATION", data["study_population"]),
-        ("MAIN INCLUSION/EXCLUSION CRITERIA", data["inclusion_exclusion_criteria"]),
-        ("PRIMARY ENDPOINT(S)", data["primary_endpoints"]),
-        ("SECONDARY & EXPLORATORY ENDPOINTS", data["secondary_exploratory_endpoints"]),
-        ("STUDY DESIGN", data["study_design"]),
-        ("SUBJECT NUMBER", data["subject_number"]),
-        ("TREATMENT DURATION", data["treatment_duration"]),
-        ("DURATION OF FOLLOW UP", data["duration_of_follow_up"]),
-        ("DOSE LEVEL(S) AND DOSE JUSTIFICATION", data["dose_levels"]),
-        ("ROUTE OF DELIVERY", data["route_of_delivery"]),
-        ("DATA AND SAFETY MONITORING PLAN (DSMP)", data["data_safety_monitoring"]),
-        ("STOPPING RULES", data["stopping_rules"]),
-        ("IMMUNE MONITORING & IMMUNOSUPPRESSION", data["immune_monitoring"]),
-        ("SUPPORTING STUDIES", data["supporting_studies"]),
-        ("ASSAYS/METHODOLOGIES", data["assays_methodologies"]),
-        ("STATISTICAL ANALYSIS PLAN", data["statistical_analysis"]),
-        ("OUTCOME CRITERIA", data["outcome_criteria"]),
-        ("RISKS", data["risks"]),
-        ("CLINICAL SITES", data["clinical_sites"]),
-        ("CLINICAL OPERATIONS", data["clinical_operations"]),
-        ("ENROLLMENT", data["enrollment"]),
-        ("LONG TERM FOLLOW UP", data["long_term_follow_up"]),
-        ("TIMELINE", data["timeline"])
-    ]
-    
-    for section_title, content in sections:
-        # Section Title
-        pdf.set_font('Helvetica', 'B', 12)
-        pdf.cell(0, 10, section_title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        
-        # Section Content - clean the text before adding to PDF
-        pdf.set_font('Helvetica', '', 11)
-        cleaned_content = clean_text_for_pdf(content)
-        
-        # Split content into paragraphs
-        paragraphs = cleaned_content.split('\n')
-        
-        for paragraph in paragraphs:
-            if paragraph.strip():
-                # Handle long paragraphs by breaking them into smaller chunks
-                words = paragraph.split()
-                current_line = []
-                for word in words:
-                    current_line.append(word)
-                    if len(' '.join(current_line)) > 60:  # Further reduced line length
-                        pdf.multi_cell(0, 8, ' '.join(current_line[:-1]))
-                        current_line = [word]
-                if current_line:
-                    pdf.multi_cell(0, 8, ' '.join(current_line))
-                pdf.ln(5)
-        
-        pdf.ln(5)
-    
-    return pdf
-
-def generate_docx_summary(data):
-    """Generate DOCX summary"""
+# Generate DOCX summary
+def generate_docx_summary(extracted_fields, output_path="summary.docx"):
     doc = Document()
+    doc.add_heading("Clinical Study Summary", level=1)
     
-    # Add title
-    title = doc.add_heading('CLINICAL PROTOCOL SYNOPSIS', 0)
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    for field_title, content in extracted_fields.items():
+        doc.add_heading(field_title, level=2)
+        doc.add_paragraph(content)
     
-    sections = [
-        ("STUDY TITLE", data["study_title"]),
-        ("CLINICAL PHASE", data["clinical_phase"]),
-        ("STUDY OBJECTIVES", data["study_objectives"]),
-        ("STUDY RATIONALE", data["study_rationale"]),
-        ("STUDY POPULATION", data["study_population"]),
-        ("MAIN INCLUSION/EXCLUSION CRITERIA", data["inclusion_exclusion_criteria"]),
-        ("PRIMARY ENDPOINT(S)", data["primary_endpoints"]),
-        ("SECONDARY & EXPLORATORY ENDPOINTS", data["secondary_exploratory_endpoints"]),
-        ("STUDY DESIGN", data["study_design"]),
-        ("SUBJECT NUMBER", data["subject_number"]),
-        ("TREATMENT DURATION", data["treatment_duration"]),
-        ("DURATION OF FOLLOW UP", data["duration_of_follow_up"]),
-        ("DOSE LEVEL(S) AND DOSE JUSTIFICATION", data["dose_levels"]),
-        ("ROUTE OF DELIVERY", data["route_of_delivery"]),
-        ("DATA AND SAFETY MONITORING PLAN (DSMP)", data["data_safety_monitoring"]),
-        ("STOPPING RULES", data["stopping_rules"]),
-        ("IMMUNE MONITORING & IMMUNOSUPPRESSION", data["immune_monitoring"]),
-        ("SUPPORTING STUDIES", data["supporting_studies"]),
-        ("ASSAYS/METHODOLOGIES", data["assays_methodologies"]),
-        ("STATISTICAL ANALYSIS PLAN", data["statistical_analysis"]),
-        ("OUTCOME CRITERIA", data["outcome_criteria"]),
-        ("RISKS", data["risks"]),
-        ("CLINICAL SITES", data["clinical_sites"]),
-        ("CLINICAL OPERATIONS", data["clinical_operations"]),
-        ("ENROLLMENT", data["enrollment"]),
-        ("LONG TERM FOLLOW UP", data["long_term_follow_up"]),
-        ("TIMELINE", data["timeline"])
-    ]
-    
-    for section_title, content in sections:
-        # Add section heading
-        heading = doc.add_heading(section_title, level=1)
-        heading.style.font.size = Pt(12)
-        heading.style.font.bold = True
-        
-        # Add content
-        paragraph = doc.add_paragraph()
-        paragraph.add_run(content if content else "Not specified")
-        
-        # Add spacing after section
-        doc.add_paragraph()
-    
-    return doc
+    doc.save(output_path)
+    return output_path
 
+# Main execution
 def main():
     st.set_page_config(page_title="Clinical Protocol Summary Generator", layout="wide")
     
     st.title("Clinical Protocol Summary Generator")
     st.write("Upload a clinical study protocol document to generate a summarized version")
 
-    # Initialize data variable
-    data = None
-    
-    # Move file upload to sidebar
+    # Configuration in sidebar
     with st.sidebar:
         st.header("Configuration")
         
-        # Get initial API key
-        initial_api_key = get_api_key()
+        # Get API keys
+        anthropic_key, gemini_key = get_api_keys()
         
-        # API Key input field
-        api_key = st.text_input(
+        # API Key input fields
+        new_anthropic_key = st.text_input(
             "Anthropic API Key", 
             type="password",
-            value=initial_api_key,
-            help="Enter your Anthropic API key. For Streamlit Cloud deployment, set this in your app's secrets."
+            value=anthropic_key,
+            help="Enter your Anthropic API key"
         )
-
-        # Initialize or update client
-        if api_key:
-            try:
-                global client
-                client = initialize_client(api_key)
-                if client:
-                    st.success("✅ API Key configured successfully!")
-                else:
-                    st.error("❌ Invalid API Key format")
-                    st.stop()
-            except Exception as e:
-                st.error(f"❌ Error initializing client: {str(e)}")
-                st.stop()
-        else:
-            st.error("❌ Please provide your Anthropic API Key")
-            st.info("💡 You can get an API key from [Anthropic Console](https://console.anthropic.com)")
-            st.info("📝 For Streamlit Cloud: Add your API key in Settings → Secrets")
+        
+        new_gemini_key = st.text_input(
+            "Gemini API Key",
+            type="password",
+            value=gemini_key,
+            help="Enter your Gemini API key"
+        )
+        
+        # Update API keys if changed
+        anthropic_key = new_anthropic_key if new_anthropic_key else anthropic_key
+        gemini_key = new_gemini_key if new_gemini_key else gemini_key
+        
+        # Initialize clients
+        anthropic_client, gemini_client = initialize_clients(anthropic_key, gemini_key)
+        
+        # Check if at least one API key is available
+        if not anthropic_key and not gemini_key:
+            st.error("❌ At least one API key is required")
+            st.info("💡 Get your API keys from:")
+            st.info("• Anthropic: [Console](https://console.anthropic.com)")
+            st.info("• Google: [AI Studio](https://makersuite.google.com/app/apikey)")
             st.stop()
-
-        st.header("Upload Protocol")
-        uploaded_file = st.file_uploader("Choose a PDF file", type=['pdf'])
+        elif not anthropic_client and not gemini_client:
+            st.error("❌ Error initializing AI clients")
+            st.stop()
+        else:
+            available_services = []
+            if anthropic_client:
+                available_services.append("Claude")
+            if gemini_client:
+                available_services.append("Gemini")
+            st.success(f"✅ Available services: {', '.join(available_services)}")
         
-        if uploaded_file is not None:
-            if st.button("Process Document"):
-                with st.spinner("Processing document..."):
-                    # Extract text from PDF
-                    text = extract_text_from_pdf(uploaded_file)
-                    
-                    # Parse document structure
-                    with st.spinner("Analyzing document structure..."):
-                        data = parse_document_with_claude(text)
-                    
-                    if data:
-                        st.success("Document processed successfully!")
-                        
-                        # Generate DOCX summary
-                        doc = generate_docx_summary(data)
-                        
-                        # Save the document
-                        doc_path = "protocol_summary.docx"
-                        doc.save(doc_path)
-                        
-                        # Provide download button
-                        with open(doc_path, "rb") as file:
-                            st.download_button(
-                                label="Download Summary",
-                                data=file,
-                                file_name="protocol_summary.docx",
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                            )
-                        
-                        # Store data in session state
-                        st.session_state['protocol_data'] = data
-                    else:
-                        st.error("Failed to parse document structure. Please try again.")
-
-    # Main content area - only show if data is available
-    if 'protocol_data' in st.session_state:
-        data = st.session_state['protocol_data']
-        st.header("Document Analysis")
+        # File uploader
+        uploaded_file = st.file_uploader("Upload Clinical Protocol PDF", type=["pdf"])
+    
+    if uploaded_file and st.button("Process Document"):
+        try:
+            with st.spinner("📄 Extracting text from PDF..."):
+                pdf_text = extract_text_from_pdf(uploaded_file)
+                if not pdf_text:
+                    st.error("❌ Could not extract text from PDF")
+                    st.stop()
+            
+            # Parse document with fallback
+            parsed_content = parse_document(pdf_text, gemini_client, anthropic_client)
+            if not parsed_content:
+                st.error("❌ Could not parse document with any available service")
+                st.stop()
+            
+            # Define fields to extract
+            field_definitions = {
+                "STUDY TITLE": "Provide full title of the study",
+                "CLINICAL PHASE": "Specify clinical phase (1, 2a)",
+                "STUDY OBJECTIVES": "Provide a brief description of the study objectives, including primary, secondary, and exploratory objectives.",
+                "STUDY RATIONALE": "Summarize the rationale for testing the proposed therapy.",
+                "STUDY POPULATION": "Briefly describe the study population and explain the rationale for choosing this population.",
+                "MAIN INCLUSION/EXCLUSION CRITERIA": "Specify the main inclusion/exclusion criteria and explain the rationale.",
+                "PRIMARY ENDPOINT(S)": "Describe the Primary Endpoint(s) and the set of measurements used to address the objectives.",
+                "SECONDARY & EXPLORATORY ENDPOINTS": "Describe the Secondary & Exploratory Endpoint(s) and measures that will address them.",
+                "STUDY DESIGN": "Summarize the study design, including type of study, number of arms, controls or comparators.",
+                "SUBJECT NUMBER": "Provide the total number of study subjects, the number per study arm, and justification.",
+                "TREATMENT DURATION": "Specify the length of the treatment period.",
+                "DURATION OF FOLLOW UP": "Specify the length of the protocol-specified follow-up period.",
+                "DOSE LEVEL(S) AND DOSE JUSTIFICATION": "Specify the dose level(s), number of doses, and dosing frequency. Summarize how dosing was determined.",
+                "ROUTE OF DELIVERY": "Specify how the doses will be delivered.",
+                "DATA and SAFETY MONITORING PLAN": "Summarize the Data and Safety Monitoring Plan.",
+                "STOPPING RULES": "Specify stopping rules.",
+                "IMMUNE MONITORING & IMMUNOSUPPRESSION": "Describe and justify the plan for immunosuppression and immune monitoring (if applicable).",
+                "SUPPORTING STUDIES": "Summarize supporting studies that are part of this clinical study.",
+                "ASSAYS/METHODOLOGIES": "Briefly describe any specialized assays or methodologies that will be used in this clinical study.",
+                "STATISTICAL ANALYSIS PLAN": "Summarize the Statistical Analysis Plan or describe how the data will be analyzed.",
+                "OUTCOME CRITERIA": "Describe criteria that would define whether you would or would not move forward with the subsequent development plan.",
+                "RISKS": "Identify potential risks and mitigation strategies.",
+                "CLINICAL SITES": "Indicate the number of clinical sites that will participate in the study.",
+                "CLINICAL OPERATIONS PLAN": "Summarize the plan for managing the conduct of the clinical study.",
+                "ENROLLMENT": "Describe the enrollment strategy and provide a timeline showing enrollment projections. Describe plans for inclusion of women and minorities.",
+                "LONG TERM FOLLOW UP": "Describe requirements and plans for long term follow up and indicate how these will be supported.",
+                "TIMELINE": "Provide a timeline for completion of the study and indicate relevant milestones."
+            }
+            
+            # Extract fields with progress tracking
+            extracted_fields = {}
+            progress_bar = st.progress(0)
+            total_fields = len(field_definitions)
+            
+            for i, (field_title, field_desc) in enumerate(field_definitions.items()):
+                with st.spinner(f"📝 Analyzing {field_title}..."):
+                    extracted_fields[field_title] = extract_field_with_claude(
+                        parsed_content, field_title, field_desc, anthropic_client
+                    )
+                progress_bar.progress((i + 1) / total_fields)
+            
+            st.success("✅ Document processed successfully!")
+            
+            # Display results in an expandable section
+            with st.expander("View Extracted Information", expanded=True):
+                for field_title, content in extracted_fields.items():
+                    st.subheader(field_title)
+                    st.write(content)
+            
+            # Generate and provide download for DOCX
+            with st.spinner("📑 Generating DOCX summary..."):
+                doc_path = generate_docx_summary(extracted_fields)
+            
+            with open(doc_path, "rb") as file:
+                st.download_button(
+                    "📄 Download Summary (DOCX)",
+                    file,
+                    file_name="protocol_summary.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
         
-        # Display sections in a grid layout
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Study Information")
-            st.write("**Study Title:**", data.get("study_title", "Not specified"))
-            st.write("**Clinical Phase:**", data.get("clinical_phase", "Not specified"))
-            st.write("**Study Population:**", data.get("study_population", "Not specified"))
-            st.write("**Subject Number:**", data.get("subject_number", "Not specified"))
-            
-            st.subheader("Study Design")
-            st.write("**Study Design:**", data.get("study_design", "Not specified"))
-            st.write("**Treatment Duration:**", data.get("treatment_duration", "Not specified"))
-            st.write("**Follow-up Duration:**", data.get("duration_of_follow_up", "Not specified"))
-            st.write("**Route of Delivery:**", data.get("route_of_delivery", "Not specified"))
-            
-            st.subheader("Endpoints")
-            st.write("**Primary Endpoints:**", data.get("primary_endpoints", "Not specified"))
-            st.write("**Secondary and Exploratory Endpoints:**", data.get("secondary_exploratory_endpoints", "Not specified"))
-            
-            st.subheader("Safety and Monitoring")
-            st.write("**Data and Safety Monitoring Plan:**", data.get("data_safety_monitoring", "Not specified"))
-            st.write("**Stopping Rules:**", data.get("stopping_rules", "Not specified"))
-            st.write("**Immune Monitoring and Immunosuppression:**", data.get("immune_monitoring", "Not specified"))
-            st.write("**Risks:**", data.get("risks", "Not specified"))
-        
-        with col2:
-            st.subheader("Objectives and Rationale")
-            st.write("**Study Objectives:**", data.get("study_objectives", "Not specified"))
-            st.write("**Study Rationale:**", data.get("study_rationale", "Not specified"))
-            
-            st.subheader("Criteria")
-            st.write("**Main Inclusion/Exclusion Criteria:**", data.get("inclusion_exclusion_criteria", "Not specified"))
-            st.write("**Outcome Criteria:**", data.get("outcome_criteria", "Not specified"))
-            
-            st.subheader("Dosing and Analysis")
-            st.write("**Dose Levels and Dose Justification:**", data.get("dose_levels", "Not specified"))
-            st.write("**Statistical Analysis Plan:**", data.get("statistical_analysis", "Not specified"))
-            
-            st.subheader("Operations")
-            st.write("**Clinical Sites:**", data.get("clinical_sites", "Not specified"))
-            st.write("**Clinical Operations Plan:**", data.get("clinical_operations", "Not specified"))
-            st.write("**Enrollment:**", data.get("enrollment", "Not specified"))
-            st.write("**Long Term Follow Up:**", data.get("long_term_follow_up", "Not specified"))
-            st.write("**Timeline:**", data.get("timeline", "Not specified"))
-            
-            st.subheader("Supporting Information")
-            st.write("**Supporting Studies:**", data.get("supporting_studies", "Not specified"))
-            st.write("**Assays/Methodologies:**", data.get("assays_methodologies", "Not specified"))
+        except Exception as e:
+            st.error(f"❌ An error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    main() 
+    main()
