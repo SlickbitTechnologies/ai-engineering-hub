@@ -9,10 +9,14 @@ import {
   TextField,
   IconButton,
   Tooltip,
-  CircularProgress,
+  Skeleton,
   Snackbar,
   Alert,
   MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
+  Fade,
 } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -210,7 +214,106 @@ function FileUploadZone({ title, description, icon, onUpload, onDelete, file, ac
   );
 }
 
-export default function Settings() {
+const LoadingSkeleton = () => (
+  <Box
+    sx={{
+      minHeight: '100vh',
+      p: 3,
+      bgcolor: '#1A1B2E',
+    }}
+  >
+    <Fade in={true}>
+      <Paper
+        elevation={0}
+        sx={{
+          maxWidth: 1200,
+          mx: 'auto',
+          bgcolor: '#242642',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: 3,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Tabs Skeleton */}
+        <Box sx={{ borderBottom: 1, borderColor: 'rgba(255, 255, 255, 0.1)', p: 1 }}>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            {[1, 2].map((tab) => (
+              <Skeleton
+                key={tab}
+                variant="rounded"
+                width={100}
+                height={40}
+                sx={{ bgcolor: 'rgba(255, 255, 255, 0.1)' }}
+              />
+            ))}
+          </Box>
+        </Box>
+
+        <Box sx={{ p: 3 }}>
+          {/* Title Skeleton */}
+          <Skeleton
+            variant="text"
+            width={250}
+            height={40}
+            sx={{ 
+              mb: 3,
+              bgcolor: 'rgba(255, 255, 255, 0.1)',
+            }}
+          />
+
+          {/* Form Fields Skeleton */}
+          {[1, 2].map((field) => (
+            <Skeleton
+              key={field}
+              variant="rounded"
+              width="100%"
+              height={56}
+              sx={{ 
+                mb: 2,
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+              }}
+            />
+          ))}
+
+          {/* Button Skeleton */}
+          <Skeleton
+            variant="rounded"
+            width={120}
+            height={40}
+            sx={{ 
+              mt: 2,
+              bgcolor: 'rgba(255, 255, 255, 0.1)',
+            }}
+          />
+
+          {/* Content Section Skeleton */}
+          <Box sx={{ mt: 4 }}>
+            <Skeleton
+              variant="rounded"
+              width="100%"
+              height={48}
+              sx={{ 
+                mb: 3,
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+              }}
+            />
+
+            <Skeleton
+              variant="rounded"
+              width="100%"
+              height={300}
+              sx={{ 
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+              }}
+            />
+          </Box>
+        </Box>
+      </Paper>
+    </Fade>
+  </Box>
+);
+
+const Settings = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [activeFileTab, setActiveFileTab] = useState(0);
   const { user } = useAuth();
@@ -392,316 +495,305 @@ export default function Settings() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <Box sx={{ 
-        p: 3, 
-        display: 'flex', 
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: 'calc(100vh - 64px)',
-      }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
   return (
     <>
-      <AppBar  />
-      <Box sx={{ 
-        width: '100%', 
-        p: 4,
-        backgroundColor: 'rgba(10, 24, 40, 0.02)',
-        minHeight: 'calc(100vh - 64px)',
-      }}>
-        <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-          <Box sx={{ 
-            borderRadius: '16px',
-            backgroundColor: '#ffffff',
-            width: 'fit-content',
-            padding: '6px',
-            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
-            mb: 3,
-          }}>
-            <Tabs 
-              value={activeTab} 
-              onChange={(_, newValue) => setActiveTab(newValue)}
-              sx={{
-                '& .MuiTab-root': {
-                  minWidth: '180px',
-                  borderRadius: '12px',
-                  textTransform: 'none',
-                  color: '#666666',
-                  fontSize: '15px',
-                  fontWeight: 500,
-                  py: 1.5,
-                  '&.Mui-selected': {
-                    color: '#007AFF',
-                    backgroundColor: '#f0f9ff',
-                  },
-                },
-                '& .MuiTabs-indicator': {
-                  display: 'none',
-                },
-              }}
-            >
-              <Tab label="Profile" />
-              <Tab label="Content" />
-            </Tabs>
-          </Box>
-
-          <TabPanel value={activeTab} index={0}>
-            <Box sx={{ maxWidth: 600 }}>
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                mb: 4 
-              }}>
-                <Typography variant="h5" sx={{ color: '#1a1a1a', fontWeight: 600 }}>
-                  Restaurant Profile
-                </Typography>
-                <Button
-                  variant="contained"
-                  onClick={handleSave}
-                  disabled={saveMutation.isPending}
-                  sx={{
-                    bgcolor: '#178582',
-                    color: 'white',
-                    borderRadius: '12px',
-                    px: 4,
-                    py: 1,
-                    '&:hover': {
-                      bgcolor: '#0f5f5c',
-                    },
-                    '&:disabled': {
-                      bgcolor: 'rgba(23, 133, 130, 0.5)',
-                    },
-                  }}
-                >
-                  {saveMutation.isPending ? (
-                    <CircularProgress size={24} color="inherit" />
-                  ) : (
-                    'Save Changes'
-                  )}
-                </Button>
-              </Box>
-              <label htmlFor="restaurant-name" style={{color:'black'}}>Restaurant Name</label>
-              <TextField
-                fullWidth
-                id="restaurant-name"
-                // label="Restaurant Name"
-                value={restaurantName}
-                onChange={(e) => setRestaurantName(e.target.value)}
-                sx={{ 
-                  mb: 3,
-                  borderColor:'black',
-                  backgroundColor:'#f1f1f1',
-                  borderRadius: '12px',
-                  color: 'black',
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '12px',
-                    color: 'black',
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'black',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'black',
+      <AppBar />
+      {isLoading ? (
+        <LoadingSkeleton />
+      ) : (
+        <Box
+          sx={{
+            minHeight: '100vh',
+            p: 3,
+            bgcolor: '#1A1B2E',
+          }}
+        >
+          <Paper
+            elevation={0}
+            sx={{
+              maxWidth: 1200,
+              mx: 'auto',
+              bgcolor: '#242642',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: 3,
+              overflow: 'hidden',
+            }}
+          >
+            <Box sx={{ borderBottom: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}>
+              <Tabs 
+                value={activeTab} 
+                onChange={(_, newValue) => setActiveTab(newValue)}
+                sx={{
+                  '& .MuiTab-root': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    '&.Mui-selected': {
+                      color: '#7B61FF',
                     },
                   },
-                  '& .MuiInputLabel-root.Mui-focused': {
-                    color: '#007AFF',
-                  },
-                }}
-              />
-              <label htmlFor="default-language" style={{color:'black'}}>Select Translation Language</label>
-              <TextField
-                fullWidth
-                select
-                // label="Default Language"
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                sx={{ 
-                  backgroundColor:'#f1f1f1',
-                  borderRadius: '12px',
-                  color: 'black',
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '12px',
-                    color:'black',
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'black',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'black',
-                    },
-                  },
-                  '& .MuiInputLabel-root.Mui-focused': {
-                    color: '#007AFF',
+                  '& .MuiTabs-indicator': {
+                    bgcolor: '#7B61FF',
                   },
                 }}
               >
-                {SUPPORTED_LANGUAGES.map((option) => (
-                  <MenuItem 
-                    key={option.value} 
-                    value={option.value}
-                    sx={{
-                      borderRadius: '8px',
-                      mx: 0.5,
-                      my: 0.2,
-                      backgroundColor:'#f1f1f1',
-                      color: 'black',
-                      '&:hover': {
-                        // backgroundColor: '#f0f9ff',
-                      },
-                      '&.Mui-selected': {
-                        // backgroundColor: '#f0f9ff',
-                        color: 'black',
+                <Tab label="Profile" />
+                <Tab label="Content" />
+              </Tabs>
+            </Box>
+
+            <Box sx={{ p: 3 }}>
+              {activeTab === 0 && (
+                <Box>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    mb: 3,
+                  }}>
+                    <Typography 
+                      variant="h5" 
+                      sx={{ 
+                        color: '#FFFFFF',
+                        fontWeight: 600,
+                      }}
+                    >
+                      Restaurant Profile
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      onClick={handleSave}
+                      disabled={saveMutation.isPending}
+                      sx={{
+                        bgcolor: '#7B61FF',
+                        color: '#FFFFFF',
+                        fontWeight: 600,
                         '&:hover': {
-                          backgroundColor: '#e0f2fe',
+                          bgcolor: '#6344FF',
                         },
+                        '&.Mui-disabled': {
+                          bgcolor: 'rgba(123, 97, 255, 0.3)',
+                        },
+                      }}
+                    >
+                      {saveMutation.isPending ? <Skeleton width={120} height={40} sx={{ bgcolor: 'rgba(255, 255, 255, 0.1)' }} /> : 'Save Changes'}
+                    </Button>
+                  </Box>
+                  
+                  <TextField
+                    fullWidth
+                    label="Restaurant Name"
+                    value={restaurantName}
+                    onChange={(e) => setRestaurantName(e.target.value)}
+                    margin="normal"
+                    sx={textFieldStyle}
+                  />
+
+                  <FormControl 
+                    fullWidth 
+                    margin="normal"
+                    sx={textFieldStyle}
+                  >
+                    <InputLabel>Language</InputLabel>
+                    <Select
+                      value={language}
+                      onChange={(e) => setLanguage(e.target.value)}
+                      label="Language"
+                    >
+                      {SUPPORTED_LANGUAGES.map((option) => (
+                        <MenuItem 
+                          key={option.value} 
+                          value={option.value}
+                          sx={{
+                            borderRadius: '8px',
+                            mx: 0.5,
+                            my: 0.2,
+                            color: '#FFFFFF',
+                            '&:hover': {
+                              bgcolor: '#2D2F52',
+                            },
+                            '&.Mui-selected': {
+                              bgcolor: 'rgba(123, 97, 255, 0.1)',
+                              color: '#7B61FF',
+                              '&:hover': {
+                                bgcolor: 'rgba(123, 97, 255, 0.2)',
+                              },
+                            },
+                          }}
+                        >
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+              )}
+
+              {activeTab === 1 && (
+                <Box>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    mb: 3,
+                  }}>
+                    <Typography 
+                      variant="h5" 
+                      sx={{ 
+                        color: '#FFFFFF',
+                        fontWeight: 600,
+                      }}
+                    >
+                      Restaurant Content
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      onClick={handleSaveContent}
+                      disabled={saveContentMutation.isPending}
+                      sx={{
+                        bgcolor: '#7B61FF',
+                        color: '#FFFFFF',
+                        fontWeight: 600,
+                        '&:hover': {
+                          bgcolor: '#6344FF',
+                        },
+                        '&.Mui-disabled': {
+                          bgcolor: 'rgba(123, 97, 255, 0.3)',
+                        },
+                      }}
+                    >
+                      {saveContentMutation.isPending ? <Skeleton width={120} height={40} sx={{ bgcolor: 'rgba(255, 255, 255, 0.1)' }} /> : 'Save Files'}
+                    </Button>
+                  </Box>
+
+                  <Box sx={{ 
+                    mb: 3,
+                    borderRadius: 2,
+                    bgcolor: '#2D2F52',
+                    p: 1,
+                  }}>
+                    <Tabs 
+                      value={activeFileTab} 
+                      onChange={(_, newValue) => setActiveFileTab(newValue)}
+                      variant="scrollable"
+                      scrollButtons="auto"
+                      sx={{
+                        minHeight: '48px',
+                        '& .MuiTab-root': {
+                          minHeight: '48px',
+                          color: 'rgba(255, 255, 255, 0.7)',
+                          fontSize: '0.95rem',
+                          textTransform: 'none',
+                          borderRadius: 1.5,
+                          mx: 0.5,
+                          '&.Mui-selected': {
+                            color: '#7B61FF',
+                            bgcolor: 'rgba(123, 97, 255, 0.1)',
+                          },
+                          '&:hover': {
+                            bgcolor: 'rgba(123, 97, 255, 0.05)',
+                          },
+                        },
+                        '& .MuiTabs-indicator': {
+                          display: 'none',
+                        },
+                      }}
+                    >
+                      {fileUploadTabs.map((tab) => (
+                        <Tab 
+                          key={tab.key}
+                          label={tab.label}
+                          icon={React.cloneElement(tab.icon, { 
+                            sx: { 
+                              fontSize: 20,
+                              mr: 1,
+                              color: activeFileTab === fileUploadTabs.indexOf(tab) ? '#7B61FF' : 'inherit',
+                            } 
+                          })}
+                          iconPosition="start"
+                        />
+                      ))}
+                    </Tabs>
+                  </Box>
+
+                  <Box 
+                    sx={{ 
+                      p: 3,
+                      border: '2px dashed rgba(123, 97, 255, 0.3)',
+                      borderRadius: 2,
+                      bgcolor: 'rgba(123, 97, 255, 0.05)',
+                      transition: 'all 0.3s ease-in-out',
+                      '&:hover': {
+                        borderColor: 'rgba(123, 97, 255, 0.5)',
+                        bgcolor: 'rgba(123, 97, 255, 0.08)',
                       },
                     }}
                   >
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Box>
-          </TabPanel>
-
-          <TabPanel value={activeTab} index={1}>
-            <Box sx={{ width: '100%' }}>
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                mb: 3 
-              }}>
-                <Box>
-                  <Typography variant="h6" sx={{ color: '#0A1828', fontWeight: 600, mb: 1 }}>
-                    {fileUploadTabs[activeFileTab].label} Files
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: '#0A1828', opacity: 0.7 }}>
-                    {fileUploadTabs[activeFileTab].description}
-                  </Typography>
-                </Box>
-                <Button
-                  variant="contained"
-                  onClick={handleSaveContent}
-                  disabled={saveContentMutation.isPending}
-                  sx={{
-                    bgcolor: '#178582',
-                    color: 'white',
-                    borderRadius: '12px',
-                    px: 4,
-                    py: 1,
-                    '&:hover': {
-                      bgcolor: '#0f5f5c',
-                    },
-                    '&:disabled': {
-                      bgcolor: 'rgba(23, 133, 130, 0.5)',
-                    },
-                  }}
-                >
-                  {saveContentMutation.isPending ? (
-                    <CircularProgress size={24} color="inherit" />
-                  ) : (
-                    'Save Content'
-                  )}
-                </Button>
-              </Box>
-
-              <Box sx={{ 
-                borderRadius: '16px',
-                backgroundColor: '#fff',
-                width: 'fit-content',
-                padding: '6px',
-                boxShadow: '0 2px 12px rgba(10, 24, 40, 0.08)',
-                mb: 3,
-              }}>
-                <Tabs 
-                  value={activeFileTab} 
-                  onChange={(_, newValue) => setActiveFileTab(newValue)}
-                  variant="scrollable"
-                  scrollButtons="auto"
-                  sx={{
-                    minHeight: '42px',
-                    '& .MuiTab-root': {
-                      minWidth: '180px',
-                      borderRadius: '12px',
-                      textTransform: 'none',
-                      color: '#0A1828',
-                      fontSize: '15px',
-                      fontWeight: 500,
-                      py: 1,
-                      minHeight: '42px',
-                      opacity: 0.7,
-                      '&.Mui-selected': {
-                        color: '#178582',
-                        backgroundColor: 'rgba(23, 133, 130, 0.05)',
-                        opacity: 1,
-                      },
-                    },
-                    '& .MuiTabs-indicator': {
-                      display: 'none',
-                    },
-                  }}
-                >
-                  {fileUploadTabs.map((tab) => (
-                    <Tab 
-                      key={tab.key}
-                      icon={React.cloneElement(tab.icon, { 
-                        sx: { 
-                          fontSize: 20,
-                          mr: 1,
-                          color: activeFileTab === fileUploadTabs.indexOf(tab) ? '#178582' : '#0A1828',
-                          opacity: activeFileTab === fileUploadTabs.indexOf(tab) ? 1 : 0.7,
-                        } 
-                      })}
-                      iconPosition="start"
-                      label={tab.label}
+                    <FileUploadZone 
+                      title={`Upload ${fileUploadTabs[activeFileTab].label}`}
+                      description={fileUploadTabs[activeFileTab].description}
+                      icon={fileUploadTabs[activeFileTab].icon}
+                      file={files[fileUploadTabs[activeFileTab].key]}
+                      onUpload={handleFileUpload(fileUploadTabs[activeFileTab].key)}
+                      onDelete={handleFileDelete(fileUploadTabs[activeFileTab].key)}
+                      accept=".pdf"
                     />
-                  ))}
-                </Tabs>
-              </Box>
-
-              {fileUploadTabs.map((tab, index) => (
-                <TabPanel key={tab.key} value={activeFileTab} index={index}>
-                  <FileUploadZone
-                    title={`Upload ${tab.label}`}
-                    description={tab.description}
-                    icon={tab.icon}
-                    file={files[tab.key]}
-                    onUpload={handleFileUpload(tab.key)}
-                    onDelete={handleFileDelete(tab.key)}
-                    accept={tab.accept}
-                  />
-                </TabPanel>
-              ))}
+                  </Box>
+                </Box>
+              )}
             </Box>
-          </TabPanel>
+          </Paper>
 
           <Snackbar
             open={snackbar.open}
             autoHideDuration={6000}
             onClose={handleCloseSnackbar}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
           >
-            <Alert
-              onClose={handleCloseSnackbar}
+            <Alert 
+              onClose={handleCloseSnackbar} 
               severity={snackbar.severity}
-              variant="filled"
-              sx={{ 
-                borderRadius: '12px',
-                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
+              sx={{
+                bgcolor: snackbar.severity === 'success' 
+                  ? 'rgba(76, 217, 100, 0.9)'
+                  : 'rgba(255, 107, 138, 0.9)',
+                color: '#FFFFFF',
+                '& .MuiAlert-icon': {
+                  color: '#FFFFFF',
+                },
               }}
             >
               {snackbar.message}
             </Alert>
           </Snackbar>
         </Box>
-      </Box>
+      )}
     </>
   );
-} 
+};
+
+const textFieldStyle = {
+  '& .MuiOutlinedInput-root': {
+    bgcolor: '#2D2F52',
+    borderRadius: 2,
+    color: '#FFFFFF',
+    '& fieldset': {
+      borderColor: 'rgba(123, 97, 255, 0.2)',
+    },
+    '&:hover fieldset': {
+      borderColor: 'rgba(123, 97, 255, 0.3)',
+    },
+    '&.Mui-focused fieldset': {
+      borderColor: '#7B61FF',
+    },
+  },
+  '& .MuiInputLabel-root': {
+    color: 'rgba(255, 255, 255, 0.7)',
+    '&.Mui-focused': {
+      color: '#7B61FF',
+    },
+  },
+  '& .MuiSelect-icon': {
+    color: '#7B61FF',
+  },
+};
+
+export default Settings; 

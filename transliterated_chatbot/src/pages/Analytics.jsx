@@ -7,7 +7,8 @@ import {
   Stack,
   Grid,
   Divider,
-  CircularProgress,
+  Skeleton,
+  Fade,
 } from '@mui/material';
 import SentimentVerySatisfiedIcon from '@mui/icons-material/SentimentVerySatisfied';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -22,8 +23,7 @@ const SentimentBar = ({ label, positive, neutral, negative }) => (
       variant="h6" 
       sx={{ 
         mb: 1, 
-        color: '#0A1828',
-        opacity: 0.9,
+        color: '#FFFFFF',
         fontWeight: 500,
       }}
     >
@@ -34,44 +34,165 @@ const SentimentBar = ({ label, positive, neutral, negative }) => (
       display: 'flex', 
       borderRadius: '12px',
       overflow: 'hidden',
+      bgcolor: 'rgba(255, 255, 255, 0.05)',
     }}>
       <Box 
         sx={{ 
           width: `${positive}%`, 
-          bgcolor: '#178582',
+          bgcolor: 'rgba(76, 217, 100, 0.5)',
           transition: 'width 1s ease-in-out',
         }} 
       />
       <Box 
         sx={{ 
           width: `${neutral}%`, 
-          bgcolor: '#BFA181',
+          bgcolor: 'rgba(123, 97, 255, 0.5)',
           transition: 'width 1s ease-in-out',
         }} 
       />
       <Box 
         sx={{ 
           width: `${negative}%`, 
-          bgcolor: '#FF6B6B',
+          bgcolor: 'rgba(255, 107, 138, 0.5)',
           transition: 'width 1s ease-in-out',
         }} 
       />
     </Box>
     <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-      <Typography variant="caption" sx={{ color: '#178582' }}>
+      <Typography variant="caption" sx={{ color: 'rgba(76, 217, 100, 0.8)' }}>
         Positive: {positive}%
       </Typography>
-      <Typography variant="caption" sx={{ color: '#BFA181' }}>
+      <Typography variant="caption" sx={{ color: 'rgba(123, 97, 255, 0.8)' }}>
         Neutral: {neutral}%
       </Typography>
-      <Typography variant="caption" sx={{ color: '#FF6B6B' }}>
+      <Typography variant="caption" sx={{ color: 'rgba(255, 107, 138, 0.8)' }}>
         Negative: {negative}%
       </Typography>
     </Stack>
   </Box>
 );
 
-export default function Analytics() {
+const LoadingSkeleton = () => (
+  <Box sx={{ 
+    p: 4, 
+    minHeight: 'calc(100vh - 64px)',
+    bgcolor: '#1A1B2E',
+  }}>
+    <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+      <Fade in={true}>
+        <Paper 
+          elevation={0}
+          sx={{
+            p: 4,
+            borderRadius: '20px',
+            bgcolor: '#242642',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+          }}
+        >
+          {/* Header Skeleton */}
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            mb: 4,
+          }}>
+            <Skeleton 
+              variant="text" 
+              width={300} 
+              height={48}
+              sx={{ 
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: 2,
+              }} 
+            />
+            <Skeleton 
+              variant="rounded" 
+              width={120} 
+              height={40}
+              sx={{ 
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: 2,
+              }} 
+            />
+          </Box>
+
+          {/* Sentiment Bars Skeleton */}
+          {[1, 2, 3].map((item) => (
+            <Box key={item} sx={{ mb: 3, width: '100%' }}>
+              <Skeleton 
+                variant="text" 
+                width={200} 
+                height={32}
+                sx={{ 
+                  mb: 1,
+                  bgcolor: 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: 1,
+                }} 
+              />
+              <Skeleton 
+                variant="rounded" 
+                width="100%" 
+                height={24}
+                sx={{ 
+                  bgcolor: 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                }} 
+              />
+              <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
+                {[1, 2, 3].map((stat) => (
+                  <Skeleton 
+                    key={stat}
+                    variant="text" 
+                    width={100} 
+                    height={20}
+                    sx={{ 
+                      bgcolor: 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: 1,
+                    }} 
+                  />
+                ))}
+              </Stack>
+            </Box>
+          ))}
+
+          <Divider sx={{ my: 4, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+
+          {/* Analytics Cards Skeleton */}
+          <Box sx={{ mt: 4 }}>
+            <Skeleton 
+              variant="text" 
+              width={250} 
+              height={40}
+              sx={{ 
+                mb: 3,
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: 1,
+              }} 
+            />
+
+            <Grid container spacing={3}>
+              {[1, 2, 3, 4].map((card) => (
+                <Grid item xs={12} md={6} key={card}>
+                  <Skeleton 
+                    variant="rounded" 
+                    width="100%" 
+                    height={200}
+                    sx={{ 
+                      bgcolor: 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: 3,
+                    }} 
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        </Paper>
+      </Fade>
+    </Box>
+  </Box>
+);
+
+const Analytics = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [analyticsData, setAnalyticsData] = useState(null);
@@ -108,16 +229,8 @@ export default function Analytics() {
   if (loading) {
     return (
       <>
-        <AppBar showBackButton={false} />
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center',
-          minHeight: 'calc(100vh - 64px)',
-          bgcolor: 'rgba(10, 24, 40, 0.02)',
-        }}>
-          <CircularProgress sx={{ color: '#178582' }} />
-        </Box>
+        <AppBar />
+        <LoadingSkeleton />
       </>
     );
   }
@@ -125,11 +238,11 @@ export default function Analytics() {
   if (error || !analyticsData) {
     return (
       <>
-        <AppBar showBackButton={false} />
+        <AppBar  />
         <Box sx={{ 
           p: 4, 
           minHeight: 'calc(100vh - 64px)',
-          bgcolor: 'rgba(10, 24, 40, 0.02)',
+          bgcolor: '#1A1B2E',
         }}>
           <Typography color="error" align="center">
             {error || 'No analytics data available'}
@@ -143,11 +256,11 @@ export default function Analytics() {
 
   return (
     <>
-      <AppBar showBackButton={false} />
+      <AppBar  />
       <Box sx={{ 
         p: 4, 
         minHeight: 'calc(100vh - 64px)',
-        bgcolor: 'rgba(10, 24, 40, 0.02)',
+        bgcolor: '#1A1B2E',
       }}>
         <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
           <Paper 
@@ -155,8 +268,8 @@ export default function Analytics() {
             sx={{
               p: 4,
               borderRadius: '20px',
-              bgcolor: '#fff',
-              boxShadow: '0 4px 20px rgba(10, 24, 40, 0.08)',
+              bgcolor: '#242642',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
             }}
           >
             <Box sx={{ 
@@ -168,7 +281,7 @@ export default function Analytics() {
               <Typography 
                 variant="h4" 
                 sx={{ 
-                  color: '#0A1828',
+                  color: '#FFFFFF',
                   fontWeight: 600,
                 }}
               >
@@ -179,8 +292,8 @@ export default function Analytics() {
                   display: 'flex', 
                   alignItems: 'center',
                   gap: 1,
-                  color: '#178582',
-                  bgcolor: 'rgba(23, 133, 130, 0.1)',
+                  color: '#7B61FF',
+                  bgcolor: 'rgba(123, 97, 255, 0.1)',
                   py: 1,
                   px: 2,
                   borderRadius: '12px',
@@ -213,14 +326,14 @@ export default function Analytics() {
               </>
             )}
 
-            <Divider sx={{ my: 4, borderColor: 'rgba(10, 24, 40, 0.08)' }} />
+            <Divider sx={{ my: 4, borderColor: 'rgba(255, 255, 255, 0.1)' }} />
 
             <Box sx={{ mt: 4 }}>
               <Typography 
                 variant="h5" 
                 sx={{ 
                   mb: 3,
-                  color: '#0A1828',
+                  color: '#FFFFFF',
                   fontWeight: 600,
                 }}
               >
@@ -228,34 +341,33 @@ export default function Analytics() {
               </Typography>
 
               <Grid container spacing={3}>
-                {/* Key Metrics */}
                 {analyticsSummary && (
                   <Grid item xs={12} md={6}>
                     <Box sx={{ 
                       p: 3, 
-                      bgcolor: 'rgba(23, 133, 130, 0.05)',
+                      bgcolor: '#2D2F52',
                       borderRadius: '16px',
-                      border: '1px solid rgba(23, 133, 130, 0.1)',
+                      border: '1px solid rgba(123, 97, 255, 0.1)',
                     }}>
-                      <Typography variant="h6" sx={{ color: '#0A1828', mb: 2 }}>
+                      <Typography variant="h6" sx={{ color: '#FFFFFF', mb: 2 }}>
                         Key Metrics
                       </Typography>
                       <Stack spacing={2}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <MessageIcon sx={{ color: '#178582' }} />
-                          <Typography sx={{ color: '#0A1828' }}>
+                          <MessageIcon sx={{ color: '#7B61FF' }} />
+                          <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
                             Total Reviews: <strong>{analyticsSummary.totalReviews || 0}</strong>
                           </Typography>
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <StarIcon sx={{ color: '#178582' }} />
-                          <Typography sx={{ color: '#0A1828' }}>
+                          <StarIcon sx={{ color: '#7B61FF' }} />
+                          <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
                             Average Rating: <strong>{analyticsSummary.averageRating || 0}/5</strong>
                           </Typography>
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <TrendingUpIcon sx={{ color: '#178582' }} />
-                          <Typography sx={{ color: '#0A1828' }}>
+                          <TrendingUpIcon sx={{ color: '#7B61FF' }} />
+                          <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
                             Response Rate: <strong>{analyticsSummary.responseRate || '0%'}</strong>
                           </Typography>
                         </Box>
@@ -264,16 +376,15 @@ export default function Analytics() {
                   </Grid>
                 )}
 
-                {/* Popular Items */}
                 {detailedData?.topDishes?.length > 0 && (
                   <Grid item xs={12} md={6}>
                     <Box sx={{ 
                       p: 3, 
-                      bgcolor: 'rgba(191, 161, 129, 0.05)',
+                      bgcolor: '#2D2F52',
                       borderRadius: '16px',
-                      border: '1px solid rgba(191, 161, 129, 0.1)',
+                      border: '1px solid rgba(76, 217, 100, 0.1)',
                     }}>
-                      <Typography variant="h6" sx={{ color: '#0A1828', mb: 2 }}>
+                      <Typography variant="h6" sx={{ color: '#FFFFFF', mb: 2 }}>
                         Most Popular Dishes
                       </Typography>
                       <Stack spacing={1}>
@@ -281,7 +392,7 @@ export default function Analytics() {
                           <Typography 
                             key={dish} 
                             sx={{ 
-                              color: '#0A1828',
+                              color: 'rgba(255, 255, 255, 0.9)',
                               display: 'flex',
                               alignItems: 'center',
                               gap: 1,
@@ -290,7 +401,7 @@ export default function Analytics() {
                                 width: 8,
                                 height: 8,
                                 borderRadius: '50%',
-                                bgcolor: '#BFA181',
+                                bgcolor: '#4CD964',
                               }
                             }}
                           >
@@ -302,16 +413,15 @@ export default function Analytics() {
                   </Grid>
                 )}
 
-                {/* Common Phrases */}
                 {detailedData?.commonPhrases?.length > 0 && (
                   <Grid item xs={12} md={6}>
                     <Box sx={{ 
                       p: 3, 
-                      bgcolor: 'rgba(23, 133, 130, 0.05)',
+                      bgcolor: '#2D2F52',
                       borderRadius: '16px',
-                      border: '1px solid rgba(23, 133, 130, 0.1)',
+                      border: '1px solid rgba(123, 97, 255, 0.1)',
                     }}>
-                      <Typography variant="h6" sx={{ color: '#0A1828', mb: 2 }}>
+                      <Typography variant="h6" sx={{ color: '#FFFFFF', mb: 2 }}>
                         Common Positive Phrases
                       </Typography>
                       <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
@@ -321,9 +431,9 @@ export default function Analytics() {
                             sx={{
                               px: 2,
                               py: 0.5,
-                              bgcolor: 'rgba(23, 133, 130, 0.1)',
+                              bgcolor: 'rgba(123, 97, 255, 0.1)',
                               borderRadius: '20px',
-                              color: '#178582',
+                              color: '#7B61FF',
                             }}
                           >
                             {phrase}
@@ -334,16 +444,15 @@ export default function Analytics() {
                   </Grid>
                 )}
 
-                {/* Areas for Improvement */}
                 {detailedData?.improvement?.length > 0 && (
                   <Grid item xs={12} md={6}>
                     <Box sx={{ 
                       p: 3, 
-                      bgcolor: 'rgba(255, 107, 107, 0.05)',
+                      bgcolor: '#2D2F52',
                       borderRadius: '16px',
-                      border: '1px solid rgba(255, 107, 107, 0.1)',
+                      border: '1px solid rgba(255, 107, 138, 0.1)',
                     }}>
-                      <Typography variant="h6" sx={{ color: '#0A1828', mb: 2 }}>
+                      <Typography variant="h6" sx={{ color: '#FFFFFF', mb: 2 }}>
                         Areas for Improvement
                       </Typography>
                       <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
@@ -353,9 +462,9 @@ export default function Analytics() {
                             sx={{
                               px: 2,
                               py: 0.5,
-                              bgcolor: 'rgba(255, 107, 107, 0.1)',
+                              bgcolor: 'rgba(255, 107, 138, 0.1)',
                               borderRadius: '20px',
-                              color: '#FF6B6B',
+                              color: '#FF6B8A',
                             }}
                           >
                             {item}
@@ -365,26 +474,24 @@ export default function Analytics() {
                     </Box>
                   </Grid>
                 )}
-                {
-                  detailedData?.summary && (
-                    <Grid item xs={12} >
+
+                {detailedData?.summary && (
+                  <Grid item xs={12}>
                     <Box sx={{ 
                       p: 3, 
-                      bgcolor: 'rgba(255, 107, 107, 0.05)',
+                      bgcolor: '#2D2F52',
                       borderRadius: '16px',
-                      border: '1px solid rgba(255, 107, 107, 0.1)',
+                      border: '1px solid rgba(123, 97, 255, 0.1)',
                     }}>
-                      <Typography variant="h6" sx={{ color: '#0A1828', mb: 2 }}>
+                      <Typography variant="h6" sx={{ color: '#FFFFFF', mb: 2 }}>
                         Summary
                       </Typography>
-                      <Typography sx={{ color: '#0A1828' }}>
+                      <Typography sx={{ color: 'rgba(255, 255, 255, 0.9)' }}>
                         {detailedData.summary}
                       </Typography>
                     </Box>
                   </Grid>
-                  )
-                  
-                }
+                )}
               </Grid>
             </Box>
           </Paper>
@@ -393,3 +500,5 @@ export default function Analytics() {
     </>
   );
 } 
+
+export default Analytics;
