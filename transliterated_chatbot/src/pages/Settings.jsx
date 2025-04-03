@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Box,
   Tabs,
@@ -80,6 +80,13 @@ function FileUploadZone({ title, description, icon, onUpload, onDelete, file, ac
     accept: accept.split(',').reduce((acc, curr) => ({ ...acc, [curr]: [] }), {}),
     maxFiles: 1,
   });
+  const fileName = useMemo(() => {
+    if(typeof file === 'string') {
+      return file.split('?')[0].split('%2F').pop();
+    }
+    return file?.name;
+  }, [file]);
+  console.log("file", file);
 
   return (
     <Paper
@@ -163,9 +170,11 @@ function FileUploadZone({ title, description, icon, onUpload, onDelete, file, ac
                   fontSize: '0.9rem',
                 }}
               >
-                {file.name}
+                {fileName}
               </Typography>
-              <Typography
+              {
+                typeof file !== 'string' && (
+                  <Typography
                 variant="caption"
                 sx={{
                   color: '#BFA181',
@@ -173,6 +182,9 @@ function FileUploadZone({ title, description, icon, onUpload, onDelete, file, ac
               >
                 {formatFileSize(file.size)}
               </Typography>
+                )
+              }
+              
             </Box>
           </Box>
           <IconButton
@@ -228,12 +240,12 @@ export default function Settings() {
         if (data) {
           setRestaurantName(data.name || '');
           setLanguage(data.language || 'telugu');
-          // setFiles({
-          //   menu: data.files?.menu || null,
-          //   reviews: data.files?.reviews || null,
-          //   faqs: data.files?.faqs || null,
-          //   history: data.files?.history || null,
-          // });
+          setFiles({
+            menu: data.files?.menu || null,
+            reviews: data.files?.reviews || null,
+            faqs: data.files?.faqs || null,
+            history: data.files?.history || null,
+          });
           
           // If there are file URLs in the data, you might want to handle them here
           // For example, you could fetch the files or store their URLs
@@ -475,9 +487,11 @@ export default function Settings() {
                   )}
                 </Button>
               </Box>
+              <label htmlFor="restaurant-name" style={{color:'black'}}>Restaurant Name</label>
               <TextField
                 fullWidth
-                label="Restaurant Name"
+                id="restaurant-name"
+                // label="Restaurant Name"
                 value={restaurantName}
                 onChange={(e) => setRestaurantName(e.target.value)}
                 sx={{ 
@@ -501,10 +515,11 @@ export default function Settings() {
                   },
                 }}
               />
+              <label htmlFor="default-language" style={{color:'black'}}>Select Translation Language</label>
               <TextField
                 fullWidth
                 select
-                label="Default Language"
+                // label="Default Language"
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
                 sx={{ 
