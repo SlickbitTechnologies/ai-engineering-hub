@@ -365,6 +365,26 @@ export default function Analytics() {
                     </Box>
                   </Grid>
                 )}
+                {
+                  detailedData?.summary && (
+                    <Grid item xs={12} >
+                    <Box sx={{ 
+                      p: 3, 
+                      bgcolor: 'rgba(255, 107, 107, 0.05)',
+                      borderRadius: '16px',
+                      border: '1px solid rgba(255, 107, 107, 0.1)',
+                    }}>
+                      <Typography variant="h6" sx={{ color: '#0A1828', mb: 2 }}>
+                        Summary
+                      </Typography>
+                      <Typography sx={{ color: '#0A1828' }}>
+                        {detailedData.summary}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  )
+                  
+                }
               </Grid>
             </Box>
           </Paper>

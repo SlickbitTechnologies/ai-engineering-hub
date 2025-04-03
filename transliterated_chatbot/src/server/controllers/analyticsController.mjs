@@ -19,7 +19,7 @@ export const getSentimentAnalysis = async (req, res) => {
 
     // If not in cache, fetch from Firestore
     const restaurantData = await getRestaurantData(userId);
-    console.log('Restaurant data:', restaurantData);
+   
 
     if (!restaurantData) {
       return res.status(404).json({ error: 'Restaurant data not found' });
@@ -55,7 +55,8 @@ export const getSentimentAnalysis = async (req, res) => {
         totalInteractions: analysis.totalInteractions,
         averageResponseTime: analysis.averageResponseTime,
         topKeywords: analysis.topKeywords,
-        sentimentTrend: analysis.sentimentTrend
+        sentimentTrend: analysis.sentimentTrend,
+        summary: analysis.summary
       }
     };
 

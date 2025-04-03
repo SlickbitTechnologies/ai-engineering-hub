@@ -99,7 +99,7 @@ function Login() {
       }}
     >
       <AnimatedPaper
-        style={loginSpring}
+        // style={loginSpring}
         elevation={2}
         sx={{
           p: 4,

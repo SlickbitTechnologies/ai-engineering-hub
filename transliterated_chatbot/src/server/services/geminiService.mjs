@@ -1,11 +1,13 @@
 // chatbot-backend/services/geminiService.js
 import dotenv from 'dotenv';
 dotenv.config(); // Load env vars
-
+import pdfParse from 'pdf-parse';
+import fetch from 'node-fetch';
 // Use named imports for classes/enums
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import { getPlaceholder } from '../utils/placeholderUtil.mjs'; // Add .js extension
 import { getStorageFileContent } from './storageService.mjs';
+
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // const MODEL ='gemini-2.5-pro-exp-03-25'
@@ -95,29 +97,48 @@ XYZBot Answer:
 }
 
 export const isGeminiReady = () => isGeminiInitialized;
-
+async function readPdfFromUrl(url) {
+  try {
+    console.log('Reading PDF from URL:', url);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+    }
+    const buffer = await response.buffer();
+    const data = await pdfParse(buffer);
+    console.log('PDF content:', data.text);
+    return data.text;
+  } catch (error) {
+    console.error('Error reading PDF:', error);
+    return '';
+  }
+}
 export const analyzeSentiment = async (historyUrl, reviewsUrl) => {
   try {
     // Get file contents from Firebase Storage
     // const historyContent = await getStorageFileContent(historyUrl);
     // const reviewsContent = await getStorageFileContent(reviewsUrl);
-    const [historyContent, reviewsContent] = await Promise.all([getStorageFileContent(historyUrl), getStorageFileContent(reviewsUrl)]);
+    const [historyContent, reviewsContent] = await Promise.all([readPdfFromUrl(historyUrl), readPdfFromUrl(reviewsUrl)]);
    
     // Initialize Gemini model
     const model = genAI.getGenerativeModel({ model: MODEL });
     const generationConfig = {
-      temperature: 1,
+      temperature: 0.2,
       responseMimeType: "application/json",
     }
-    // Create prompt for sentiment analysis
-    const prompt = `
-      Analyze the following restaurant data and provide a detailed sentiment analysis in JSON format:
-      
+    const context= `
       History Data:
       ${historyContent}
       
       Reviews Data:
       ${reviewsContent}
+    `
+  
+    // Create prompt for sentiment analysis
+    const prompt = `
+      Analyze the following restaurant data and provide a detailed sentiment analysis in JSON format:
+      You MUST generate response based *ONLY* on the information provided in the 'CONTEXT' section below.
+      CONTEXT: ${context}
       
       Please provide analysis in the following JSON structure:
       {
@@ -137,10 +158,12 @@ export const analyzeSentiment = async (historyUrl, reviewsUrl) => {
         "topKeywords": ["string"],
         "sentimentTrend": [
           { "date": "string", "positive": number, "neutral": number, "negative": number }
-        ]
+        ],
+        summary: "string"
       }
 
-      foodQuality,service,ambiance are in percentage
+      foodQuality,service,ambiance are in percentage.
+      topDishes,improvement,commonPhrases are in array of strings and max of 5 items.
     `;
 
     // Get response from Gemini
@@ -149,7 +172,7 @@ export const analyzeSentiment = async (historyUrl, reviewsUrl) => {
     // console.log("response", JSON.stringify(response.candidates));
     const text = response.text();
     const cleanedText = text.replace(/```json\n?|\n?```/g, '').trim()
-    console.log("text", cleanedText);
+    // console.log("text", cleanedText);
     // Parse the JSON response
     const analysis = JSON.parse(cleanedText);
     

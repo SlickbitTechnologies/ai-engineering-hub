@@ -27,9 +27,9 @@ async function readPdfFromUrl(url) {
     if (!response.ok) {
       throw new Error(`Failed to fetch PDF: ${response.statusText}`);
     }
-    const buffer = await response.buffer();
+    const buffer = await response.arrayBuffer();
     const data = await pdfParse(buffer);
-    console.log('PDF content:', data.text);
+    // console.log('PDF content:', data.text);
     return data.text;
   } catch (error) {
     console.error('Error reading PDF:', error);
@@ -55,7 +55,7 @@ class CacheService {
       }
 
       const restaurantDocData = restaurantDoc.data();
-      
+      console.log("restaurantDocData", restaurantDocData.files);
       // Read PDF files if they exist
       const pdfContents = await Promise.all([
         restaurantDocData.files?.faqs ? readPdfFromUrl(restaurantDocData.files.faqs) : '',
@@ -79,7 +79,7 @@ class CacheService {
         data: contextData,
         timestamp: Date.now()
       });
-      console.log('Cache:', contextData);
+      // console.log('Cache:', contextData);
       console.log('Cache miss for user:', userId, 'Updated cache with PDF contents');
       return contextData;
     } catch (error) {

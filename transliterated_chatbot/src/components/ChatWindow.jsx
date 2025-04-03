@@ -112,20 +112,20 @@ export default function ChatWindow() {
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'radial-gradient(circle at 50% 50%, rgba(23, 133, 130, 0.1) 0%, transparent 50%)',
+        // background: 'radial-gradient(circle at 50% 50%, rgba(23, 133, 130, 0.1) 0%, transparent 50%)',
         pointerEvents: 'none',
       }
     }}>
       <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
         <AnimatedPaper 
           elevation={0} 
-          style={containerSpring}
+          // style={containerSpring}
           sx={{ 
             flex: 1, 
             overflow: 'auto', 
             mb: 2, 
             p: 3,
-            bgcolor: 'transparent',
+            // bgcolor: 'transparent',
             border: 'none',
             '&::-webkit-scrollbar': {
               width: '6px',

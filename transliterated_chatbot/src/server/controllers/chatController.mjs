@@ -31,7 +31,7 @@ export async function handleChatMessage(req, res) { // Use export keyword
         const {chosenContext, restaurantName, language} = await getContext(req.user.id, userMessage);
         // Generate response
         const rawReply = await generateGeminiResponse(chosenContext, userMessage, restaurantName, language);
-        console.log("CONTROLLER: Raw reply:", rawReply);
+        // console.log("CONTROLLER: Raw reply:", rawReply);
         // Apply placeholders
         const finalReply = replacePh(rawReply);
 
