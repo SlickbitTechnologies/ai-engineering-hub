@@ -70,43 +70,110 @@ async function getAISuggestions(analysisData, url) {
       4. Social Media Optimization
       5. Priority Action Items
       
-      Format the response as JSON with these keys: contentOptimization, technicalSEO, userExperience, socialMedia, priorityActions
+      IMPORTANT INSTRUCTIONS:
+      - Provide between 1 and 4 suggestions for each category - no more, no less
+      - Each suggestion should be concise and actionable
+      - Do NOT include numbers or bullet points in your suggestions
+      - Format the response as JSON with these keys: contentOptimization, technicalSEO, userExperience, socialMedia, priorityActions
+      - For each key, the value must be an array of strings, with each string being a specific recommendation
+      - Do NOT include category headings in the suggestions themselves
     `;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     console.log('Raw AI Response:', response.text()); // Log the raw response
+    
     let suggestions;
     try {
       const text = response.text();
-      const cleanedText = text.replace(/```json\n?|\n?```/g, '').trim()
+      const cleanedText = text.replace(/```json\n?|\n?```/g, '').trim();
       suggestions = JSON.parse(cleanedText);
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError);
       throw new Error('Invalid AI response format');
     }
 
-    console.log(suggestions, 'dsjkfhksjdfhjkf')
+    // Standardize the response format - ensure all fields are arrays of strings with 1-4 suggestions
+    const standardizedSuggestions = {
+      contentOptimization: processAndLimitSuggestions(suggestions.contentOptimization, 'Content Optimization'),
+      technicalSEO: processAndLimitSuggestions(suggestions.technicalSEO, 'Technical SEO'),
+      userExperience: processAndLimitSuggestions(suggestions.userExperience, 'User Experience'),
+      socialMedia: processAndLimitSuggestions(suggestions.socialMedia, 'Social Media'),
+      priorityActions: processAndLimitSuggestions(suggestions.priorityActions, 'Priority Actions')
+    };
 
-
-    // Validate the response structure
-    const requiredKeys = ['contentOptimization', 'technicalSEO', 'userExperience', 'socialMedia', 'priorityActions'];
-    const missingKeys = requiredKeys.filter(key => !suggestions[key]);
-    if (missingKeys.length > 0) {
-      throw new Error(`Invalid AI response: missing keys ${missingKeys.join(', ')}`);
-    }
-
-    return suggestions;
+    return standardizedSuggestions;
   } catch (error) {
     console.error('AI Analysis Error:', error);
     return {
       contentOptimization: ['AI analysis currently unavailable: ' + error.message],
       technicalSEO: ['Please ensure GEMINI_API_KEY is configured correctly'],
-      userExperience: [],
-      socialMedia: [],
+      userExperience: ['Check browser console for error details'],
+      socialMedia: ['Retry the analysis when API service is available'],
       priorityActions: ['Configure API key to enable AI suggestions']
     };
   }
+}
+
+// Helper function to ensure consistent array format for suggestions
+function ensureStringArray(value) {
+  if (!value) return [];
+  
+  // If already an array, ensure all elements are strings
+  if (Array.isArray(value)) {
+    return value.map(item => {
+      if (typeof item === 'string') return item;
+      // If it's an object with a text property, use that
+      if (item && typeof item === 'object' && item.text) return item.text;
+      // Otherwise convert to string
+      return String(item);
+    });
+  }
+  
+  // If it's an object with a text property or array of items
+  if (typeof value === 'object') {
+    if (value.text) return [value.text];
+    if (value.items && Array.isArray(value.items)) return ensureStringArray(value.items);
+    // If it's just an object with properties, extract values
+    return Object.values(value).map(String);
+  }
+  
+  // If it's a string, wrap in array
+  if (typeof value === 'string') return [value];
+  
+  // Default case
+  return [];
+}
+
+// Process suggestions to remove numbering and limit to 1-4 items
+function processAndLimitSuggestions(value, category) {
+  // First convert to string array using existing function
+  let suggestions = ensureStringArray(value);
+  
+  // Remove any numbering patterns from the suggestions
+  suggestions = suggestions.map(suggestion => {
+    // Remove common numbering patterns (1., 1), #1, 1. etc.)
+    let cleanedSuggestion = suggestion.replace(/^(\d+[.):\-]|\#\d+[.:]?|\(\d+\))\s*/g, '').trim();
+    
+    // Remove any numbers from the beginning of the suggestion
+    cleanedSuggestion = cleanedSuggestion.replace(/^\d+\s*/, '');
+    
+    // Remove category heading if present
+    cleanedSuggestion = cleanedSuggestion.replace(new RegExp(`^${category}:\\s*`, 'i'), '');
+    
+    return cleanedSuggestion;
+  });
+  
+  // Filter out empty suggestions
+  suggestions = suggestions.filter(suggestion => suggestion.length > 0);
+  
+  // Ensure we have at least 1 suggestion
+  if (suggestions.length === 0) {
+    suggestions = ['Consider improving this area based on industry best practices'];
+  }
+  
+  // Limit to maximum 4 suggestions
+  return suggestions.slice(0, 4);
 }
 
 // Function to analyze SEO tags

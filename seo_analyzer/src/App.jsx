@@ -215,7 +215,7 @@ function App() {
               </div>
 
               <div className="p-5">
-                console.log(suggestions, 'suggestionssldjkfd')
+                {/* console.log(suggestions, 'suggestions_suggestions') */}
                 {suggestions[category] && typeof suggestions[category] === 'object' && Object.entries(suggestions[category]).map(([key, value], index) => (
                   <motion.div
                     key={key}
@@ -224,7 +224,7 @@ function App() {
                     transition={{ delay: index * 0.1 }}
                     className="mb-4 last:mb-0 p-4 bg-gray-50 rounded-lg hover:shadow-sm transition-shadow duration-200"
                   >
-                    <h4 className="font-medium text-gray-800 mb-2 capitalize">{key.split(/(?=[A-Z])/).join(' ')}</h4>
+                    {/* <h4 className="font-medium text-gray-800 mb-2 capitalize">{key.split(/(?=[A-Z])/).join(' ')}</h4> */}
                     <div className="text-gray-600">
                       {typeof value === 'string' && (
                         <div dangerouslySetInnerHTML={{ 
