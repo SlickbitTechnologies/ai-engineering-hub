@@ -154,6 +154,35 @@ function App() {
     ],
   });
 
+  function getPriorityStyles(priority) {
+    switch (priority.toLowerCase()) {
+      case 'high':
+        return {
+          icon: '🔴',
+          color: '#DC2626', // Red text
+          bgColor: 'rgba(254, 226, 226, 0.5)' // Light red background
+        };
+      case 'medium':
+        return {
+          icon: '⚠️',
+          color: '#D97706', // Orange text
+          bgColor: 'rgba(254, 243, 199, 0.5)' // Light orange background
+        };
+      case 'low':
+        return {
+          icon: '💡',
+          color: '#059669', // Green text
+          bgColor: 'rgba(209, 250, 229, 0.5)' // Light green background
+        };
+      default:
+        return {
+          icon: '❓',
+          color: '#6B7280', // Gray text
+          bgColor: 'rgba(243, 244, 246, 0.5)' // Light gray background
+        };
+    }
+  }
+
   const renderAISuggestions = (suggestions) => {
     if (!suggestions) return null;
 
@@ -162,7 +191,7 @@ function App() {
         <h2 className="text-2xl font-bold text-center mb-8 text-gray-800">AI-Powered SEO Recommendations</h2>
         
         {/* Priority Actions Section */}
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-xl shadow-lg p-6 mb-8"
@@ -193,7 +222,7 @@ function App() {
               </motion.div>
             ))}
           </div>
-        </motion.div>
+        </motion.div> */}
 
         {/* Main Categories Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -216,9 +245,9 @@ function App() {
 
               <div className="p-5">
                 {/* console.log(suggestions, 'suggestions_suggestions') */}
-                {suggestions[category] && typeof suggestions[category] === 'object' && Object.entries(suggestions[category]).map(([key, value], index) => (
+                {suggestions[category].map((item, index) => (
                   <motion.div
-                    key={key}
+                    key={index}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
@@ -226,11 +255,7 @@ function App() {
                   >
                     {/* <h4 className="font-medium text-gray-800 mb-2 capitalize">{key.split(/(?=[A-Z])/).join(' ')}</h4> */}
                     <div className="text-gray-600">
-                      {typeof value === 'string' && (
-                        <div dangerouslySetInnerHTML={{ 
-                          __html: value.replace(/\*\*(.*?)\*\*/g, '<strong class="text-blue-600">$1</strong>') 
-                        }} />
-                      )}
+                      <p>{getPriorityStyles(item?.priority)?.icon +' '+ item?.text}</p>
                     </div>
                   </motion.div>
                 ))}
