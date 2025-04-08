@@ -291,9 +291,67 @@ const MenuManagement = () => {
       )}
 
       {tabValue === 1 && (
-        <Typography variant="h6" sx={{ textAlign: 'center', color: 'text.secondary', mt: 4 }}>
-          Categories management coming soon...
-        </Typography>
+        <Box sx={{ p: 3, bgcolor: 'background.paper', borderRadius: 1, boxShadow: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h5">Menu Categories</Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              sx={{
+                bgcolor: '#1a237e',
+                '&:hover': { bgcolor: '#0d47a1' },
+                borderRadius: 2,
+                textTransform: 'none'
+              }}
+              onClick={() => {/* TODO: Implement add category */}}
+            >
+              Add Category
+            </Button>
+          </Box>
+
+          <Stack spacing={2}>
+            {categories.map((category, index) => (
+              <Paper
+                key={category}
+                elevation={0}
+                sx={{
+                  p: 2,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                    {category}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Position: {index + 1}
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <IconButton
+                    size="small"
+                    onClick={() => {/* TODO: Implement edit */}}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={() => {/* TODO: Implement delete */}}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+              </Paper>
+            ))}
+          </Stack>
+        </Box>
       )}
 
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
