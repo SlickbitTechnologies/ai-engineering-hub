@@ -23,7 +23,8 @@ const initializeDatabase = () => {
         name TEXT NOT NULL,
         price REAL NOT NULL,
         description TEXT,
-        category TEXT NOT NULL
+        category TEXT NOT NULL,
+        available TEXT
       )
     `);
 

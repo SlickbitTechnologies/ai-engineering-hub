@@ -17,10 +17,11 @@ app.get("/api/menu-items", (req, res) => {
 });
 
 app.post("/api/menu-items", (req, res) => {
-  const { name, price, description, category } = req.body;
+  const { name, price, description, category, available } = req.body.obj;
+  console.log(req.body, 'sdkjsjfsfhk')
   db.run(
-    "INSERT INTO menu_items (name, price, description, category) VALUES (?, ?, ?, ?)",
-    [name, price, description, category],
+    "INSERT INTO menu_items (name, price, description, category, available) VALUES (?, ?, ?, ?, ?)",
+    [name, price, description, category, available],
     function(err) {
       if (err) {
         res.status(500).json({ error: err.message });

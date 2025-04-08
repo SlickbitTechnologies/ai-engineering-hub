@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box,
   Button,
@@ -22,7 +22,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import axios from 'axios';
 import panCake from '../assets/panCake.png';
 
-const categories = ['Burgers', 'Sides', 'Drinks', 'Desserts', 'Combos'];
+// const categories = ['Burgers', 'Sides', 'Drinks', 'Desserts', 'Combos'];
 
 const MenuManagement = () => {
   const [menuItems, setMenuItems] = useState([
@@ -55,8 +55,9 @@ const MenuManagement = () => {
   
   const [open, setOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
-  const [selectedCategory, setSelectedCategory] = useState('Burgers');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [editItem, setEditItem] = useState(null);
+  const [categories, setCategories] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -65,6 +66,23 @@ const MenuManagement = () => {
     available: true,
     customizations: []
   });
+
+  useEffect(() => {
+    fetchMenuItems();
+  }, []);
+
+  const fetchMenuItems = async () => {
+    try {
+      const response = await axios.get('/api/menu-items');
+      console.log(response, 'sdfsdfresponse')
+      setMenuItems(response.data);
+      const filterCat = [...new Set(response.data.map(item => item.category))];
+      setCategories(filterCat)
+      setSelectedCategory(filterCat[0])
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    }
+  };
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -118,6 +136,22 @@ const MenuManagement = () => {
       }
     }
   };
+
+  const handleSaveMenuItem = async() => {
+    let obj = {
+      name: formData.name,
+      price: parseFloat(formData.price),
+      description: formData.description,
+      category: formData.category,
+      available: formData.available
+    }
+    const response = await axios.post('/api/menu-items', { obj });
+    console.log(response, 'responseresponsesdsd')
+    if(response.status === 200) {
+      handleClose()
+      fetchMenuItems()
+    }
+  }
 
   return (
     <Box sx={{ p: 3 }}>
@@ -216,7 +250,7 @@ const MenuManagement = () => {
                         {item.description}
                       </Typography>
                       
-                      {item.customizations.length > 0 && (
+                      {item?.customizations?.length > 0 && (
                         <Box sx={{ mt: 2 }}>
                           <Typography variant="subtitle2" gutterBottom>
                             Customizations:
@@ -275,6 +309,15 @@ const MenuManagement = () => {
             required
           />
           <TextField
+            autoFocus
+            margin="dense"
+            label="category"
+            fullWidth
+            value={formData.category}
+            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            required
+          />
+          <TextField
             margin="dense"
             label="Price"
             type="number"
@@ -295,7 +338,7 @@ const MenuManagement = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button variant="contained" color="primary">
+          <Button variant="contained" color="primary" onClick={handleSaveMenuItem}>
             {editItem ? 'Save Changes' : 'Add Item'}
           </Button>
         </DialogActions>
