@@ -5,9 +5,41 @@ import {
   Paper,
   Typography,
   Button,
+  Fade,
+  Zoom,
 } from '@mui/material';
+import { motion, AnimatePresence } from 'framer-motion';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import axios from 'axios';
+
+// Add these animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const orderCardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: {
+      duration: 0.5
+    }
+  },
+  hover: {
+    y: -5,
+    boxShadow: "0px 8px 15px rgba(0,0,0,0.1)",
+    transition: {
+      duration: 0.3
+    }
+  }
+};
 
 const OrderDisplay = () => {
   const [orders, setOrders] = useState([
@@ -143,112 +175,169 @@ const OrderDisplay = () => {
   };
 
   return (
-    <Box sx={{ p: 4 }}>
-      <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-        <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
-            Kitchen Display
-          </Typography>
-          <Typography variant="subtitle1" color="text.secondary">
-            View and manage active orders for the kitchen
-          </Typography>
-        </Box>
+    <Fade in timeout={800}>
+      <Box sx={{ p: 4 }}>
+        <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <Box sx={{ textAlign: 'center', mb: 4 }}>
+              <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
+                Kitchen Display
+              </Typography>
+              <Typography variant="subtitle1" color="text.secondary">
+                View and manage active orders for the kitchen
+              </Typography>
+            </Box>
+          </motion.div>
 
-        <Grid container spacing={3}>
-          {orders.map((order) => (
-            <Grid item xs={12} sm={3} key={order.id}>
-              <Paper
-                elevation={0}
-                sx={{
-                  bgcolor: getOrderBackgroundColor(order.status),
-                  borderRadius: 2,
-                  overflow: 'hidden',
-                  border: '1px solid #EEE'
-                }}
-              >
-                {/* Order Header */}
-                <Box sx={{ 
-                  p: 2, 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  borderBottom: '1px solid rgba(0, 0, 0, 0.05)'
-                }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    Order #{order.id}
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <AccessTimeIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                    <Typography color="text.secondary">{order.timestamp}</Typography>
-                  </Box>
-                </Box>
-
-                {/* Vehicle Info */}
-                <Box sx={{ px: 2, py: 1, bgcolor: '#FFF' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Vehicle: {order.vehicle}
-                  </Typography>
-                </Box>
-
-                {/* Order Items */}
-                <Box sx={{ p: 2, bgcolor: '#FFF' }}>
-                  {order.items.map((item, index) => (
-                    <Box key={index} sx={{ mb: index !== order.items.length - 1 ? 2 : 0 }}>
-                      <Box sx={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between',
-                        mb: 0.5
-                      }}>
-                        <Typography>
-                          {item.name} × {item.quantity}
-                        </Typography>
-                        <Typography>
-                          ${item.price.toFixed(2)}
-                        </Typography>
-                      </Box>
-                      {item.customizations.map((customization, custIndex) => (
-                        <Typography
-                          key={custIndex}
-                          variant="body2"
-                          sx={{
-                            color: '#ff5722',
-                            ml: 2,
-                            '&::before': {
-                              content: '"•"',
-                              marginRight: '4px'
-                            }
-                          }}
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            <Grid container spacing={3}>
+              <AnimatePresence>
+                {orders.map((order) => (
+                  <Grid item xs={12} sm={3} key={order.id}>
+                    <motion.div
+                      variants={orderCardVariants}
+                      whileHover="hover"
+                      layout
+                    >
+                      <Paper
+                        elevation={0}
+                        sx={{
+                          bgcolor: getOrderBackgroundColor(order.status),
+                          borderRadius: 2,
+                          overflow: 'hidden',
+                          border: '1px solid #EEE',
+                          transition: 'all 0.3s ease'
+                        }}
+                      >
+                        {/* Order Header */}
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.2 }}
                         >
-                          {customization}
-                        </Typography>
-                      ))}
-                    </Box>
-                  ))}
-                </Box>
+                          <Box sx={{ 
+                            p: 2, 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            borderBottom: '1px solid rgba(0, 0, 0, 0.05)'
+                          }}>
+                            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                              Order #{order.id}
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                              >
+                                <AccessTimeIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                              </motion.div>
+                              <Typography color="text.secondary">{order.timestamp}</Typography>
+                            </Box>
+                          </Box>
+                        </motion.div>
 
-                {/* Order Total and Action */}
-                <Box sx={{ 
-                  p: 2,
-                  borderTop: '1px solid rgba(0, 0, 0, 0.05)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center', 
-                  bgcolor: '#FFF'
-                }}>
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">Total:</Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      ${order.total.toFixed(2)}
-                    </Typography>
-                  </Box>
-                  {getActionButton(order)}
-                </Box>
-              </Paper>
+                        {/* Vehicle Info */}
+                        <Zoom in timeout={500}>
+                          <Box sx={{ px: 2, py: 1, bgcolor: '#FFF' }}>
+                            <Typography variant="body2" color="text.secondary">
+                              Vehicle: {order.vehicle}
+                            </Typography>
+                          </Box>
+                        </Zoom>
+
+                        {/* Order Items */}
+                        <Box sx={{ p: 2, bgcolor: '#FFF' }}>
+                          {order.items.map((item, index) => (
+                            <motion.div
+                              key={index}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                            >
+                              <Box sx={{ mb: index !== order.items.length - 1 ? 2 : 0 }}>
+                                <Box sx={{ 
+                                  display: 'flex', 
+                                  justifyContent: 'space-between',
+                                  mb: 0.5
+                                }}>
+                                  <Typography>
+                                    {item.name} × {item.quantity}
+                                  </Typography>
+                                  <Typography>
+                                    ${item.price.toFixed(2)}
+                                  </Typography>
+                                </Box>
+                                {item.customizations.map((customization, custIndex) => (
+                                  <motion.div
+                                    key={custIndex}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: custIndex * 0.1 + 0.2 }}
+                                  >
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        color: '#ff5722',
+                                        ml: 2,
+                                        '&::before': {
+                                          content: '"•"',
+                                          marginRight: '4px'
+                                        }
+                                      }}
+                                    >
+                                      {customization}
+                                    </Typography>
+                                  </motion.div>
+                                ))}
+                              </Box>
+                            </motion.div>
+                          ))}
+                        </Box>
+
+                        {/* Order Total and Action */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3 }}
+                        >
+                          <Box sx={{ 
+                            p: 2,
+                            borderTop: '1px solid rgba(0, 0, 0, 0.05)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center', 
+                            bgcolor: '#FFF'
+                          }}>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">Total:</Typography>
+                              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                ${order.total.toFixed(2)}
+                              </Typography>
+                            </Box>
+                            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                              {getActionButton(order)}
+                            </motion.div>
+                          </Box>
+                        </motion.div>
+                      </Paper>
+                    </motion.div>
+                  </Grid>
+                ))}
+              </AnimatePresence>
             </Grid>
-          ))}
-        </Grid>
+          </motion.div>
+        </Box>
       </Box>
-    </Box>
+    </Fade>
   );
 };
 

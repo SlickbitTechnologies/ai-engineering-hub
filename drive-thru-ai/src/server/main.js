@@ -57,6 +57,32 @@ app.delete("/api/menu-items/:id", (req, res) => {
   });
 });
 
+app.get("/api/categories", (req, res) => {
+  db.all("SELECT * FROM categories", (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows);
+  });
+});
+
+app.post("/api/categories", (req, res) => {
+  const { name } = req.body;
+  console.log(req.body, 'sasdadkjsjfsfhk')
+  db.run(
+    "INSERT INTO categories (name) VALUES (?)",
+    [name],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({ id: this.lastID });
+    }
+  );
+});
+
 // Orders Routes
 app.get("/api/orders", (req, res) => {
   db.all(

@@ -28,6 +28,14 @@ const initializeDatabase = () => {
       )
     `);
 
+    // Create categories table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL
+      )
+    `);
+
     // Create orders table
     db.run(`
       CREATE TABLE IF NOT EXISTS orders (

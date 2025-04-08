@@ -10,6 +10,7 @@ import {
   CardMedia,
   Divider,
   Fade,
+  Tooltip,
 } from '@mui/material';
 import MicIcon from '@mui/icons-material/Mic';
 import SendIcon from '@mui/icons-material/Send';
@@ -19,12 +20,43 @@ import axios from 'axios';
 import { keyframes } from '@mui/system';
 import Vapi from '@vapi-ai/web';
 import panCake from '../assets/panCake.png';
+import { motion, AnimatePresence } from 'framer-motion';
+import FastfoodIcon from '@mui/icons-material/Fastfood';
+import LocalDiningIcon from '@mui/icons-material/LocalDining';
+import DriveEtaIcon from '@mui/icons-material/DriveEta';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
 
 const pulseAnimation = keyframes`
   0% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.1); opacity: 0.7; }
   100% { transform: scale(1); opacity: 1; }
 `;
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { duration: 0.5, staggerChildren: 0.1 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5 }
+  }
+};
+
+const messageVariants = {
+  hidden: { opacity: 0, x: -20 },
+  visible: { 
+    opacity: 1, 
+    x: 0,
+    transition: { duration: 0.3 }
+  }
+};
 
 const OrderingSimulation = () => {
   const [isListening, setIsListening] = useState(false);
@@ -224,14 +256,33 @@ const OrderingSimulation = () => {
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ textAlign: 'center', p: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
-          Order Simulation
-        </Typography>
-        <Typography variant="subtitle1" color="text.secondary">
-          Simulate placing an order with the AI voice agent
-        </Typography>
-      </Box>
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <Box sx={{ textAlign: 'center', p: 3 }}>
+          <Typography variant="h4" sx={{ 
+            fontWeight: 600, 
+            mb: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 2
+          }}>
+            <motion.div
+              // animate={{ rotate: 360 }}
+              // transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+            >
+              {/* <DriveEtaIcon sx={{ color: '#ff5722', fontSize: 40 }} /> */}
+              </motion.div>
+            Order Simulation
+          </Typography>
+          <Typography variant="subtitle1" color="text.secondary">
+            Simulate placing an order with the AI voice agent
+          </Typography>
+        </Box>
+      </motion.div>
 
       <Box 
         ref={containerRef}
@@ -241,83 +292,164 @@ const OrderingSimulation = () => {
           overflow: 'hidden',
           position: 'relative',
           userSelect: isDragging ? 'none' : 'auto',
-          padding: 2
+          margin: 1,
+          border: '1px solid #EEE',
+          borderRadius: 5
         }}
       >
         {/* AI Assistant Column */}
-        <Box 
-          ref={leftColumnRef}
-          sx={{ 
-            width: `${leftWidth}%`,
-            borderRight: '1px solid',
-            borderColor: 'divider',
-            position: 'relative', 
-            border: '1px solid #C3C3C3', 
-            borderRadius: 5
-          }}
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={containerVariants}
+          style={{ width: `${leftWidth}%`, height: '100%' }}
         >
-          <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ p: 2, textAlign: 'center', borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box 
+            ref={leftColumnRef}
+            sx={{ 
+              borderRight: '1px solid',
+              borderColor: 'divider',
+              position: 'relative', 
+              // border: '1px solid #C3C3C3', 
+              // borderRadius: 5,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Box sx={{ 
+              p: 2, 
+              textAlign: 'center', 
+              borderBottom: '1px solid', 
+              borderColor: 'divider',
+              backgroundColor: 'background.paper',
+              position: 'sticky',
+              top: 0,
+              zIndex: 2
+            }}>
               <Typography variant="h6" sx={{ fontWeight: 500 }}>
                 Drive-Thru AI Assistant
               </Typography>
             </Box>
 
-            <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
-              {messages.map((message, index) => (
-                <Fade in={true} key={index}>
-                  <Box sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: message.type === 'user' ? 'flex-end' : 'flex-start',
-                    mb: 2
-                  }}>
+            <Box sx={{ 
+              flexGrow: 1,
+              overflow: 'auto',
+              p: 2,
+              height: 0,
+              '&::-webkit-scrollbar': {
+                width: '0px',
+              },
+              '&::-webkit-scrollbar-track': {
+                backgroundColor: 'rgba(0,0,0,0.05)',
+                borderRadius: '4px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: 'rgba(0,0,0,0.15)',
+                borderRadius: '4px',
+                '&:hover': {
+                  backgroundColor: 'rgba(0,0,0,0.25)',
+                },
+              },
+            }}>
+              <AnimatePresence>
+                {messages.map((message, index) => (
+                  <motion.div
+                    key={index}
+                    variants={messageVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit={{ opacity: 0, x: 20 }}
+                  >
                     <Box sx={{
-                      p: 2,
-                      bgcolor: message.type === 'user' ? '#e3f2fd' : '#f5f5f5',
-                      borderRadius: 2,
-                      maxWidth: '80%'
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: message.type === 'user' ? 'flex-end' : 'flex-start',
+                      mb: 2
                     }}>
-                      {message.type === 'assistant' && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                          <VolumeUpIcon sx={{ mr: 1, color: '#ff5722' }} />
-                        </Box>
-                      )}
-                      <Typography variant="body1">{message.text}</Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                        {message.timestamp}
-                      </Typography>
+                      <Box sx={{
+                        p: 2,
+                        bgcolor: message.type === 'user' ? '#e3f2fd' : '#f5f5f5',
+                        borderRadius: 2,
+                        maxWidth: '80%'
+                      }}>
+                        {message.type === 'assistant' && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                            <VolumeUpIcon sx={{ mr: 1, color: '#ff5722' }} />
+                          </Box>
+                        )}
+                        <Typography variant="body1">{message.text}</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                          {message.timestamp}
+                        </Typography>
+                      </Box>
                     </Box>
-                  </Box>
-                </Fade>
-              ))}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </Box>
 
-            <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="Type your order here..."
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                />
-                <IconButton
-                  color="primary"
-                  onClick={isListening ? stopListening : startListening}
-                  sx={{
-                    animation: isListening ? `${pulseAnimation} 1.5s infinite` : 'none',
-                    bgcolor: isListening ? 'rgba(255, 87, 34, 0.1)' : 'transparent'
-                  }}
-                >
-                  <MicIcon />
-                </IconButton>
-                <IconButton color="primary" onClick={handleSendMessage}>
-                  <SendIcon />
-                </IconButton>
-              </Box>
+            <Box sx={{ 
+              p: 2, 
+              borderTop: '1px solid', 
+              borderColor: 'divider',
+              backgroundColor: 'background.paper',
+              position: 'sticky',
+              bottom: 0,
+              zIndex: 2,
+              mt: 'auto'
+            }}>
+              <motion.div whileHover={{ scale: 1.02 }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  gap: 1,
+                  backgroundColor: 'background.paper'
+                }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Type your order here..."
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': { 
+                        borderRadius: 2,
+                        backgroundColor: 'background.paper'
+                      }
+                    }}
+                  />
+                  <Tooltip title={isListening ? "Stop Recording" : "Start Recording"}>
+                    <IconButton
+                      color="primary"
+                      onClick={isListening ? stopListening : startListening}
+                      sx={{
+                        animation: isListening ? `${pulseAnimation} 1.5s infinite` : 'none',
+                        bgcolor: isListening ? 'rgba(255, 87, 34, 0.1)' : 'transparent',
+                        transition: 'all 0.3s ease',
+                      }}
+                    >
+                      <motion.div
+                        animate={isListening ? { scale: [1, 1.2, 1] } : {}}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                      >
+                        <MicIcon />
+                      </motion.div>
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Send Message">
+                    <IconButton 
+                      color="primary" 
+                      onClick={handleSendMessage}
+                      component={motion.button}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                    >
+                      <SendIcon />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </motion.div>
             </Box>
           </Box>
           <Box
@@ -347,106 +479,207 @@ const OrderingSimulation = () => {
             }}
             onMouseDown={(e) => startDragging(e, 'left')}
           />
-        </Box>
+        </motion.div>
 
         {/* Selected Items Column */}
-        <Box 
-          ref={middleColumnRef}
-          sx={{ 
-            width: `${middleWidth}%`,
-            borderRight: '1px solid',
-            borderColor: 'divider',
-            position: 'relative', 
-            border: '1px solid #C3C3C3', 
-            borderRadius: 5
-          }}
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={containerVariants}
+          style={{ width: `${middleWidth}%`, height: '100%' }}
         >
-          <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ 
-              p: 2, 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 1,
-              borderBottom: '1px solid',
-              borderColor: 'divider'
-            }}>
-              <ShoppingCartIcon sx={{ color: '#ff5722' }} />
-              <Typography variant="h6" sx={{ fontWeight: 500 }}>Selected Items</Typography>
-              <Typography variant="body2" sx={{ ml: 'auto', color: 'text.secondary' }}>
-                {orderItems.length} items
-              </Typography>
-            </Box>
-
-            {orderItems.length === 0 ? (
-              <Box sx={{
-                flexGrow: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                p: 3,
-                color: 'text.secondary'
+          <Box 
+            ref={middleColumnRef}
+            sx={{ 
+              borderRight: '1px solid',
+              borderColor: 'divider',
+              position: 'relative', 
+              // border: '1px solid #C3C3C3', 
+              // borderRadius: 5,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Box sx={{ 
+                p: 2, 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                backgroundColor: 'background.paper',
+                position: 'sticky',
+                top: 0,
+                zIndex: 2
               }}>
-                <ShoppingCartIcon sx={{ fontSize: 48, mb: 2, color: '#ff5722' }} />
-                <Typography>No items in order yet</Typography>
-                <Typography variant="body2">Items will appear here as you order</Typography>
+                <ShoppingCartIcon sx={{ color: '#ff5722' }} />
+                <Typography variant="h6" sx={{ fontWeight: 500 }}>Selected Items</Typography>
+                <Typography variant="body2" sx={{ ml: 'auto', color: 'text.secondary' }}>
+                  {orderItems.length} items
+                </Typography>
               </Box>
-            ) : (
-              <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-                {orderItems.map((item, index) => (
-                  <Fade in={true} key={index}>
-                    <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="subtitle1">{item.name}</Typography>
-                        <Typography variant="subtitle1">${item.price.toFixed(2)}</Typography>
-                      </Box>
-                      {item.options && item.options.map((option, optIndex) => (
-                        <Typography
-                          key={optIndex}
-                          variant="body2"
-                          color="warning.main"
-                          sx={{ ml: 2 }}
-                        >
-                          • {option.name} (+${option.price.toFixed(2)})
-                        </Typography>
-                      ))}
-                    </Box>
-                  </Fade>
-                ))}
-              </Box>
-            )}
-          </Box>
-          <Box
-            sx={{
-              position: 'absolute',
-              right: -6,
-              top: 0,
-              bottom: 0,
-              width: 12,
-              cursor: 'col-resize',
-              zIndex: 2,
-              '&:hover': {
-                '&::after': {
-                  backgroundColor: 'rgba(0, 0, 0, 0.1)',
-                }
-              },
-              '&::after': {
-                content: '""',
+
+              {orderItems.length === 0 ? (
+                <Box sx={{
+                  flexGrow: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  p: 3,
+                  color: 'text.secondary'
+                }}>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <ShoppingCartIcon sx={{ fontSize: 48, mb: 2, color: '#ff5722' }} />
+                    <Typography>No items in order yet</Typography>
+                    <Typography variant="body2">Items will appear here as you order</Typography>
+                  </motion.div>
+                </Box>
+              ) : (
+                <Box sx={{ 
+                  flexGrow: 1,
+                  overflow: 'auto',
+                  height: 0,
+                  '&::-webkit-scrollbar': {
+                    width: '0px',
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    backgroundColor: 'rgba(0,0,0,0.05)',
+                    borderRadius: '4px',
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    backgroundColor: 'rgba(0,0,0,0.15)',
+                    borderRadius: '4px',
+                    '&:hover': {
+                      backgroundColor: 'rgba(0,0,0,0.25)',
+                    },
+                  },
+                }}>
+                  <AnimatePresence>
+                    {orderItems.map((item, index) => (
+                      <motion.div
+                        key={index}
+                        variants={itemVariants}
+                        initial="hidden"
+                        animate="visible"
+                        exit={{ opacity: 0, y: -20 }}
+                      >
+                        <Box sx={{ 
+                          p: 2, 
+                          borderBottom: '1px solid', 
+                          borderColor: 'divider',
+                          '&:hover': {
+                            bgcolor: 'rgba(0, 0, 0, 0.02)'
+                          }
+                        }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="subtitle1" sx={{ 
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1
+                            }}>
+                              <FastfoodIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+                              {item.name}
+                            </Typography>
+                            <Typography variant="subtitle1" color="primary">
+                              ${item.price.toFixed(2)}
+                            </Typography>
+                          </Box>
+                          {item.options && item.options.map((option, optIndex) => (
+                            <motion.div
+                              key={optIndex}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: optIndex * 0.1 }}
+                            >
+                              <Typography
+                                variant="body2"
+                                color="warning.main"
+                                sx={{ 
+                                  ml: 2,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 0.5
+                                }}
+                              >
+                                <AddCircleIcon sx={{ fontSize: 14 }} />
+                                {option.name} (+${option.price.toFixed(2)})
+                              </Typography>
+                            </motion.div>
+                          ))}
+                        </Box>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </Box>
+              )}
+
+              {orderItems.length > 0 && (
+                <Box sx={{ 
+                  p: 2, 
+                  borderTop: '1px solid', 
+                  borderColor: 'divider',
+                  backgroundColor: 'background.paper',
+                  position: 'sticky',
+                  bottom: 0,
+                  zIndex: 2
+                }}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <Typography variant="subtitle1">Total:</Typography>
+                    <Typography variant="h6" color="primary">
+                      ${orderItems.reduce((sum, item) => sum + item.price, 0).toFixed(2)}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            </Box>
+            <Box
+              sx={{
                 position: 'absolute',
-                left: '50%',
+                right: -6,
                 top: 0,
                 bottom: 0,
-                width: 4,
-                backgroundColor: isDragging && activeResizer === 'middle' ? 'rgba(0, 0, 0, 0.1)' : 'transparent',
-                transition: 'background-color 0.2s'
-              }
-            }}
-            onMouseDown={(e) => startDragging(e, 'middle')}
-          />
-        </Box>
+                width: 12,
+                cursor: 'col-resize',
+                zIndex: 2,
+                '&:hover': {
+                  '&::after': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                  }
+                },
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  left: '50%',
+                  top: 0,
+                  bottom: 0,
+                  width: 4,
+                  backgroundColor: isDragging && activeResizer === 'middle' ? 'rgba(0, 0, 0, 0.1)' : 'transparent',
+                  transition: 'background-color 0.2s'
+                }
+              }}
+              onMouseDown={(e) => startDragging(e, 'middle')}
+            />
+          </Box>
+        </motion.div>
 
         {/* Menu Column */}
-        <Box sx={{ flex: 1, border: '1px solid #C3C3C3', borderRadius: 5 }}>
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={containerVariants}
+          style={{ flex: 1 }}
+        >
           <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Box sx={{ 
               p: 2,
@@ -461,60 +694,96 @@ const OrderingSimulation = () => {
             </Box>
 
             <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
-              {menuItems.map((item) => (
-                <Fade in={true} key={item.id}>
-                  <Card
-                    elevation={0}
-                    sx={{
-                      mb: 2,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 2,
-                      transition: 'transform 0.2s, box-shadow 0.2s',
-                      '&:hover': {
-                        transform: 'translateY(-4px)',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
-                      }
-                    }}
+              <AnimatePresence>
+                {menuItems.map((item) => (
+                  <motion.div
+                    key={item.id}
+                    variants={itemVariants}
+                    whileHover={{ scale: 1.02 }}
+                    layout
                   >
-                    <CardMedia
-                      component="img"
-                      height="160"
-                      image={item.image}
-                      alt={item.name}
-                      sx={{ objectFit: 'cover' }}
-                    />
-                    <CardContent>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                          {item.name}
+                    <Card
+                      elevation={0}
+                      sx={{
+                        mb: 2,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 2,
+                        transition: 'transform 0.2s, box-shadow 0.2s',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+                        }
+                      }}
+                    >
+                      <motion.div
+                        whileHover={{ scale: 1.05 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <CardMedia
+                          component="img"
+                          height="160"
+                          image={item.image}
+                          alt={item.name}
+                          sx={{ objectFit: 'cover' }}
+                        />
+                      </motion.div>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography variant="h6" sx={{ 
+                            fontWeight: 500,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
+                          }}>
+                            <FastfoodIcon sx={{ color: 'primary.main' }} />
+                            {item.name}
+                          </Typography>
+                          <motion.div whileHover={{ scale: 1.1 }}>
+                            <Typography variant="h6" color="primary">
+                              ${item.price.toFixed(2)}
+                            </Typography>
+                          </motion.div>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          {item.description}
                         </Typography>
-                        <Typography variant="h6" color="primary">
-                          ${item.price.toFixed(2)}
-                        </Typography>
-                      </Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        {item.description}
-                      </Typography>
-                      <Divider sx={{ my: 1 }} />
-                      <Typography variant="subtitle2" sx={{ mb: 1 }}>Options:</Typography>
-                      {item.options.map((option, index) => (
-                        <Typography
-                          key={index}
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ ml: 1, mb: 0.5 }}
-                        >
-                          • {option.name} (+${option.price.toFixed(2)})
-                        </Typography>
-                      ))}
-                    </CardContent>
-                  </Card>
-                </Fade>
-              ))}
+                        <Divider sx={{ my: 1 }} />
+                        <Box sx={{ mt: 2 }}>
+                          <Typography variant="subtitle2" sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center',
+                            gap: 1,
+                            mb: 1
+                          }}>
+                            <AddCircleIcon sx={{ fontSize: 18 }} />
+                            Options:
+                          </Typography>
+                          {item.options.map((option, index) => (
+                            <motion.div
+                              key={index}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                            >
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ ml: 1, mb: 0.5 }}
+                              >
+                                • {option.name} (+${option.price.toFixed(2)})
+                              </Typography>
+                            </motion.div>
+                          ))}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </Box>
           </Box>
-        </Box>
+        </motion.div>
       </Box>
     </Box>
   );
