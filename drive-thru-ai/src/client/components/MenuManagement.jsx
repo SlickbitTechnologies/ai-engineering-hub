@@ -126,6 +126,7 @@ const MenuManagement = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [editItem, setEditItem] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [filteredCategoryList, setFilteredCategoryList] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -133,6 +134,12 @@ const MenuManagement = () => {
     category: '',
     available: true,
     customizations: []
+  });
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [categoryFormData, setCategoryFormData] = useState({
+    name: '',
+    position: 1
   });
 
   useEffect(() => {
@@ -149,7 +156,7 @@ const MenuManagement = () => {
       console.log(response, 'sdfsdfresponse')
       setMenuItems(response.data);
       const filterCat = [...new Set(response.data.map(item => item.category))];
-      setCategories(filterCat)
+      setFilteredCategoryList(filterCat)
       setSelectedCategory(filterCat[0])
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -159,6 +166,7 @@ const MenuManagement = () => {
   const fetchCategories = async () => {
     const response = await axios.get('/api/categories');
     console.log(response, 'sdkhskdfjh')
+    setCategories(response?.data)
   }
 
   const handleTabChange = (event, newValue) => {
@@ -213,25 +221,93 @@ const MenuManagement = () => {
       }
     }
   };
+  console.log(editItem, 'editItemjdsh')
 
-  const handleSaveMenuItem = async() => {
-    let obj = {
-      name: formData.name,
-      price: parseFloat(formData.price),
-      description: formData.description,
-      category: formData.category,
-      available: formData.available
+  const handleSaveMenuItem = async () => {
+    try {
+      const obj = {
+        name: formData.name,
+        price: parseFloat(formData.price),
+        description: formData.description,
+        category: formData.category,
+        available: formData.available,
+      };
+  
+      let itemResponse;
+  
+      if (editItem) {
+        // Update existing item
+        itemResponse = await axios.put(`/api/menu-items/${editItem.id}`, obj);
+      } else {
+        // Create new item
+        itemResponse = await axios.post('/api/menu-items', obj);
+        // Ensure category exists or update it
+        await axios.post('/api/categories', { name: formData.category });
+      }  
+
+      if (itemResponse.status === 200) {
+        handleClose();
+        fetchMenuItems();
+        fetchCategories();
+      }
+    } catch (error) {
+      console.error('Error saving menu item:', error);
+      // Optionally show a toast/snackbar here
     }
-    const itemResponse = await axios.post('/api/menu-items', { obj });
-    console.log(itemResponse, 'responseresponsesdsd')
+  };
+  
 
-    const categoryResponse = await axios.post('/api/categories', { name: formData.category });
-
-    if(itemResponse.status === 200) {
-      handleClose()
-      fetchMenuItems()
+  const handleOpenCategoryModal = (category = null) => {
+    console.log(category, 'dsfkjhcategory')
+    if (category) {
+      setEditingCategory(category);
+      setCategoryFormData({
+        name: category.name,
+        // position: categories.indexOf(category.id) + 1
+      });
+    } else {
+      setEditingCategory(null);
+      setCategoryFormData({
+        name: '',
+        position: categories.length + 1
+      });
     }
-  }
+    setCategoryModalOpen(true);
+  };
+
+  const handleCloseCategoryModal = () => {
+    setCategoryModalOpen(false);
+    setEditingCategory(null);
+    setCategoryFormData({ name: '', position: 1 });
+  };
+
+  const handleSaveCategory = async () => {
+    try {
+      if (editingCategory) {
+        // Update existing category
+        await axios.put(`/api/categories/${editingCategory.id}`, categoryFormData);
+      } else {
+        // Add new category
+        await axios.post('/api/categories', categoryFormData);
+      }
+      handleCloseCategoryModal();
+      fetchCategories(); // Refresh the categories list
+    } catch (error) {
+      console.error('Error saving category:', error);
+    }
+  };
+
+  const handleDeletecategory = async (id) => {
+    console.log(id, 'ididididi')
+    if (window.confirm('Are you sure you want to delete this category?')) {
+      try {
+        await axios.delete(`/api/categories/${id}`);
+        setCategories(categories.filter(item => item.id !== id));
+      } catch (error) {
+        console.error('Error deleting menu item:', error);
+      }
+    }
+  };
 
   return (
     <PageContainer>
@@ -301,7 +377,7 @@ const MenuManagement = () => {
         <Fade in timeout={500}>
           <Box>
             <Stack direction="row" spacing={2} sx={{ mb: 4, px: 2 }}>
-              {categories.map((category) => (
+              {filteredCategoryList.map((category) => (
                 <motion.div
                   key={category}
                   whileHover={{ scale: 1.05 }}
@@ -459,7 +535,7 @@ const MenuManagement = () => {
                     px: 3,
                     py: 1.5,
                   }}
-                  onClick={() => {/* TODO: Implement add category */}}
+                  onClick={() => handleOpenCategoryModal()}
                 >
                   Add Category
                 </Button>
@@ -493,7 +569,7 @@ const MenuManagement = () => {
                       <DragIndicatorIcon sx={{ color: 'text.secondary', cursor: 'grab' }} />
                       <Box>
                         <Typography variant="h6" sx={{ color: 'primary.main' }}>
-                          {category}
+                          {category.name}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           Position: {index + 1}
@@ -506,6 +582,7 @@ const MenuManagement = () => {
                         <AnimatedIconButton
                           size="small"
                           sx={{ bgcolor: 'action.hover' }}
+                          onClick={() => handleOpenCategoryModal(category)}
                         >
                           <EditIcon />
                         </AnimatedIconButton>
@@ -513,6 +590,7 @@ const MenuManagement = () => {
                       <Tooltip title="Delete Category">
                         <AnimatedIconButton
                           size="small"
+                          onClick={() => handleDeletecategory(category.id)}
                           sx={{ 
                             bgcolor: 'error.light',
                             color: 'white',
@@ -608,6 +686,65 @@ const MenuManagement = () => {
             }}
           >
             {editItem ? 'Save Changes' : 'Add Item'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog 
+        open={categoryModalOpen} 
+        onClose={handleCloseCategoryModal}
+        maxWidth="sm" 
+        fullWidth
+        TransitionComponent={Fade}
+        TransitionProps={{ timeout: 500 }}
+      >
+        <DialogTitle sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 2,
+          bgcolor: 'primary.main',
+          color: 'white'
+        }}>
+          <FastfoodIcon />
+          {editingCategory ? 'Edit Category' : 'Add Category'}
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          <Stack spacing={2}>
+            <TextField
+              label="Name"
+              fullWidth
+              value={categoryFormData.name}
+              onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
+              InputProps={{
+                startAdornment: <FastfoodIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+              }}
+            />
+            <TextField
+              label="Position"
+              type="number"
+              fullWidth
+              value={categoryFormData.position}
+              onChange={(e) => setCategoryFormData({ ...categoryFormData, position: e.target.value })}
+              InputProps={{
+                startAdornment: <FastfoodIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+              }}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={handleCloseCategoryModal} variant="outlined">
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleSaveCategory}
+            sx={{
+              '&:hover': {
+                transform: 'scale(1.02)',
+              },
+            }}
+          >
+            {editingCategory ? 'Save Changes' : 'Add Category'}
           </Button>
         </DialogActions>
       </Dialog>

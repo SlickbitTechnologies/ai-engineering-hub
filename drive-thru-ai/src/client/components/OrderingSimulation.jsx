@@ -75,7 +75,7 @@ const OrderingSimulation = () => {
   const leftColumnRef = useRef(null);
   const middleColumnRef = useRef(null);
   const [activeResizer, setActiveResizer] = useState(null);
-  const [menuItems] = useState([
+  const [menuItems, setMenuItems] = useState([
     {
       id: 1,
       name: 'Classic Burger',
@@ -112,6 +112,20 @@ const OrderingSimulation = () => {
     }
   ]);
 
+  useEffect(() => {
+    fetchMenuItems();
+  }, []);
+  
+    const fetchMenuItems = async () => {
+      try {
+        const response = await axios.get('/api/menu-items');
+        console.log(response, 'sdasdfsdfresponse')
+        setMenuItems(response.data);
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+      }
+    };
+
   const vapiClient = useRef(null);
   useEffect(() => {
     vapiClient.current = new Vapi({
@@ -127,9 +141,6 @@ const OrderingSimulation = () => {
       vapiClient.current?.removeAllListeners?.();
     };
   }, []);
-  
-  
-  
 
   const startListening = async () => {
     if (isListening) return;
@@ -723,8 +734,8 @@ const OrderingSimulation = () => {
                         <CardMedia
                           component="img"
                           height="160"
-                          image={item.image}
-                          alt={item.name}
+                          image={panCake}
+                          alt={'Burger image'}
                           sx={{ objectFit: 'cover' }}
                         />
                       </motion.div>
@@ -748,7 +759,7 @@ const OrderingSimulation = () => {
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                           {item.description}
                         </Typography>
-                        <Divider sx={{ my: 1 }} />
+                        {/* <Divider sx={{ my: 1 }} />
                         <Box sx={{ mt: 2 }}>
                           <Typography variant="subtitle2" sx={{ 
                             display: 'flex', 
@@ -775,7 +786,7 @@ const OrderingSimulation = () => {
                               </Typography>
                             </motion.div>
                           ))}
-                        </Box>
+                        </Box> */}
                       </CardContent>
                     </Card>
                   </motion.div>

@@ -17,7 +17,7 @@ app.get("/api/menu-items", (req, res) => {
 });
 
 app.post("/api/menu-items", (req, res) => {
-  const { name, price, description, category, available } = req.body.obj;
+  const { name, price, description, category, available } = req.body;
   console.log(req.body, 'sdkjsjfsfhk')
   db.run(
     "INSERT INTO menu_items (name, price, description, category, available) VALUES (?, ?, ?, ?, ?)",
@@ -57,6 +57,7 @@ app.delete("/api/menu-items/:id", (req, res) => {
   });
 });
 
+//categories
 app.get("/api/categories", (req, res) => {
   db.all("SELECT * FROM categories", (err, rows) => {
     if (err) {
@@ -81,6 +82,32 @@ app.post("/api/categories", (req, res) => {
       res.json({ id: this.lastID });
     }
   );
+});
+
+app.put("/api/categories/:id", (req, res) => {
+  const { name } = req.body;
+  db.run(
+    "UPDATE categories SET name = ? WHERE id = ?",
+    [name, req.params.id],
+    (err) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
+app.delete("/api/categories/:id", (req, res) => {
+  console.log(req.params.id, 'sdkjhfksdjghf')
+  db.run("DELETE FROM categories WHERE id = ?", [req.params.id], (err) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json({ success: true });
+  });
 });
 
 // Orders Routes
