@@ -11,6 +11,7 @@ import {
   Divider,
   Fade,
   Tooltip,
+  Chip,
 } from '@mui/material';
 import MicIcon from '@mui/icons-material/Mic';
 import SendIcon from '@mui/icons-material/Send';
@@ -111,6 +112,8 @@ const OrderingSimulation = () => {
       ]
     }
   ]);
+  const [orderTotal, setOrderTotal] = useState(0);
+  const [isProcessingOrder, setIsProcessingOrder] = useState(false);
 
   useEffect(() => {
     fetchMenuItems();
@@ -126,56 +129,55 @@ const OrderingSimulation = () => {
   };
 
   const vapiClient = useRef(null);
+  const API_KEY = '46f9f5d5-58f2-4114-8f56-447eec6ef9f1';
   useEffect(() => {
-    vapiClient.current = new Vapi({
-      apiKey: '996cca89-2691-45e4-ab58-cd7d6290477e',
-    });
+    try {
+      vapiClient.current = new Vapi(API_KEY || '');
+
+    } catch (error) {
+      console.error('Error initializing Vapi client:', error);
+    }
   
     return () => {
       if (vapiClient.current?.stop) {
-        vapiClient.current.stop(); // Stop active session if running
+        try {
+          vapiClient.current.stop();
+        } catch (error) {
+          console.error('Error stopping Vapi client:', error);
+        }
       }
-  
-      // Optional: clean up event listeners
       vapiClient.current?.removeAllListeners?.();
+      window.speechSynthesis.cancel();
     };
   }, []);
 
   const startListening = async () => {
     if (isListening) return;
-  
+    console.log(menuItems, 'menuItemsmenuItems')
     try {
       setIsListening(true);
-  
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  
-      const assistant = await vapiClient.current.start({
-        audioStream: stream,
-        assistant: {
-          name: "Drive-thru Assistant",
-          model: "gpt-3.5-turbo",
-          prompt: "You are a friendly drive-thru AI assistant at Burger Palace. Help customers place their orders."
-        },
-        onTranscript: (transcript) => {
-          console.log(transcript, 'transcriptkjsdh')
-          if (transcript && transcript.text) {
-            handleUserMessage(transcript.text);
+      const assistantId = '8a6c6580-b2c2-462e-859d-af0f51152d8c';
+      await vapiClient.current.start(assistantId, {variableValues: {menu: JSON.stringify(menuItems)}});
+
+      vapiClient.current.on("message", (message) => {
+        console.log("message => conversation-update ::", message);
+        if (message?.role == "user" && message.transcriptType == 'final') {
+          console.log(message.transcript, 'kjsdfhkshkfd')
+          handleUserMessage(message.transcript);
+          if(message.transcript == 'Thank you.'){
+            console.log('Sumbmiting your order!')
           }
-        },
-        onError: (error) => {
-          console.error('Vapi error:', error);
-          setIsListening(false);
-        },
-        onStop: () => {
-          setIsListening(false);
-          stream.getTracks().forEach(track => track.stop());
         }
       });
-  
-      vapiClient.current.activeAssistant = assistant;
+      vapiClient.current.on("error", (e) => {
+        console.error("error",e);
+      });
+
     } catch (error) {
       console.error('Error starting voice recognition:', error);
       setIsListening(false);
+      // Show error to user
+      handleUserMessage("Sorry, there was an error starting voice recognition. Please try again or use text input instead.");
     }
   };
   
@@ -188,38 +190,131 @@ const OrderingSimulation = () => {
     setIsListening(false);
   };
 
+  const speakText = async (text) => {
+    return new Promise((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.onend = resolve;
+      window.speechSynthesis.speak(utterance);
+    });
+  };
+
+  const processOrderText = (text) => {
+    // Extract quantities and menu items from text
+    const words = text.toLowerCase().split(' ');
+    const quantities = [];
+    const items = [];
+    let currentQuantity = 1;
+
+    words.forEach((word, index) => {
+      if (!isNaN(word)) {
+        currentQuantity = parseInt(word);
+      } else {
+        // Check if word matches any menu item
+        const matchedItem = menuItems.find(item => 
+          item.name.toLowerCase().includes(word) ||
+          word.includes(item.name.toLowerCase())
+        );
+        if (matchedItem) {
+          items.push({
+            ...matchedItem,
+            quantity: currentQuantity
+          });
+          currentQuantity = 1;
+        }
+      }
+    });
+
+    return items;
+  };
+
+  const addItemsToOrder = (items) => {
+    const newOrderItems = [...orderItems, ...items.map(item => ({
+      ...item,
+      totalPrice: item.price * (item.quantity || 1)
+    }))];
+    setOrderItems(newOrderItems);
+    
+    // Calculate new total
+    const total = newOrderItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    setOrderTotal(total);
+  };
+
   const handleUserMessage = async (text) => {
+    console.log(text, 'textsjhd')
+    setIsProcessingOrder(true);
     const newMessage = {
       type: 'user',
       text: text,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+      timestamp: new Date().toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit', 
+        hour12: false 
+      })
     };
     setMessages(prev => [...prev, newMessage]);
     
     try {
-      const response = await axios.post('/api/process-order', { text });
-      if (response.data.items && response.data.items.length > 0) {
-        setOrderItems(prev => [...prev, ...response.data.items]);
+      // Process the order text to identify items
+      const identifiedItems = processOrderText(text);
+      console.log(identifiedItems, 'identifiedItemsdhfj')
+      if (identifiedItems.length > 0) {
+        console.log(identifiedItems, 'identifiedItems')
+        // Add items to order
+        addItemsToOrder(identifiedItems);
+        
+        // Create confirmation message
+        const itemsList = identifiedItems
+          .map(item => `${item.quantity || 1} ${item.name}`)
+          .join(', ');
+        
+        const confirmationMessage = `I've added ${itemsList} to your order. Would you like anything else?`;
+        
+        // Add assistant message
         setMessages(prev => [...prev, {
           type: 'assistant',
-          text: `I've added ${response.data.items.map(item => item.name).join(', ')} to your order. Would you like anything else?`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+          text: confirmationMessage,
+          timestamp: new Date().toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit', 
+            hour12: false 
+          })
         }]);
+        
+        // Speak the confirmation
+        // await speakText(confirmationMessage);
       } else {
+        const noItemsMessage = "I couldn't identify any menu items in your order. Could you please try again?";
         setMessages(prev => [...prev, {
           type: 'assistant',
-          text: "I couldn't find any menu items in your order. Could you please try again?",
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+          text: noItemsMessage,
+          timestamp: new Date().toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit', 
+            hour12: false 
+          })
         }]);
+        // await speakText(noItemsMessage);
       }
     } catch (error) {
       console.error('Error processing order:', error);
+      const errorMessage = "Sorry, there was an error processing your order. Please try again.";
       setMessages(prev => [...prev, {
         type: 'assistant',
-        text: "Sorry, there was an error processing your order. Please try again.",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+        text: errorMessage,
+        timestamp: new Date().toLocaleTimeString([], { 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          second: '2-digit', 
+          hour12: false 
+        })
       }]);
+      // await speakText(errorMessage);
     }
+    setIsProcessingOrder(false);
   };
 
   const handleSendMessage = () => {
@@ -264,15 +359,9 @@ const OrderingSimulation = () => {
     document.removeEventListener('mouseup', stopDragging);
   };
 
-  useEffect(() => {
-    speakText("Hi, welcome to the drive thru! What can I get for you today?");
-  }, [])
-
-  const speakText = (text) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US'; // You can customize this
-    window.speechSynthesis.speak(utterance);
-  };
+  // useEffect(() => {
+  //   speakText("Hi, welcome to the drive thru! What can I get for you today?");
+  // }, [])
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -396,11 +485,11 @@ const OrderingSimulation = () => {
                         borderRadius: 2,
                         maxWidth: '80%'
                       }}>
-                        {message.type === 'assistant' && (
+                        {/* {message.type === 'assistant' && (
                           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                             <VolumeUpIcon sx={{ mr: 1, color: '#ff5722' }} />
                           </Box>
-                        )}
+                        )} */}
                         <Typography variant="body1">{message.text}</Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                           {message.timestamp}
@@ -609,9 +698,15 @@ const OrderingSimulation = () => {
                             }}>
                               <FastfoodIcon sx={{ fontSize: 18, color: 'primary.main' }} />
                               {item.name}
+                              <Chip 
+                                label={`x${item.quantity || 1}`}
+                                size="small"
+                                color="primary"
+                                sx={{ ml: 1 }}
+                              />
                             </Typography>
                             <Typography variant="subtitle1" color="primary">
-                              ${item.price.toFixed(2)}
+                              ${(item.price * (item.quantity || 1)).toFixed(2)}
                             </Typography>
                           </Box>
                           {item.options && item.options.map((option, optIndex) => (
@@ -656,11 +751,34 @@ const OrderingSimulation = () => {
                   <Box sx={{ 
                     display: 'flex', 
                     justifyContent: 'space-between',
+                    alignItems: 'center',
+                    mb: 2
+                  }}>
+                    <Typography variant="subtitle1">Subtotal:</Typography>
+                    <Typography variant="h6" color="primary">
+                      ${orderTotal.toFixed(2)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    mb: 2
+                  }}>
+                    <Typography variant="subtitle1">Tax (8%):</Typography>
+                    <Typography variant="h6" color="primary">
+                      ${(orderTotal * 0.08).toFixed(2)}
+                    </Typography>
+                  </Box>
+                  <Divider sx={{ my: 2 }} />
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between',
                     alignItems: 'center'
                   }}>
-                    <Typography variant="subtitle1">Total:</Typography>
-                    <Typography variant="h6" color="primary">
-                      ${orderItems.reduce((sum, item) => sum + item.price, 0).toFixed(2)}
+                    <Typography variant="h6">Total:</Typography>
+                    <Typography variant="h5" color="primary" sx={{ fontWeight: 600 }}>
+                      ${(orderTotal * 1.08).toFixed(2)}
                     </Typography>
                   </Box>
                 </Box>

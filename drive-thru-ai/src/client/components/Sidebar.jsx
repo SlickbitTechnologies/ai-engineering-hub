@@ -193,7 +193,7 @@ const Sidebar = () => {
             textAlign: 'center'
           }}>
             <Typography variant="caption" sx={{ color: '#2a3447' }}>
-              © 2024 Drive-Thru System
+              © 2025 Drive-Thru System
             </Typography>
           </Box>
         </motion.div>
