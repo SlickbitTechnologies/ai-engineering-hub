@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
@@ -14,23 +14,38 @@ export default function DocumentDetailPage() {
   const dispatch = useDispatch();
   const documentId = params.documentId as string;
   
-  // In a real implementation, we would fetch the document from the API or Redux store
-  // For now, we'll use mock data
-  const [document, setDocument] = useState<Document>({
-    id: documentId,
-    name: `Clinical_Study_Report_${Math.floor(Math.random() * 100)}.pdf`,
-    type: 'pdf',
-    path: `/documents/sample-${documentId}.pdf`,
-    size: 2456789,
-    uploadedAt: new Date().toISOString(),
-    status: 'pending',
-    source: 'upload',
+  // Get document from Redux store
+  const { documents } = useSelector((state: RootState) => state.documents as {
+    documents: Document[];
+    isLoading: boolean;
+    error: string | null;
   });
-
+  
+  // Find the document with matching ID
+  const documentFromStore = documents.find(doc => doc.id === documentId);
+  
+  // Use document from store or redirect if not found
+  useEffect(() => {
+    if (!documentFromStore && !isLoading && documents.length > 0) {
+      router.push('/documents');
+    }
+  }, [documentFromStore, documents, router]);
+  
+  const [document, setDocument] = useState<Document | undefined>(documentFromStore);
+  const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
 
+  // Update local state when Redux store changes
+  useEffect(() => {
+    if (documentFromStore) {
+      setDocument(documentFromStore);
+    }
+  }, [documentFromStore]);
+
   const handleProcessDocument = () => {
+    if (!document) return;
+    
     setIsProcessing(true);
     dispatch(updateDocumentStatus({ id: documentId, status: 'processing' }));
     
@@ -41,7 +56,6 @@ export default function DocumentDetailPage() {
           clearInterval(interval);
           setIsProcessing(false);
           dispatch(updateDocumentStatus({ id: documentId, status: 'redacted' }));
-          setDocument(prev => ({ ...prev, status: 'redacted' }));
           return 100;
         }
         return prev + 10;
@@ -58,6 +72,41 @@ export default function DocumentDetailPage() {
       return `${(size / (1024 * 1024)).toFixed(1)} MB`;
     }
   };
+
+  // Show loading state while document is being fetched
+  if (isLoading || !document) {
+    return (
+      <MainLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center h-[60vh]">
+            <div className="text-center">
+              <svg 
+                className="animate-spin h-12 w-12 text-chateau-green-600 mx-auto mb-4" 
+                xmlns="http://www.w3.org/2000/svg" 
+                fill="none" 
+                viewBox="0 0 24 24"
+              >
+                <circle 
+                  className="opacity-25" 
+                  cx="12" 
+                  cy="12" 
+                  r="10" 
+                  stroke="currentColor" 
+                  strokeWidth="4"
+                ></circle>
+                <path 
+                  className="opacity-75" 
+                  fill="currentColor" 
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              <h2 className="text-xl font-medium text-gray-700">Loading document...</h2>
+            </div>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
