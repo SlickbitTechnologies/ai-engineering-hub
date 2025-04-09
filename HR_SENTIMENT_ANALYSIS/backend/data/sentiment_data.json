@@ -1,0 +1,39 @@
+{
+  "total": 100,
+  "positive": 65,
+  "neutral": 20,
+  "negative": 15,
+  "breakdown": {
+    "stronglyPositive": 35,
+    "somewhatPositive": 30,
+    "neutral": 20,
+    "somewhatNegative": 10,
+    "stronglyNegative": 5
+  },
+  "themes": [
+    {
+      "id": "a7694043-decb-4a44-9d93-9894fd32e72a",
+      "name": "Work-life Balance",
+      "sentiment": "negative",
+      "mentions": 25
+    },
+    {
+      "id": "1818ae91-9207-4468-b3ed-3421221fea07",
+      "name": "Remote Work",
+      "sentiment": "positive",
+      "mentions": 30
+    },
+    {
+      "id": "fc72fedb-445e-496e-8c3b-464624f86612",
+      "name": "Management Support",
+      "sentiment": "positive",
+      "mentions": 28
+    },
+    {
+      "id": "35b43eee-5b40-4226-a15c-73bd6a2a1f9b",
+      "name": "Compensation",
+      "sentiment": "neutral",
+      "mentions": 15
+    }
+  ]
+}

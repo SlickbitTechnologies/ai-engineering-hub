@@ -1,0 +1,30 @@
+[
+  {
+    "id": "b3723635-24cd-4010-a0be-dcffb968949d",
+    "title": "Address Work-life Balance Issues",
+    "description": "Employee feedback indicates issues with Work-life Balance. This was mentioned 187 times in negative context.",
+    "department": [
+      "IT"
+    ],
+    "impactLevel": "High Impact",
+    "status": "Dismissed",
+    "tags": [
+      "Work-life Balance",
+      "IT"
+    ]
+  },
+  {
+    "id": "631db3b8-0975-41cb-8791-7f5d7ce991e8",
+    "title": "Address Compensation Issues",
+    "description": "Employee feedback indicates issues with Compensation. This was mentioned 115 times in negative context.",
+    "department": [
+      "Engineering"
+    ],
+    "impactLevel": "High Impact",
+    "status": "Dismissed",
+    "tags": [
+      "Compensation",
+      "Engineering"
+    ]
+  }
+]

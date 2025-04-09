@@ -1,0 +1,445 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Modern, refined color palette with green tones */
+  --primary: 90 58% 44%;       /* #7caa38 - 500 */
+  --primary-light: 90 58% 54%; /* Lighter variant */
+  --primary-dark: 90 58% 34%;  /* Darker variant */
+  
+  --secondary: 79 45% 51%;     /* #9ac556 - 400 */
+  --secondary-light: 79 45% 61%;
+  --secondary-dark: 79 45% 41%;
+  
+  --accent: 83 31% 40%;        /* #5f8729 - 600 */
+  --accent-light: 83 31% 50%;
+  --accent-dark: 83 31% 30%;
+  
+  --success: 83 50% 44%;       /* Based on the green palette */
+  --info: 200 85% 45%;         /* Keeping blue for info */
+  --warning: 35 90% 55%;       /* Keeping amber for warning */
+  --danger: 355 90% 60%;       /* Keeping red for danger */
+
+  /* Neutral tones with slight green undertones for a natural feel */
+  --background: 74 40% 97%;    /* Based on #f5faeb - 50 */
+  --foreground: 83 45% 15%;    /* Based on #283618 - 900 */
+  
+  --card: 0 0% 100%;
+  --card-foreground: 83 45% 15%;
+  
+  --popover: 0 0% 100%;
+  --popover-foreground: 83 45% 15%;
+  
+  --muted: 74 30% 95%;         /* Light green-gray */
+  --muted-foreground: 83 15% 45%;
+  
+  --border: 74 20% 92%;
+  --input: 74 20% 92%;
+  
+  --ring: 90 58% 44%;          /* Match primary */
+  
+  /* Dot pattern color - lighter */
+  --dot-color: rgba(0, 0, 0, 0.04);
+  
+  /* Border radius */
+  --radius: 1rem;
+  --radius-sm: 0.75rem;
+  --radius-lg: 1.25rem;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
+  --shadow: 0 4px 20px rgba(0,0,0,0.08);
+  --shadow-lg: 0 10px 30px rgba(0,0,0,0.12);
+  
+  /* Theme transition */
+  --theme-transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out, border-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+.dark {
+  --background: 83 45% 8%;     /* Dark variant of green */
+  --foreground: 74 40% 97%;    /* Light variant of green */
+  
+  --card: 83 45% 10%;
+  --card-foreground: 74 40% 97%;
+  
+  --popover: 83 45% 10%;
+  --popover-foreground: 74 40% 97%;
+  
+  --muted: 83 20% 15%;
+  --muted-foreground: 74 15% 65%;
+  
+  --border: 83 20% 15%;
+  --input: 83 20% 15%;
+  
+  --ring: 90 58% 44%;          /* Match primary */
+  
+  /* Dot pattern color for dark mode - lighter */
+  --dot-color: rgba(255, 255, 255, 0.06);
+  
+  /* Adjusted shadows for dark mode */
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.2);
+  --shadow: 0 4px 20px rgba(0,0,0,0.25);
+  --shadow-lg: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    transition: var(--theme-transition);
+  }
+  
+  body {
+    @apply bg-background text-foreground antialiased font-sans;
+    font-feature-settings: "ss01" on, "ss02" on, "cv01" on, "cv03" on;
+  }
+
+  /* Specific class for dot pattern to ensure it's visible everywhere */
+  .dot-pattern {
+    background-image: 
+      radial-gradient(circle at center, var(--dot-color, rgba(0, 0, 0, 0.04)) 1.5px, transparent 1.5px);
+    background-size: 10px 10px;
+    background-position: 0 0;
+    background-attachment: fixed;
+  }
+
+  .dark .dot-pattern {
+    background-image: 
+      radial-gradient(circle at center, var(--dot-color, rgba(255, 255, 255, 0.06)) 1.5px, transparent 1.5px);
+    background-size: 10px 10px;
+    background-position: 0 0;
+    background-attachment: fixed;
+  }
+
+  /* Add dot pattern to common container elements to ensure it appears everywhere */
+  #__next, main, .main-content {
+    background-image: inherit;
+    background-size: inherit;
+    background-position: inherit;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight;
+  }
+  
+  p, span, div, a, button, input, textarea, select {
+    @apply font-sans;
+  }
+}
+
+/* Refined, sophisticated animations */
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+  }
+  to { 
+    opacity: 1; 
+  }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from { 
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from { 
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--primary), 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(var(--primary), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--primary), 0);
+  }
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@layer utilities {
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  
+  .animate-slide-in-right {
+    animation: slideInRight 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  
+  .animate-slide-in-left {
+    animation: slideInLeft 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  
+  .animate-scale-in {
+    animation: scaleIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  
+  .animate-pulse {
+    animation: pulse 3s infinite;
+  }
+  
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient 8s ease infinite;
+  }
+  
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(var(--background), 0) 0%,
+      rgba(var(--background), 0.6) 50%,
+      rgba(var(--background), 0) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 3s infinite;
+  }
+
+  /* Hover interactions */
+  .hover-float {
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  
+  .hover-float:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow);
+  }
+  
+  .hover-glow {
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  
+  .hover-glow:hover {
+    box-shadow: 0 0 20px 5px rgba(var(--primary), 0.2);
+    transform: translateY(-3px);
+  }
+
+  .hover-scale {
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .hover-scale:hover {
+    transform: scale(1.05);
+  }
+
+  /* Custom scrollbar */
+  .modern-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .modern-scrollbar::-webkit-scrollbar-track {
+    background: rgba(var(--muted), 0.5);
+    border-radius: 10px;
+  }
+  
+  .modern-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(var(--muted-foreground), 0.3);
+    border-radius: 10px;
+  }
+  
+  .modern-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(var(--muted-foreground), 0.5);
+  }
+
+  /* Z-index utilities for proper stacking */
+  .-z-1 {
+    z-index: -1;
+  }
+  
+  .z-1 {
+    z-index: 1;
+  }
+  
+  .z-2 {
+    z-index: 2;
+  }
+  
+  /* Make background elements stay behind content */
+  .decorative {
+    @apply absolute pointer-events-none -z-1;
+  }
+  
+  /* Ensure foreground content stays visible */
+  .content-layer {
+    @apply relative z-10;
+  }
+}
+
+/* Refined glass morphism */
+.glass {
+  backdrop-filter: blur(16px);
+  background: rgba(var(--card), 0.7);
+  border: 1px solid rgba(var(--border), 0.7);
+  box-shadow: var(--shadow-sm);
+}
+
+.glass-dark {
+  backdrop-filter: blur(16px);
+  background: rgba(var(--card), 0.5);
+  border: 1px solid rgba(var(--border), 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* Grid layouts */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Decorative background elements */
+.bg-gradient-blur {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  z-index: -1;
+  opacity: 0.7;
+  mix-blend-mode: normal;
+}
+
+.bg-noise {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.3;
+  z-index: -1;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Card style enhancements */
+.card-highlight {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card-highlight::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--primary), 0.1),
+    transparent
+  );
+  transition: 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.card-highlight:hover::before {
+  left: 100%;
+}
+
+/* Divider styles */
+.divider {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(to right, transparent, rgba(var(--border), 1), transparent);
+}
+
+/* Button style enhancements */
+.btn-modern {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.35s ease;
+}
+
+.btn-modern::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%);
+  transform: translateX(-100%);
+  transition: transform 0.8s ease;
+}
+
+.btn-modern:hover::after {
+  transform: translateX(100%);
+} 
