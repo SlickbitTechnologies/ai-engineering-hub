@@ -116,15 +116,14 @@ const OrderingSimulation = () => {
     fetchMenuItems();
   }, []);
   
-    const fetchMenuItems = async () => {
-      try {
-        const response = await axios.get('/api/menu-items');
-        console.log(response, 'sdasdfsdfresponse')
-        setMenuItems(response.data);
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-      }
-    };
+  const fetchMenuItems = async () => {
+    try {
+      const response = await axios.get('/api/menu-items');
+      setMenuItems(response.data);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    }
+  };
 
   const vapiClient = useRef(null);
   useEffect(() => {
@@ -158,6 +157,7 @@ const OrderingSimulation = () => {
           prompt: "You are a friendly drive-thru AI assistant at Burger Palace. Help customers place their orders."
         },
         onTranscript: (transcript) => {
+          console.log(transcript, 'transcriptkjsdh')
           if (transcript && transcript.text) {
             handleUserMessage(transcript.text);
           }
@@ -178,7 +178,6 @@ const OrderingSimulation = () => {
       setIsListening(false);
     }
   };
-  
   
 
   const stopListening = () => {
@@ -265,6 +264,16 @@ const OrderingSimulation = () => {
     document.removeEventListener('mouseup', stopDragging);
   };
 
+  useEffect(() => {
+    speakText("Hi, welcome to the drive thru! What can I get for you today?");
+  }, [])
+
+  const speakText = (text) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US'; // You can customize this
+    window.speechSynthesis.speak(utterance);
+  };
+
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <motion.div
@@ -292,6 +301,9 @@ const OrderingSimulation = () => {
           <Typography variant="subtitle1" color="text.secondary">
             Simulate placing an order with the AI voice agent
           </Typography>
+          {/* <button onClick={() => speakText("Welcome to Burger Palace!")}>
+            🔊 Speak
+          </button> */}
         </Box>
       </motion.div>
 
