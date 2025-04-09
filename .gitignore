@@ -3,3 +3,4 @@
 **/node_modules
 **/__pycache__
 businesscard_extractor/.env
+/dinedial_ai
