@@ -30,8 +30,8 @@ Table Buddy is a modern restaurant reservation management system built with Next
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/table-buddy.git
-   cd table-buddy
+   git clone https://github.com/SlickbitTechnologies/ai-engineering-hub.git
+   cd ai-engineering-hub/table-buddy
    ```
 
 2. **Install dependencies**
@@ -73,12 +73,7 @@ The system uses the following tables:
 - `tables`: Table information
 - `reservations`: Reservation records
 
-## API Endpoints
 
-- `/api/stats`: Get today's reservation statistics
-- `/api/reservations/recent`: Get recent reservations
-- `/api/reservations/calendar`: Get calendar data
-- `/api/tables`: Get table information and reservations
 
 ## AI Voice Assistant Integration
 
@@ -87,13 +82,7 @@ The system integrates with Vapi.ai for handling phone reservations:
 2. Set up the API key in environment variables
 3. Use the call simulator to test the integration
 
-## Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ## License
 
