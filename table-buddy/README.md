@@ -1,36 +1,104 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Table Buddy - Restaurant Reservation Management System
+
+Table Buddy is a modern restaurant reservation management system built with Next.js, featuring real-time table management, reservation tracking, and AI-powered voice assistant integration.
+
+## Features
+
+- 📅 Real-time reservation calendar
+- 📊 Dashboard with today's statistics
+- 🎯 Table management with capacity and section tracking
+- 🤖 AI voice assistant for handling reservations
+- 📱 Responsive design for all devices
+- 🔄 Real-time updates and notifications
+
+## Tech Stack
+
+- **Frontend**: Next.js 14, React, TypeScript
+- **Styling**: Tailwind CSS
+- **Database**: SQLite
+- **AI Integration**: Vapi.ai
+- **State Management**: Redux Toolkit
+- **API**: Next.js API Routes
+
+## Prerequisites
+
+- Node.js 18+ 
+- npm or yarn
+- SQLite3
 
 ## Getting Started
 
-First, run the development server:
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/table-buddy.git
+   cd table-buddy
+   ```
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+2. **Install dependencies**
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. **Set up environment variables**
+   Create a `.env.local` file in the root directory:
+   ```env
+   DATABASE_URL=file:./restaurants.db
+   VAPI_API_KEY=your_vapi_api_key
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+4. **Initialize the database**
+   ```bash
+   npm run db:init
+   # or
+   yarn db:init
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+5. **Start the development server**
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
 
-## Learn More
+6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-To learn more about Next.js, take a look at the following resources:
+## Database Schema
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The system uses the following tables:
+- `restaurant_settings`: Restaurant information
+- `operating_hours`: Business hours
+- `table_settings`: Table configuration
+- `tables`: Table information
+- `reservations`: Reservation records
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API Endpoints
 
-## Deploy on Vercel
+- `/api/stats`: Get today's reservation statistics
+- `/api/reservations/recent`: Get recent reservations
+- `/api/reservations/calendar`: Get calendar data
+- `/api/tables`: Get table information and reservations
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## AI Voice Assistant Integration
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The system integrates with Vapi.ai for handling phone reservations:
+1. Configure your Vapi.ai assistant
+2. Set up the API key in environment variables
+3. Use the call simulator to test the integration
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For support, email support@tablebuddy.com or open an issue in the repository.
