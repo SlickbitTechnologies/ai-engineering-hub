@@ -115,6 +115,7 @@ const OrderingSimulation = () => {
   const [orderTotal, setOrderTotal] = useState(0);
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const messagesContainerRef = useRef(null);
 
   console.log(JSON.stringify(orderItems), 'orderItemsorderItemsorderItems')
   console.log(orderTotal, 'orderItemsOrderTotalllll')
@@ -380,9 +381,15 @@ const OrderingSimulation = () => {
     document.removeEventListener('mouseup', stopDragging);
   };
 
-  // useEffect(() => {
-  //   speakText("Hi, welcome to the drive thru! What can I get for you today?");
-  // }, [])
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      const scrollContainer = messagesContainerRef.current;
+      scrollContainer.scrollTo({
+        top: scrollContainer.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [messages]);
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -484,7 +491,9 @@ const OrderingSimulation = () => {
                   backgroundColor: 'rgba(0,0,0,0.25)',
                 },
               },
-            }}>
+            }}
+            ref={messagesContainerRef}
+            >
               <AnimatePresence>
                 {messages.map((message, index) => (
                   <motion.div
