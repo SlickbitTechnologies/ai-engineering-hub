@@ -4,3 +4,4 @@
 **/__pycache__
 businesscard_extractor/.env
 /dinedial_ai
+table-buddy/restaurants.db

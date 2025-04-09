@@ -54,13 +54,7 @@ export default function VapiCallSimulator({ assistantId }: VapiCallSimulatorProp
       const { date, time } = getCurrentDateAndTime();
       await vapi.start(assistantId, { variableValues: { date, time } });
       
-      vapi.send({
-        type: "add-message",
-        message: {
-          role: "user",
-          content: `Today is ${date}`
-        }
-      });
+      
       setCallStatus('Call connected!');
       toast.success('Call simulator started successfully');
 
@@ -81,7 +75,7 @@ export default function VapiCallSimulator({ assistantId }: VapiCallSimulatorProp
       vapi.on("message", (message) => {
         console.log("message => conversation-update ::", message);
         if (message.type === "conversation-update") {
-          setMessages(prevMessages => [...prevMessages, message.content]);
+          setMessages(message.conversation);
         }
       });
       vapi.on("error", (e) => {
