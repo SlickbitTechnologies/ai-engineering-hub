@@ -114,6 +114,10 @@ const OrderingSimulation = () => {
   ]);
   const [orderTotal, setOrderTotal] = useState(0);
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  console.log(JSON.stringify(orderItems), 'orderItemsorderItemsorderItems')
+  console.log(orderTotal, 'orderItemsOrderTotalllll')
 
   useEffect(() => {
     fetchMenuItems();
@@ -127,6 +131,17 @@ const OrderingSimulation = () => {
       console.error('Error fetching orders:', error);
     }
   };
+
+  useEffect(() => {
+    if(isSubmitted){
+      console.log(orderTotal, 'kjdssdhgkjorderTotal')
+      submitOrderList()
+    }
+  }, [isSubmitted])
+
+  const submitOrderList = async() => {
+    const response = await axios.post('/api/process-order', {items: orderItems[0]?.name});      
+  }
 
   const vapiClient = useRef(null);
   const API_KEY = '46f9f5d5-58f2-4114-8f56-447eec6ef9f1';
@@ -164,9 +179,11 @@ const OrderingSimulation = () => {
         if (message?.role == "user" && message.transcriptType == 'final') {
           console.log(message.transcript, 'kjsdfhkshkfd')
           handleUserMessage(message.transcript);
-          if(message.transcript == 'Thank you.'){
-            console.log('Sumbmiting your order!')
-          }
+          // if(message.transcript == 'Thank you.'){
+          //   console.log('Sumbmiting your order!')
+          //   console.log(orderItems, 'orderItemsorderItems')
+          //   console.log(orderTotal, 'OrderTotalllll')
+          // }
         }
       });
       vapiClient.current.on("error", (e) => {
@@ -298,6 +315,10 @@ const OrderingSimulation = () => {
           })
         }]);
         // await speakText(noItemsMessage);
+      }
+      if(text == 'Thank you.'){
+        console.log('Sumbmiting_your_order!')
+        setIsSubmitted(true)
       }
     } catch (error) {
       console.error('Error processing order:', error);

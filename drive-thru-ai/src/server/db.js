@@ -41,7 +41,7 @@ const initializeDatabase = () => {
       CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         status TEXT DEFAULT 'new',
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        timestamp DATETIME DEFAULT (DATETIME('now', 'localtime')),
         total REAL NOT NULL
       )
     `);
