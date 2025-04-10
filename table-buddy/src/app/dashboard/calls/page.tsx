@@ -1,61 +1,86 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import PageContainer from '@/components/layout/PageContainer';
-import { MagnifyingGlassIcon, PhoneIcon, ClockIcon, CalendarIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import CallDetailsModal from '@/components/CallDetailsModel';
+import { MagnifyingGlassIcon, PhoneIcon, ClockIcon, CalendarIcon } from '@heroicons/react/24/outline';
 
 interface CallLog {
   id: string;
+  callId: string;
   phoneNumber: string;
   date: string;
   time: string;
   duration: string;
-  reservation?: {
-    datetime: string;
-  };
   transcription: string;
+  reservation: {
+    datetime: string;
+    customerName: string;
+    partySize: number;
+    status: string;
+  };
 }
-
-const mockCalls: CallLog[] = [
-  {
-    id: '1',
-    phoneNumber: '(555) 777-8888',
-    date: 'Jul 14, 2023',
-    time: '8:02 PM',
-    duration: '5:20',
-    reservation: {
-      datetime: '2025-04-04 at 17:30',
-    },
-    transcription: 'Customer called to cancel their reservation for ...',
-  },
-  {
-    id: '2',
-    phoneNumber: '(555) 222-3333',
-    date: 'Jul 14, 2023',
-    time: '4:45 PM',
-    duration: '3:00',
-    reservation: {
-      datetime: '2025-04-04 at 13:30',
-    },
-    transcription: 'Customer made a reservation for 4 people.',
-  },
-  {
-    id: '3',
-    phoneNumber: '(555) 111-2222',
-    date: 'Jul 14, 2023',
-    time: '3:53 PM',
-    duration: '4:05',
-    reservation: {
-      datetime: '2025-04-04 at 11:30',
-    },
-    transcription: 'Customer called to make a reservation for their ...',
-  },
-];
 
 export default function CallLogsPage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [calls] = useState<CallLog[]>(mockCalls);
+  const [calls, setCalls] = useState<CallLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedCall, setSelectedCall] = useState<CallLog | null>(null);
+
+  useEffect(() => {
+    const fetchCallLogs = async () => {
+      try {
+        const response = await fetch('/api/calls');
+        if (!response.ok) {
+          throw new Error('Failed to fetch call logs');
+        }
+        const data = await response.json();
+        setCalls(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCallLogs();
+  }, []);
+
+  const filteredCalls = calls.filter(call => 
+    call.phoneNumber.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <PageContainer
+          title="Call Logs"
+          description="Review all incoming calls handled by the voice agent"
+        >
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          </div>
+        </PageContainer>
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout>
+        <PageContainer
+          title="Call Logs"
+          description="Review all incoming calls handled by the voice agent"
+        >
+          <div className="text-red-500 text-center p-4">
+            {error}
+          </div>
+        </PageContainer>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -92,14 +117,11 @@ export default function CallLogsPage() {
                 <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                   Reservation
                 </th>
-                <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Transcription
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
-              {calls.map((call) => (
-                <tr key={call.id} className="hover:bg-gray-50">
+              {filteredCalls.map((call) => (
+                <tr key={call.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedCall(call)}>
                   <td className="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6">
                     <div className="flex items-center">
                       <PhoneIcon className="h-5 w-5 text-gray-400 mr-2" />
@@ -118,24 +140,32 @@ export default function CallLogsPage() {
                   </td>
                   <td className="whitespace-nowrap px-3 py-4">
                     {call.reservation && (
-                      <div className="flex items-center text-sm text-blue-600">
-                        <CalendarIcon className="h-4 w-4 mr-1" />
-                        {call.reservation.datetime}
+                      <div className="flex flex-col text-sm">
+                        <div className="text-blue-600">
+                          <CalendarIcon className="h-4 w-4 inline-block mr-1" />
+                          {call.reservation.datetime}
+                        </div>
+                       
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-4">
-                    <div className="flex items-start text-sm text-gray-500">
-                      <DocumentTextIcon className="h-4 w-4 mr-1 mt-0.5 flex-shrink-0" />
-                      <span className="line-clamp-2">{call.transcription}</span>
-                    </div>
-                  </td>
+
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </PageContainer>
+      {selectedCall && (
+        <CallDetailsModal
+          isOpen={!!selectedCall}
+          onClose={() => setSelectedCall(null)}
+          callDetails={{
+            ...selectedCall,
+             // Placeholder transcription
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 } 

@@ -4,6 +4,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import VapiCallSimulator from '@/components/call-simulator/VapiCallSimulator';
 
 export default function CallSimulator() {
+
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-gray-50/50">
@@ -17,7 +18,7 @@ export default function CallSimulator() {
           </div>
 
           {/* Call Simulator Component */}
-          <VapiCallSimulator assistantId="ec44c6af-0ce8-402c-8e88-a769a3cdb200" />
+          <VapiCallSimulator showChat={true} />
         </div>
       </div>
     </DashboardLayout>

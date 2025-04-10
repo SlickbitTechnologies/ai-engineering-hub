@@ -3,11 +3,10 @@
 import { useState, useEffect } from 'react';
 import { PhoneIcon, StopIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
-import Vapi  from '@vapi-ai/web';
+import Vapi from '@vapi-ai/web';
 
-const API_KEY = "2a3a94aa-2568-401e-a882-855260d7b58b";
 interface VapiCallSimulatorProps {
-  assistantId: string;
+  assistantId?: string;
 }
 
 interface ToolCall {
@@ -16,18 +15,24 @@ interface ToolCall {
   arguments: any;
 }
 
-export default function VapiCallSimulator({ assistantId }: VapiCallSimulatorProps) {
+interface Message {
+  role: string;
+  content: string;
+}
+
+export default function VapiCallSimulator({showChat}:{showChat:boolean}) {
+  const assistantId = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
   const [isCalling, setIsCalling] = useState(false);
   const [callStatus, setCallStatus] = useState('');
   const [vapi, setVapi] = useState<Vapi | null>(null);
-  const [messages, setMessages] = useState<string[]>([]);
-// console.log("process.env.NEXT_PUBLIC_VAPI_API_KEY",API_KEY);
+  const [messages, setMessages] = useState<Message[]>([]);
+
   useEffect(() => {
-    // Initialize Vapi SDK
-    const vapiInstance = new Vapi(API_KEY || '');
+    // Initialize Vapi SDK with environment variable
+    const vapiInstance = new Vapi(process.env.NEXT_PUBLIC_VAPI_API_KEY || '');
     
     setVapi(vapiInstance);
-
+    setMessages([]);
     // Cleanup on unmount
     return () => {
       if (vapiInstance) {
@@ -36,24 +41,31 @@ export default function VapiCallSimulator({ assistantId }: VapiCallSimulatorProp
       }
     };
   }, [assistantId]);
+
   const getCurrentDateAndTime = () => {
     const now = new Date();
     const date = now.toISOString().split('T')[0]; // yyyy-mm-dd
-    const time = now.toTimeString().slice(0, 5); // HH:mm
+    const time = now.toTimeString().slice(0, 8); // HH:mm
 
     return { date, time };
   }
-  // console.log("getCurrentDateAndTime",getCurrentDateAndTime());
+
   const startSimulator = async () => {
     if (!vapi) return;
 
     try {
       setIsCalling(true);
+      setMessages([]);
       setCallStatus('Connecting to Vapi...');
 
       const { date, time } = getCurrentDateAndTime();
-      await vapi.start(assistantId, { variableValues: { date, time } });
+      // Use environment variable for assistantId if not provided as prop
+      const effectiveAssistantId = assistantId || process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
+      if (!effectiveAssistantId) {
+        throw new Error('Assistant ID is required');
+      }
       
+      await vapi.start(effectiveAssistantId, { variableValues: { date, time } });
       
       setCallStatus('Call connected!');
       toast.success('Call simulator started successfully');
@@ -134,13 +146,30 @@ export default function VapiCallSimulator({ assistantId }: VapiCallSimulatorProp
           </button>
         )}
 
-        {isCalling && (
+        {messages.length > 0 && showChat && (
           <div className="mt-4 w-full">
-            <h3 className="text-lg font-semibold">Conversation</h3>
-            <div className="bg-gray-100 p-4 rounded-md">
-              {messages.map((msg, index) => (
-                <p key={index} className="text-sm text-gray-700">{msg}</p>
-              ))}
+            <h3 className="text-lg font-semibold mb-4">Conversation</h3>
+            <div className="bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto">
+              {messages
+                .filter(msg => msg.role !== 'system')
+                .map((msg, index) => (
+                  <div
+                    key={index}
+                    className={`mb-4 flex ${
+                      msg.role === 'assistant' ? 'justify-start' : 'justify-end'
+                    }`}
+                  >
+                    <div
+                      className={`max-w-[80%] rounded-lg p-3 ${
+                        msg.role === 'assistant'
+                          ? 'bg-blue-100 text-blue-900 rounded-tl-none'
+                          : 'bg-green-100 text-green-900 rounded-tr-none'
+                      }`}
+                    >
+                      <p className="text-sm">{msg.content}</p>
+                    </div>
+                  </div>
+                ))}
             </div>
           </div>
         )}
