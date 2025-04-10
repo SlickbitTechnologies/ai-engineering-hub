@@ -43,61 +43,60 @@ const orderCardVariants = {
 
 const OrderDisplay = () => {
   const [orders, setOrders] = useState([
-    {
-      id: 2,
-      status: 'new',
-      timestamp: '16:46',
-      vehicle: 'Red SUV',
-      total: 22.97,
-      items: [
-        {
-          name: 'Burger Combo',
-          quantity: 2,
-          price: 19.98,
-          customizations: [
-            'Large Fries and Drink',
-            'No tomato'
-          ]
-        },
-        {
-          name: 'Ice Cream',
-          quantity: 1,
-          price: 2.99,
-          customizations: [
-            'Chocolate Sauce'
-          ]
-        }
-      ]
-    },
-    {
-      id: 3,
-      status: 'preparing',
-      timestamp: '16:48',
-      vehicle: 'Blue pickup truck',
-      total: 13.98,
-      items: [
-        {
-          name: 'Cheese Burger',
-          quantity: 1,
-          price: 6.99,
-          customizations: [
-            'Extra Patty',
-            'Bacon'
-          ]
-        },
-        {
-          name: 'French Fries',
-          quantity: 1,
-          price: 2.99,
-          customizations: [
-            'Large'
-          ]
-        }
-      ]
-    }
+    // {
+    //   id: 2,
+    //   status: 'new',
+    //   timestamp: '16:46',
+    //   vehicle: 'Red SUV',
+    //   total: 22.97,
+    //   items: [
+    //     {
+    //       name: 'Burger Combo',
+    //       quantity: 2,
+    //       price: 19.98,
+    //       customizations: [
+    //         'Large Fries and Drink',
+    //         'No tomato'
+    //       ]
+    //     },
+    //     {
+    //       name: 'Ice Cream',
+    //       quantity: 1,
+    //       price: 2.99,
+    //       customizations: [
+    //         'Chocolate Sauce'
+    //       ]
+    //     }
+    //   ]
+    // },
+    // {
+    //   id: 3,
+    //   status: 'preparing',
+    //   timestamp: '16:48',
+    //   vehicle: 'Blue pickup truck',
+    //   total: 13.98,
+    //   items: [
+    //     {
+    //       name: 'Cheese Burger',
+    //       quantity: 1,
+    //       price: 6.99,
+    //       customizations: [
+    //         'Extra Patty',
+    //         'Bacon'
+    //       ]
+    //     },
+    //     {
+    //       name: 'French Fries',
+    //       quantity: 1,
+    //       price: 2.99,
+    //       customizations: [
+    //         'Large'
+    //       ]
+    //     }
+    //   ]
+    // }
   ]);
 
-  console.log(orders, 'sdkhjkhsdf')
   useEffect(() => {
     fetchOrders();
   }, []);
@@ -310,12 +309,20 @@ const OrderDisplay = () => {
                             alignItems: 'center', 
                             bgcolor: '#FFF'
                           }}>
-                            <Box>
-                              <Typography variant="body2" color="text.secondary">Total:</Typography>
-                              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                                ${order.total.toFixed(2)}
-                              </Typography>
-                            </Box>
+                            <Grid>
+                              <Box sx={{display:'flex', flexDirection: 'row', alignItems:'center'}}>
+                                <Typography variant="body2" color="text.secondary">Sub Total:</Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                  ${order.total.toFixed(2)}
+                                </Typography>
+                              </Box>
+                              <Box sx={{display:'flex', flexDirection: 'row', alignItems:'center'}}>
+                                <Typography variant="body2" color="text.secondary">Total:</Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                  ${(order.total * 1.08).toFixed(2)}
+                                </Typography>
+                              </Box>
+                            </Grid>
                             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                               {getActionButton(order)}
                             </motion.div>

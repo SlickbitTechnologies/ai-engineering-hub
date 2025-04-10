@@ -142,7 +142,7 @@ const OrderingSimulation = () => {
   }, [isSubmitted])
 
   const submitOrderList = async() => {
-    const response = await axios.post('/api/process-order', {items: orderItems[0]?.name});      
+    const response = await axios.post('/api/process-order', {items: orderItems});      
   }
 
   const vapiClient = useRef(null);
@@ -170,22 +170,31 @@ const OrderingSimulation = () => {
 
   const startListening = async () => {
     if (isListening) return;
-    console.log(menuItems, 'menuItemsmenuItems')
+    const filterItems = menuItems.map(e => e.name)
+    console.log(filterItems, 'filterItemsfilterItems')
     try {
       setIsListening(true);
       const assistantId = '8a6c6580-b2c2-462e-859d-af0f51152d8c';
-      await vapiClient.current.start(assistantId, {variableValues: {menu: JSON.stringify(menuItems)}});
+      await vapiClient.current.start(assistantId, {variableValues: {menu: JSON.stringify(filterItems)}});
 
       vapiClient.current.on("message", (message) => {
         console.log("message => conversation-update ::", message);
         if (message?.role == "user" && message.transcriptType == 'final') {
           console.log(message.transcript, 'kjsdfhkshkfd')
           handleUserMessage(message.transcript);
-          // if(message.transcript == 'Thank you.'){
-          //   console.log('Sumbmiting your order!')
-          //   console.log(orderItems, 'orderItemsorderItems')
-          //   console.log(orderTotal, 'OrderTotalllll')
-          // }
+        }
+
+        if(message?.role == "assistant" && message.transcriptType == 'final') {
+          setMessages(prev => [...prev, {
+            type: 'assistant',
+            text: message.transcript,
+            timestamp: new Date().toLocaleTimeString([], { 
+              hour: '2-digit', 
+              minute: '2-digit', 
+              second: '2-digit', 
+              hour12: false 
+            })
+          }]);
         }
       });
       vapiClient.current.on("error", (e) => {
@@ -219,31 +228,24 @@ const OrderingSimulation = () => {
   };
 
   const processOrderText = (text) => {
-    // Extract quantities and menu items from text
-    const words = text.toLowerCase().split(' ');
-    const quantities = [];
     const items = [];
-    let currentQuantity = 1;
-
-    words.forEach((word, index) => {
-      if (!isNaN(word)) {
-        currentQuantity = parseInt(word);
-      } else {
-        // Check if word matches any menu item
-        const matchedItem = menuItems.find(item => 
-          item.name.toLowerCase().includes(word) ||
-          word.includes(item.name.toLowerCase())
-        );
-        if (matchedItem) {
-          items.push({
-            ...matchedItem,
-            quantity: currentQuantity
-          });
-          currentQuantity = 1;
-        }
+    console.log(text, 'Full text received');
+  
+    menuItems.forEach((menuItem) => {
+      // Check if the menu item's name is present in the text
+      const regex = new RegExp(`(\\d+)?\\s*${menuItem.name.toLowerCase()}`, 'i'); // Match quantity and item name
+      const match = text.toLowerCase().match(regex);
+  
+      if (match) {
+        const quantity = match[1] ? parseInt(match[1]) : 1; // Default quantity is 1 if not specified
+        items.push({
+          ...menuItem,
+          quantity,
+        });
       }
     });
-
+  
+    console.log(items, 'Matched items with quantities');
     return items;
   };
 

@@ -168,8 +168,6 @@ app.get("/api/orders", (req, res) => {
 
 app.post("/api/process-order", async (req, res) => {
   const { items } = req.body;
-  console.log(req.body, 'sdjkfhksjdfg')
-  console.log(items, 'itemsdkjfhfk')
   // Simple items processing to match menu items
   // In a real application, you would use NLP or a more sophisticated matching system
   try {
@@ -181,7 +179,9 @@ app.post("/api/process-order", async (req, res) => {
     });
 
     const matchedItems = menuItems.filter(item =>
-      items?.toLowerCase().includes(item?.name?.toLowerCase())
+      items?.some(orderItem =>
+        orderItem?.name?.toLowerCase().includes(item?.name?.toLowerCase())
+      )
     );
 
     console.log(matchedItems, 'matchedItemsdjfh')
