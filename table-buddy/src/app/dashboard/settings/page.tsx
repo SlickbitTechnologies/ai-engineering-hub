@@ -5,6 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import RestaurantDetails from '@/components/settings/RestaurantDetails';
 import OperatingHours from '@/components/settings/OperatingHours';
 import TableSettings from '@/components/settings/TableSettings';
+import VoiceAgentSettings from '@/components/settings/VoiceAgentSettings';
 
 interface TimeSlot {
   openingTime: string;
@@ -134,6 +135,9 @@ export default function SettingsPage() {
 
           {activeTab === 'Table Settings' && (
             <TableSettings />
+          )}
+          {activeTab === 'Voice Agent' && (
+            <VoiceAgentSettings />
           )}
         </div>
       </div>
