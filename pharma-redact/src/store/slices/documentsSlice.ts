@@ -1,104 +1,150 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { getDocumentsFromFirestore, addDocumentToFirestore, deleteDocument } from '@/utils/firebase';
 
 export interface Document {
     id: string;
     name: string;
-    type: 'pdf' | 'docx';
+    type: string;
     path: string;
     size: number;
     uploadedAt: string;
     status: 'pending' | 'processing' | 'redacted' | 'error';
-    source: 'upload' | 'dms' | 'sharepoint' | 'sample';
+    source: string;
+    fileUrl?: string; // URL to Firebase Storage file
+    firestoreId?: string; // Firestore document ID
 }
 
 interface DocumentsState {
     documents: Document[];
+    selectedDocument: Document | null;
     isLoading: boolean;
     error: string | null;
-    selectedDocumentId: string | null;
 }
 
 const initialState: DocumentsState = {
-    documents: [
-        {
-            id: '1',
-            name: 'Clinical_Trial_Report_A123.pdf',
-            type: 'pdf',
-            path: '/documents/sample-1.pdf',
-            size: 1548576,
-            uploadedAt: new Date(Date.now() - 86400000).toISOString(),
-            status: 'redacted',
-            source: 'sample'
-        },
-        {
-            id: '2',
-            name: 'Patient_Data_Summary.docx',
-            type: 'docx',
-            path: '/documents/sample-2.docx',
-            size: 892400,
-            uploadedAt: new Date(Date.now() - 172800000).toISOString(),
-            status: 'pending',
-            source: 'upload'
-        },
-        {
-            id: '3',
-            name: 'Research_Protocol_2023.pdf',
-            type: 'pdf',
-            path: '/documents/sample-3.pdf',
-            size: 2145728,
-            uploadedAt: new Date(Date.now() - 259200000).toISOString(),
-            status: 'processing',
-            source: 'dms'
-        }
-    ],
+    documents: [],
+    selectedDocument: null,
     isLoading: false,
     error: null,
-    selectedDocumentId: null,
 };
 
-export const documentsSlice = createSlice({
+// Async thunk for fetching documents from Firestore
+export const fetchDocuments = createAsyncThunk(
+    'documents/fetchDocuments',
+    async (_, { rejectWithValue }) => {
+        try {
+            const documents = await getDocumentsFromFirestore();
+            return documents;
+        } catch (error: any) {
+            return rejectWithValue(error.message);
+        }
+    }
+);
+
+// Async thunk for adding a document to Firestore
+export const addDocument = createAsyncThunk(
+    'documents/addDocument',
+    async (document: Omit<Document, 'id' | 'firestoreId'>, { rejectWithValue }) => {
+        try {
+            const firestoreId = await addDocumentToFirestore(document);
+            return { ...document, firestoreId, id: firestoreId };
+        } catch (error: any) {
+            return rejectWithValue(error.message);
+        }
+    }
+);
+
+// Async thunk for deleting a document
+export const removeDocument = createAsyncThunk(
+    'documents/removeDocument',
+    async ({ id, fileUrl, firestoreId }: { id: string, fileUrl?: string, firestoreId?: string }, { rejectWithValue }) => {
+        try {
+            if (fileUrl && firestoreId) {
+                await deleteDocument(fileUrl, firestoreId);
+            }
+            return id;
+        } catch (error: any) {
+            return rejectWithValue(error.message);
+        }
+    }
+);
+
+const documentsSlice = createSlice({
     name: 'documents',
     initialState,
     reducers: {
-        fetchDocumentsStart: (state) => {
-            state.isLoading = true;
-            state.error = null;
+        selectDocument: (state, action: PayloadAction<string>) => {
+            const documentId = action.payload;
+            state.selectedDocument = state.documents.find(doc => doc.id === documentId) || null;
         },
-        fetchDocumentsSuccess: (state, action: PayloadAction<Document[]>) => {
-            state.isLoading = false;
-            state.documents = action.payload;
+        clearSelectedDocument: (state) => {
+            state.selectedDocument = null;
         },
-        fetchDocumentsFailure: (state, action: PayloadAction<string>) => {
-            state.isLoading = false;
-            state.error = action.payload;
-        },
-        addDocument: (state, action: PayloadAction<Document>) => {
-            state.documents.push(action.payload);
-        },
-        updateDocumentStatus: (state, action: PayloadAction<{ id: string; status: Document['status'] }>) => {
+        updateDocumentStatus: (state, action: PayloadAction<{ id: string, status: Document['status'] }>) => {
             const { id, status } = action.payload;
-            const document = state.documents.find(doc => doc.id === id);
-            if (document) {
-                document.status = status;
+            const documentIndex = state.documents.findIndex(doc => doc.id === id);
+
+            if (documentIndex !== -1) {
+                state.documents[documentIndex].status = status;
+
+                if (state.selectedDocument && state.selectedDocument.id === id) {
+                    state.selectedDocument.status = status;
+                }
             }
         },
-        removeDocument: (state, action: PayloadAction<string>) => {
-            state.documents = state.documents.filter(doc => doc.id !== action.payload);
+        addLocalDocument: (state, action: PayloadAction<Document>) => {
+            state.documents.push(action.payload);
         },
-        selectDocument: (state, action: PayloadAction<string | null>) => {
-            state.selectedDocumentId = action.payload;
-        },
+    },
+    extraReducers: (builder) => {
+        builder
+            // Fetch documents cases
+            .addCase(fetchDocuments.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
+            .addCase(fetchDocuments.fulfilled, (state, action) => {
+                state.isLoading = false;
+                state.documents = action.payload;
+            })
+            .addCase(fetchDocuments.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload as string;
+            })
+
+            // Add document cases
+            .addCase(addDocument.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
+            .addCase(addDocument.fulfilled, (state, action) => {
+                state.isLoading = false;
+                state.documents.push(action.payload as Document);
+            })
+            .addCase(addDocument.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload as string;
+            })
+
+            // Remove document cases
+            .addCase(removeDocument.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
+            .addCase(removeDocument.fulfilled, (state, action) => {
+                state.isLoading = false;
+                state.documents = state.documents.filter(doc => doc.id !== action.payload);
+                if (state.selectedDocument && state.selectedDocument.id === action.payload) {
+                    state.selectedDocument = null;
+                }
+            })
+            .addCase(removeDocument.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload as string;
+            });
     },
 });
 
-export const {
-    fetchDocumentsStart,
-    fetchDocumentsSuccess,
-    fetchDocumentsFailure,
-    addDocument,
-    updateDocumentStatus,
-    removeDocument,
-    selectDocument,
-} = documentsSlice.actions;
+export const { selectDocument, clearSelectedDocument, updateDocumentStatus, addLocalDocument } = documentsSlice.actions;
 
 export default documentsSlice.reducer; 

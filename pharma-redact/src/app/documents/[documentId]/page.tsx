@@ -4,10 +4,9 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
-import { Document, updateDocumentStatus } from "@/store/slices/documentsSlice";
+import { Document, updateDocumentStatus, removeDocument } from "@/store/slices/documentsSlice";
 import { MainLayout } from "@/components/layout/main-layout";
 import Link from "next/link";
-import { RedactionTemplate } from "@/store/slices/redactionSlice";
 
 export default function DocumentDetailPage() {
   const params = useParams();
@@ -20,11 +19,6 @@ export default function DocumentDetailPage() {
     documents: Document[];
     isLoading: boolean;
     error: string | null;
-  });
-  
-  // Get templates from Redux store
-  const { templates } = useSelector((state: RootState) => state.redaction as {
-    templates: RedactionTemplate[];
   });
   
   // Find the document with matching ID
@@ -41,10 +35,7 @@ export default function DocumentDetailPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  
-  // Template selection state
-  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Update local state when Redux store changes
   useEffect(() => {
@@ -52,27 +43,10 @@ export default function DocumentDetailPage() {
       setDocument(documentFromStore);
     }
   }, [documentFromStore]);
-  
-  // Initialize with default template
-  useEffect(() => {
-    if (templates.length > 0) {
-      const defaultTemplate = templates.find(t => t.isDefault);
-      if (defaultTemplate) {
-        setSelectedTemplateId(defaultTemplate.id);
-      } else {
-        setSelectedTemplateId(templates[0].id);
-      }
-    }
-  }, [templates]);
 
-  const handleProcessClick = () => {
-    setIsTemplateModalOpen(true);
-  };
-  
   const handleProcessDocument = () => {
     if (!document) return;
     
-    setIsTemplateModalOpen(false);
     setIsProcessing(true);
     dispatch(updateDocumentStatus({ id: documentId, status: 'processing' }));
     
@@ -88,6 +62,21 @@ export default function DocumentDetailPage() {
         return prev + 10;
       });
     }, 500);
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!document) return;
+    
+    try {
+      await dispatch(removeDocument({ 
+        id: document.id, 
+        fileUrl: document.fileUrl, 
+        firestoreId: document.firestoreId || document.id 
+      }) as any);
+      router.push('/documents');
+    } catch (error) {
+      console.error('Error deleting document:', error);
+    }
   };
 
   const formatFileSize = (size: number) => {
@@ -175,7 +164,7 @@ export default function DocumentDetailPage() {
                 </>
               ) : (
                 <button
-                  onClick={handleProcessClick}
+                  onClick={handleProcessDocument}
                   disabled={isProcessing || document.status === 'processing'}
                   className={`px-4 py-2 rounded-lg shadow-sm ${
                     isProcessing || document.status === 'processing'
@@ -186,6 +175,14 @@ export default function DocumentDetailPage() {
                   {isProcessing || document.status === 'processing' ? 'Processing...' : 'Process Document'}
                 </button>
               )}
+              
+              {/* Delete button */}
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="px-4 py-2 rounded-lg border border-red-600 text-red-600 font-medium hover:bg-red-50 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 active:translate-y-0.5"
+              >
+                Delete Document
+              </button>
             </div>
           </div>
 
@@ -251,7 +248,7 @@ export default function DocumentDetailPage() {
                       This document is ready to be processed. Click the "Process Document" button to start redacting sensitive information.
                     </p>
                     <button
-                      onClick={handleProcessClick}
+                      onClick={handleProcessDocument}
                       className="px-4 py-2 rounded-lg bg-chateau-green-600 text-white font-medium hover:bg-chateau-green-700 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 active:translate-y-0.5"
                     >
                       Process Document
@@ -298,6 +295,20 @@ export default function DocumentDetailPage() {
                     <p className="text-sm text-gray-500 mb-1">File Size</p>
                     <p className="text-gray-900">{formatFileSize(document.size)}</p>
                   </div>
+
+                  {document.fileUrl && (
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Storage Location</p>
+                      <a 
+                        href={document.fileUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-chateau-green-600 hover:underline truncate block"
+                      >
+                        View Original File
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 {document.status === 'redacted' && (
@@ -324,11 +335,6 @@ export default function DocumentDetailPage() {
                         <p className="text-sm text-gray-600">Legal Information</p>
                         <p className="text-sm font-medium text-gray-900">0 items</p>
                       </div>
-                      
-                      <div className="flex justify-between items-center font-medium pt-2 border-t border-gray-100">
-                        <p className="text-sm text-gray-900">Total Redactions</p>
-                        <p className="text-sm text-chateau-green-600">11 items</p>
-                      </div>
                     </div>
                   </div>
                 )}
@@ -337,100 +343,32 @@ export default function DocumentDetailPage() {
           </div>
         </div>
       </div>
-      
-      {/* Template Selection Modal */}
-      {isTemplateModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-lg w-full">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Select Redaction Template</h2>
-              <button
-                onClick={() => setIsTemplateModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700 focus:outline-none"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="text-center">
+              <svg className="h-12 w-12 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <h3 className="text-xl font-medium text-gray-900 mb-2">Delete Document</h3>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete this document? This action cannot be undone.
+              </p>
             </div>
-            
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
-              Choose a redaction template to apply to your document. Each template contains a set of redaction rules that will be used to identify sensitive information.
-            </p>
-            
-            <div className="space-y-4 max-h-60 overflow-y-auto mb-6">
-              {templates.length > 0 ? (
-                templates.map((template) => (
-                  <div 
-                    key={template.id}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                      selectedTemplateId === template.id 
-                        ? 'border-chateau-green-500 bg-chateau-green-50 dark:bg-chateau-green-900/20' 
-                        : 'border-gray-200 hover:border-chateau-green-300 hover:bg-chateau-green-50/50 dark:border-gray-700 dark:hover:border-chateau-green-700'
-                    }`}
-                    onClick={() => setSelectedTemplateId(template.id)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
-                          {template.name}
-                          {template.isDefault && (
-                            <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-chateau-green-100 text-chateau-green-800 dark:bg-chateau-green-900/30 dark:text-chateau-green-300">
-                              Default
-                            </span>
-                          )}
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {template.description}
-                        </p>
-                      </div>
-                      <div className="flex-shrink-0">
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                          selectedTemplateId === template.id 
-                            ? 'border-chateau-green-500' 
-                            : 'border-gray-300 dark:border-gray-600'
-                        }`}>
-                          {selectedTemplateId === template.id && (
-                            <div className="w-3 h-3 rounded-full bg-chateau-green-500"></div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      {template.ruleIds.length} {template.ruleIds.length === 1 ? 'rule' : 'rules'} included
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500 dark:text-gray-400">No templates available</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                    Please create a template in the Redaction Rules section first.
-                  </p>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex justify-end gap-3">
+            <div className="flex space-x-3 justify-center">
               <button
-                type="button"
-                onClick={() => setIsTemplateModalOpen(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 dark:text-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500"
               >
                 Cancel
               </button>
               <button
-                type="button"
-                onClick={handleProcessDocument}
-                disabled={!selectedTemplateId || templates.length === 0}
-                className={`px-4 py-2 rounded-md text-white ${
-                  !selectedTemplateId || templates.length === 0
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : 'bg-chateau-green-600 hover:bg-chateau-green-700'
-                }`}
+                onClick={handleDeleteDocument}
+                className="px-4 py-2 bg-red-600 text-white rounded-md shadow-sm text-sm font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
               >
-                Process Document
+                Delete
               </button>
             </div>
           </div>
