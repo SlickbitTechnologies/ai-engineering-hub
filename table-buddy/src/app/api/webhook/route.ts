@@ -1,21 +1,30 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 
+interface VariableValues {
+  date:string;
+  time:string;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    console.log("Body:",body);
     const {message} = body;
     // Handle different webhook events
     console.log("Message:",message.type);
-    switch (message.type) {
+    const {type,toolCalls,call,timestamp} = message;
+    console.log("Call:",JSON.stringify(call));
+    const {assistantOverrides,id} = call;
+    const {variableValues} = assistantOverrides;
+    switch (type) {
       case 'tool-calls':
-        // Handle tool calls from Vapi
-        const toolCalls = message.toolCalls;
+       
         const toolCall = toolCalls[0];
         // Get database connection
         let toolCallResponses = [];
        for(let toolCall of toolCalls){
-        const response = await handleToolCall(toolCall);
+        const response = await handleToolCall(toolCall,id,variableValues);
         toolCallResponses.push({result:response,toolCallId:toolCall.id});
        }
        console.log("Tool call responses:",toolCallResponses);
@@ -29,7 +38,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ result: 'Internal server error' }, { status: 500 });
   }
 }
-const handleToolCall = async (toolCall: any) => {
+const handleToolCall = async (toolCall: any,callId:string,variableValues:VariableValues) => {
   try {
     console.log("Tool call:",toolCall);
   const db = await getDb();
@@ -44,7 +53,7 @@ const handleToolCall = async (toolCall: any) => {
       return checkAvailabilityResult;
 
     case 'createReservation':
-      const createReservationResult = await createReservation(toolArguments);
+      const createReservationResult = await createReservation(toolArguments,callId,variableValues);
       return createReservationResult;
 
     case 'checkNextAvailableSlot':
@@ -160,7 +169,7 @@ const checkAvailability = async (args: any) => {
   return `Found ${availableTables.length} available tables that can accommodate ${no_of_people} people`;
 }
 
-const createReservation = async (args: any) => {
+const createReservation = async (args: any, callId: string, variableValues: VariableValues) => {
   const db = await getDb();
   console.log("Create reservation args:", args);
   const { name, phone, date, time, no_of_people, occasion, special_requests } = args;
@@ -258,7 +267,7 @@ const createReservation = async (args: any) => {
 
   try {
     // Create the reservation
-    await db.run(`
+    const result = await db.run(`
       INSERT INTO reservations (
         customer_name, 
         customer_phone, 
@@ -294,6 +303,44 @@ const createReservation = async (args: any) => {
       ':status': 'confirmed',
       ':occasion': occasion || null,
       ':special_requests': special_requests || null
+    });
+
+    const reservationId = result.lastID;
+
+    // Store call logs
+    const callDate = variableValues.date;
+    const callTime = variableValues.time;
+    const callDuration = Math.floor((new Date().getTime() - new Date(`${callDate}T${callTime}`).getTime()) / 1000); // Duration in seconds
+
+    await db.run(`
+      INSERT INTO call_logs (
+        call_id,
+        reservation_id,
+        customer_phone,
+        call_date,
+        call_time,
+        call_duration,
+        reservation_date,
+        reservation_time
+      ) VALUES (
+        :call_id,
+        :reservation_id,
+        :customer_phone,
+        :call_date,
+        :call_time,
+        :call_duration,
+        :reservation_date,
+        :reservation_time
+      )
+    `, {
+      ':call_id': callId,
+      ':reservation_id': reservationId,
+      ':customer_phone': phone,
+      ':call_date': callDate,
+      ':call_time': callTime,
+      ':call_duration': callDuration,
+      ':reservation_date': date,
+      ':reservation_time': time
     });
 
     return `Reservation created successfully for ${name} at ${time} on ${date} for ${no_of_people} people at Table ${availableTable.id}.`;

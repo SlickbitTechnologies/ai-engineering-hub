@@ -21,21 +21,24 @@ export async function GET() {
           AND r.status != 'cancelled'
         ORDER BY t.id
       `);
-  
+      console.log("Tables:",tables);
       // Format the data to match the expected structure
-      const formattedTables = tables.map(table => ({
-        id: table.id,
-        tableName: table.tableName,
-        capacity: table.capacity,
-        section: table.section,
-        attributes: table.attributes ? JSON.parse(table.attributes) : [],
-        reservation: table.customerName ? {
-          customerName: table.customerName,
-          time: table.time,
-          guests: table.guests,
-          status: table.status
-        } : undefined
-      }));
+      const formattedTables = tables.map(table => {
+        const attributes = table.attributes ? typeof table.attributes === 'string' ? table.attributes.split(',') : table.attributes : [];
+        return {
+            id: table.id,
+            tableName: table.tableName,
+            capacity: table.capacity,
+            section: table.section,
+            attributes: attributes,
+            reservation: table.customerName ? {
+              customerName: table.customerName,
+              time: table.time,
+              guests: table.guests,
+              status: table.status
+            } : undefined
+          }
+      });
   
       return NextResponse.json(formattedTables);
     } catch (error) {

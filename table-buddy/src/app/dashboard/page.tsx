@@ -105,7 +105,7 @@ export default function DashboardPage() {
             </div>
             <div className="space-y-6">
               <ReservationCalendar />
-              <VapiCallSimulator assistantId="your-assistant-id" />
+              <VapiCallSimulator showChat={false} />
             </div>
           </div>
           <TableReservations />
