@@ -68,6 +68,7 @@ const CategoryButton = styled(Button)(({ theme, selected }) => ({
   padding: theme.spacing(1, 3),
   transition: 'all 0.3s ease',
   backgroundColor: selected ? theme.palette.primary.main : 'transparent',
+  border: '1px solid #C3C3C3',
   color: selected ? 'white' : theme.palette.text.primary,
   '&:hover': {
     transform: 'translateY(-2px)',

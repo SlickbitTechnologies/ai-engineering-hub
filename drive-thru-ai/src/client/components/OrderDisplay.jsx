@@ -100,14 +100,12 @@ const OrderDisplay = () => {
   console.log(orders, 'sdkhjkhsdf')
   useEffect(() => {
     fetchOrders();
-    const interval = setInterval(fetchOrders, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   const fetchOrders = async () => {
     try {
       const response = await axios.get('/api/orders');
-      // setOrders(response.data);
+      setOrders(response.data);
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
@@ -134,6 +132,7 @@ const OrderDisplay = () => {
   };
 
   const getActionButton = (order) => {
+    console.log(order, 'orderlsjdhkj')
     switch (order.status) {
       case 'new':
         return (
@@ -201,7 +200,7 @@ const OrderDisplay = () => {
             <Grid container spacing={3}>
               <AnimatePresence>
                 {orders.map((order) => (
-                  <Grid item xs={12} sm={3} key={order.id}>
+                  <Grid item xs={12} sm={3.8} key={order.id}>
                     <motion.div
                       variants={orderCardVariants}
                       whileHover="hover"
@@ -234,12 +233,7 @@ const OrderDisplay = () => {
                               Order #{order.id}
                             </Typography>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                              >
-                                <AccessTimeIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                              </motion.div>
+                              <AccessTimeIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                               <Typography color="text.secondary">{order.timestamp}</Typography>
                             </Box>
                           </Box>
@@ -248,9 +242,9 @@ const OrderDisplay = () => {
                         {/* Vehicle Info */}
                         <Zoom in timeout={500}>
                           <Box sx={{ px: 2, py: 1, bgcolor: '#FFF' }}>
-                            <Typography variant="body2" color="text.secondary">
+                            {/* <Typography variant="body2" color="text.secondary">
                               Vehicle: {order.vehicle}
-                            </Typography>
+                            </Typography> */}
                           </Box>
                         </Zoom>
 
@@ -276,7 +270,7 @@ const OrderDisplay = () => {
                                     ${item.price.toFixed(2)}
                                   </Typography>
                                 </Box>
-                                {item.customizations.map((customization, custIndex) => (
+                                {item?.customizations?.map((customization, custIndex) => (
                                   <motion.div
                                     key={custIndex}
                                     initial={{ opacity: 0, x: -10 }}

@@ -167,9 +167,10 @@ app.get("/api/orders", (req, res) => {
 });
 
 app.post("/api/process-order", async (req, res) => {
-  const { text } = req.body;
-  
-  // Simple text processing to match menu items
+  const { items } = req.body;
+  console.log(req.body, 'sdjkfhksjdfg')
+  console.log(items, 'itemsdkjfhfk')
+  // Simple items processing to match menu items
   // In a real application, you would use NLP or a more sophisticated matching system
   try {
     const menuItems = await new Promise((resolve, reject) => {
@@ -180,9 +181,10 @@ app.post("/api/process-order", async (req, res) => {
     });
 
     const matchedItems = menuItems.filter(item =>
-      text.toLowerCase().includes(item.name.toLowerCase())
+      items?.toLowerCase().includes(item?.name?.toLowerCase())
     );
 
+    console.log(matchedItems, 'matchedItemsdjfh')
     if (matchedItems.length === 0) {
       res.json({ items: [] });
       return;
@@ -223,10 +225,10 @@ app.post("/api/process-order", async (req, res) => {
   }
 });
 
-app.put("/api/orders/:id/complete", (req, res) => {
+app.put("/api/orders/:id/start", (req, res) => {
   db.run(
     "UPDATE orders SET status = ? WHERE id = ?",
-    ["completed", req.params.id],
+    ["preparing", req.params.id],
     (err) => {
       if (err) {
         res.status(500).json({ error: err.message });
