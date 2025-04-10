@@ -8,20 +8,32 @@ app.use(express.json());
 // Menu Items Routes
 app.get("/api/menu-items", (req, res) => {
   db.all("SELECT * FROM menu_items", (err, rows) => {
+    console.log(rows, 'rowssddssd')
     if (err) {
       res.status(500).json({ error: err.message });
       return;
     }
-    res.json(rows);
+    const menuItems = rows.map((row) => ({
+      ...row,
+      customization: row.customization ? JSON.parse(row.customization) : []
+    }));
+    res.json(menuItems);
   });
 });
 
 app.post("/api/menu-items", (req, res) => {
-  const { name, price, description, category, available } = req.body;
+  const { name, price, description, category, available, customization } = req.body;
   console.log(req.body, 'sdkjsjfsfhk')
   db.run(
-    "INSERT INTO menu_items (name, price, description, category, available) VALUES (?, ?, ?, ?, ?)",
-    [name, price, description, category, available],
+    "INSERT INTO menu_items (name, price, description, category, available, customization) VALUES (?, ?, ?, ?, ?, ?)",
+    [
+      name, 
+      price, 
+      description, 
+      category, 
+      available, 
+      JSON.stringify(customization)
+    ],
     function(err) {
       if (err) {
         res.status(500).json({ error: err.message });
@@ -120,7 +132,8 @@ app.get("/api/orders", (req, res) => {
           'id', mi.id,
           'name', mi.name,
           'price', mi.price,
-          'quantity', oi.quantity
+          'quantity', oi.quantity,
+          'customization', mi.customization
         ), '||'  -- Use custom separator
       ) as items_json
     FROM orders o
@@ -144,7 +157,12 @@ app.get("/api/orders", (req, res) => {
             // Split by custom separator and parse each JSON object
             row.items = row.items_json.split('||').map(itemStr => {
               try {
-                return JSON.parse(itemStr);
+                const parsedItem = JSON.parse(itemStr);
+                // Parse customization JSON if it exists
+                if (parsedItem.customization) {
+                  parsedItem.customization = JSON.parse(parsedItem.customization);
+                }
+                return parsedItem;
               } catch (parseErr) {
                 console.error('Error parsing item JSON:', itemStr);
                 return null;

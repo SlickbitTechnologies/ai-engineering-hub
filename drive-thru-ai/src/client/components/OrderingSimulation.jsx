@@ -250,15 +250,27 @@ const OrderingSimulation = () => {
   };
 
   const addItemsToOrder = (items) => {
-    const newOrderItems = [...orderItems, ...items.map(item => ({
-      ...item,
-      totalPrice: item.price * (item.quantity || 1)
-    }))];
+    const newOrderItems = [
+      ...orderItems,
+      ...items.map(item => {
+        // Calculate the total price for the item, including customizations
+        const customizationTotal = item.customization?.reduce((sum, option) => sum + parseInt(option.price), 0) || 0;
+        const totalPrice = (parseInt(item.price) + customizationTotal) * (item.quantity || 1);
+  
+        return {
+          ...item,
+          totalPrice,
+        };
+      })
+    ];
+  
     setOrderItems(newOrderItems);
-    
-    // Calculate new total
+  
+    // Calculate the new total
     const total = newOrderItems.reduce((sum, item) => sum + item.totalPrice, 0);
     setOrderTotal(total);
+  
+    console.log(newOrderItems, 'Updated order items with customizations');
   };
 
   const handleUserMessage = async (text) => {
@@ -742,7 +754,7 @@ const OrderingSimulation = () => {
                               ${(item.price * (item.quantity || 1)).toFixed(2)}
                             </Typography>
                           </Box>
-                          {item.options && item.options.map((option, optIndex) => (
+                          {item.customization && item.customization.map((option, optIndex) => (
                             <motion.div
                               key={optIndex}
                               initial={{ opacity: 0, x: -10 }}
@@ -760,7 +772,7 @@ const OrderingSimulation = () => {
                                 }}
                               >
                                 <AddCircleIcon sx={{ fontSize: 14 }} />
-                                {option.name} (+${option.price.toFixed(2)})
+                                {option.name} (+${parseFloat(option.price).toFixed(2)})
                               </Typography>
                             </motion.div>
                           ))}
@@ -922,7 +934,9 @@ const OrderingSimulation = () => {
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                           {item.description}
                         </Typography>
-                        {/* <Divider sx={{ my: 1 }} />
+                        {item?.customization?.length > 0 &&
+                        <>
+                        <Divider sx={{ my: 1 }} />
                         <Box sx={{ mt: 2 }}>
                           <Typography variant="subtitle2" sx={{ 
                             display: 'flex', 
@@ -931,9 +945,9 @@ const OrderingSimulation = () => {
                             mb: 1
                           }}>
                             <AddCircleIcon sx={{ fontSize: 18 }} />
-                            Options:
+                            Customizations:
                           </Typography>
-                          {item.options.map((option, index) => (
+                          {item?.customization?.map((option, index) => (
                             <motion.div
                               key={index}
                               initial={{ opacity: 0, x: -10 }}
@@ -945,11 +959,13 @@ const OrderingSimulation = () => {
                                 color="text.secondary"
                                 sx={{ ml: 1, mb: 0.5 }}
                               >
-                                • {option.name} (+${option.price.toFixed(2)})
+                                • {option.name} (+${parseFloat(option.price).toFixed(2)})
                               </Typography>
                             </motion.div>
                           ))}
-                        </Box> */}
+                        </Box>
+                        </>
+                        }
                       </CardContent>
                     </Card>
                   </motion.div>
