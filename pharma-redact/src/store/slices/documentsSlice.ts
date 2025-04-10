@@ -9,7 +9,6 @@ export interface Document {
     uploadedAt: string;
     status: 'pending' | 'processing' | 'redacted' | 'error';
     source: 'upload' | 'dms' | 'sharepoint' | 'sample';
-    appliedTemplateId?: string;
 }
 
 interface DocumentsState {
@@ -29,8 +28,7 @@ const initialState: DocumentsState = {
             size: 1548576,
             uploadedAt: new Date(Date.now() - 86400000).toISOString(),
             status: 'redacted',
-            source: 'sample',
-            appliedTemplateId: '2'
+            source: 'sample'
         },
         {
             id: '2',
@@ -84,13 +82,6 @@ export const documentsSlice = createSlice({
                 document.status = status;
             }
         },
-        applyTemplate: (state, action: PayloadAction<{ documentId: string, templateId: string }>) => {
-            const { documentId, templateId } = action.payload;
-            const document = state.documents.find(doc => doc.id === documentId);
-            if (document) {
-                document.appliedTemplateId = templateId;
-            }
-        },
         removeDocument: (state, action: PayloadAction<string>) => {
             state.documents = state.documents.filter(doc => doc.id !== action.payload);
         },
@@ -106,7 +97,6 @@ export const {
     fetchDocumentsFailure,
     addDocument,
     updateDocumentStatus,
-    applyTemplate,
     removeDocument,
     selectDocument,
 } = documentsSlice.actions;

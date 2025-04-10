@@ -11,6 +11,15 @@ export interface RedactionRule {
     isSystem: boolean;
 }
 
+export interface RedactionTemplate {
+    id: string;
+    name: string;
+    description: string;
+    ruleIds: string[];
+    createdAt: string;
+    isDefault: boolean;
+}
+
 export interface RedactionItem {
     id: string;
     documentId: string;
@@ -28,19 +37,10 @@ export interface RedactionItem {
     isRejected: boolean;
 }
 
-export interface RedactionTemplate {
-    id: string;
-    name: string;
-    description: string;
-    ruleIds: string[];
-    createdAt: string;
-    updatedAt: string;
-}
-
 interface RedactionState {
     rules: RedactionRule[];
-    items: RedactionItem[];
     templates: RedactionTemplate[];
+    items: RedactionItem[];
     isProcessing: boolean;
     processingProgress: number;
     error: string | null;
@@ -85,18 +85,10 @@ const initialState: RedactionState = {
         {
             id: '1',
             name: 'Standard Redaction',
-            description: 'Basic redaction for common personal information',
-            ruleIds: ['1', '2'],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        },
-        {
-            id: '2',
-            name: 'Clinical Trial Redaction',
-            description: 'Comprehensive redaction for clinical trial documents',
+            description: 'Redacts personal names, emails, and site identifiers',
             ruleIds: ['1', '2', '3'],
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            isDefault: true,
         }
     ],
     items: [],
@@ -174,31 +166,47 @@ export const redactionSlice = createSlice({
         selectRule: (state, action: PayloadAction<string | null>) => {
             state.selectedRuleId = action.payload;
         },
-        // Template actions
-        addTemplate: (state, action: PayloadAction<Omit<RedactionTemplate, 'id' | 'createdAt' | 'updatedAt'>>) => {
+        // Template reducers
+        addTemplate: (state, action: PayloadAction<Omit<RedactionTemplate, 'id' | 'createdAt'>>) => {
             const newTemplate: RedactionTemplate = {
                 ...action.payload,
                 id: Date.now().toString(),
                 createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
             };
             state.templates.push(newTemplate);
         },
         updateTemplate: (state, action: PayloadAction<Partial<RedactionTemplate> & { id: string }>) => {
             const index = state.templates.findIndex(template => template.id === action.payload.id);
             if (index !== -1) {
-                state.templates[index] = {
-                    ...state.templates[index],
-                    ...action.payload,
-                    updatedAt: new Date().toISOString()
-                };
+                state.templates[index] = { ...state.templates[index], ...action.payload };
             }
         },
         deleteTemplate: (state, action: PayloadAction<string>) => {
-            state.templates = state.templates.filter(template => template.id !== action.payload);
+            // Don't delete if it's the only template or if it's the default
+            const isDefault = state.templates.find(t => t.id === action.payload)?.isDefault;
+            if (state.templates.length > 1 && !isDefault) {
+                state.templates = state.templates.filter(template => template.id !== action.payload);
+            }
+        },
+        setDefaultTemplate: (state, action: PayloadAction<string>) => {
+            state.templates.forEach(template => {
+                template.isDefault = template.id === action.payload;
+            });
         },
         selectTemplate: (state, action: PayloadAction<string | null>) => {
             state.selectedTemplateId = action.payload;
+        },
+        addRuleToTemplate: (state, action: PayloadAction<{ templateId: string, ruleId: string }>) => {
+            const template = state.templates.find(t => t.id === action.payload.templateId);
+            if (template && !template.ruleIds.includes(action.payload.ruleId)) {
+                template.ruleIds.push(action.payload.ruleId);
+            }
+        },
+        removeRuleFromTemplate: (state, action: PayloadAction<{ templateId: string, ruleId: string }>) => {
+            const template = state.templates.find(t => t.id === action.payload.templateId);
+            if (template) {
+                template.ruleIds = template.ruleIds.filter(id => id !== action.payload.ruleId);
+            }
         },
     },
 });
@@ -221,7 +229,10 @@ export const {
     addTemplate,
     updateTemplate,
     deleteTemplate,
+    setDefaultTemplate,
     selectTemplate,
+    addRuleToTemplate,
+    removeRuleFromTemplate,
 } = redactionSlice.actions;
 
 export default redactionSlice.reducer; 

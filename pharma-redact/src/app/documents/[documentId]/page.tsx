@@ -4,10 +4,10 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
-import { Document, updateDocumentStatus, applyTemplate } from "@/store/slices/documentsSlice";
-import { RedactionTemplate } from "@/store/slices/redactionSlice";
+import { Document, updateDocumentStatus } from "@/store/slices/documentsSlice";
 import { MainLayout } from "@/components/layout/main-layout";
 import Link from "next/link";
+import { RedactionTemplate } from "@/store/slices/redactionSlice";
 
 export default function DocumentDetailPage() {
   const params = useParams();
@@ -23,13 +23,8 @@ export default function DocumentDetailPage() {
   });
   
   // Get templates from Redux store
-  const { templates, rules } = useSelector((state: RootState) => state.redaction as {
-    rules: any[];
+  const { templates } = useSelector((state: RootState) => state.redaction as {
     templates: RedactionTemplate[];
-    items: any[];
-    isProcessing: boolean;
-    processingProgress: number;
-    error: string | null;
   });
   
   // Find the document with matching ID
@@ -46,28 +41,39 @@ export default function DocumentDetailPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  
+  // Template selection state
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-  
+
   // Update local state when Redux store changes
   useEffect(() => {
     if (documentFromStore) {
       setDocument(documentFromStore);
     }
   }, [documentFromStore]);
+  
+  // Initialize with default template
+  useEffect(() => {
+    if (templates.length > 0) {
+      const defaultTemplate = templates.find(t => t.isDefault);
+      if (defaultTemplate) {
+        setSelectedTemplateId(defaultTemplate.id);
+      } else {
+        setSelectedTemplateId(templates[0].id);
+      }
+    }
+  }, [templates]);
 
-  const handleProcessDocument = () => {
+  const handleProcessClick = () => {
     setIsTemplateModalOpen(true);
   };
   
-  const handleStartProcessing = () => {
-    if (!document || !selectedTemplateId) return;
+  const handleProcessDocument = () => {
+    if (!document) return;
     
     setIsTemplateModalOpen(false);
     setIsProcessing(true);
-    
-    // Apply the selected template to the document
-    dispatch(applyTemplate({ documentId, templateId: selectedTemplateId }));
     dispatch(updateDocumentStatus({ id: documentId, status: 'processing' }));
     
     // Simulate processing
@@ -169,7 +175,7 @@ export default function DocumentDetailPage() {
                 </>
               ) : (
                 <button
-                  onClick={handleProcessDocument}
+                  onClick={handleProcessClick}
                   disabled={isProcessing || document.status === 'processing'}
                   className={`px-4 py-2 rounded-lg shadow-sm ${
                     isProcessing || document.status === 'processing'
@@ -245,7 +251,7 @@ export default function DocumentDetailPage() {
                       This document is ready to be processed. Click the "Process Document" button to start redacting sensitive information.
                     </p>
                     <button
-                      onClick={handleProcessDocument}
+                      onClick={handleProcessClick}
                       className="px-4 py-2 rounded-lg bg-chateau-green-600 text-white font-medium hover:bg-chateau-green-700 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 active:translate-y-0.5"
                     >
                       Process Document
@@ -292,15 +298,6 @@ export default function DocumentDetailPage() {
                     <p className="text-sm text-gray-500 mb-1">File Size</p>
                     <p className="text-gray-900">{formatFileSize(document.size)}</p>
                   </div>
-
-                  {document.appliedTemplateId && (
-                    <div>
-                      <p className="text-sm text-gray-500 mb-1">Applied Template</p>
-                      <p className="text-gray-900">
-                        {templates.find(t => t.id === document.appliedTemplateId)?.name || 'Unknown Template'}
-                      </p>
-                    </div>
-                  )}
                 </div>
 
                 {document.status === 'redacted' && (
@@ -340,77 +337,77 @@ export default function DocumentDetailPage() {
           </div>
         </div>
       </div>
-
+      
       {/* Template Selection Modal */}
       {isTemplateModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Select Redaction Template</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Choose a template to apply for redacting sensitive information in this document.
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-lg w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Select Redaction Template</h2>
+              <button
+                onClick={() => setIsTemplateModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700 focus:outline-none"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              Choose a redaction template to apply to your document. Each template contains a set of redaction rules that will be used to identify sensitive information.
             </p>
             
-            <div className="space-y-3 max-h-80 overflow-y-auto mb-6">
-              {templates.length > 0 ? templates.map(template => (
-                <div 
-                  key={template.id}
-                  onClick={() => setSelectedTemplateId(template.id)}
-                  className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                    selectedTemplateId === template.id 
-                      ? 'border-chateau-green-500 bg-chateau-green-50 dark:bg-chateau-green-900/20' 
-                      : 'border-gray-200 hover:border-gray-300 dark:border-gray-700'
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium text-gray-900 dark:text-white">{template.name}</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{template.description}</p>
-                      
-                      <div className="mt-2">
-                        <p className="text-xs text-gray-500 mb-1">Rules Included: {template.ruleIds.length}</p>
-                        <div className="flex flex-wrap gap-1">
-                          {template.ruleIds.slice(0, 3).map(ruleId => {
-                            const rule = rules.find(r => r.id === ruleId);
-                            return rule ? (
-                              <span 
-                                key={rule.id}
-                                className="inline-block text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded"
-                              >
-                                {rule.name}
-                              </span>
-                            ) : null;
-                          })}
-                          {template.ruleIds.length > 3 && (
-                            <span className="inline-block text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded">
-                              +{template.ruleIds.length - 3} more
+            <div className="space-y-4 max-h-60 overflow-y-auto mb-6">
+              {templates.length > 0 ? (
+                templates.map((template) => (
+                  <div 
+                    key={template.id}
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                      selectedTemplateId === template.id 
+                        ? 'border-chateau-green-500 bg-chateau-green-50 dark:bg-chateau-green-900/20' 
+                        : 'border-gray-200 hover:border-chateau-green-300 hover:bg-chateau-green-50/50 dark:border-gray-700 dark:hover:border-chateau-green-700'
+                    }`}
+                    onClick={() => setSelectedTemplateId(template.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
+                          {template.name}
+                          {template.isDefault && (
+                            <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-chateau-green-100 text-chateau-green-800 dark:bg-chateau-green-900/30 dark:text-chateau-green-300">
+                              Default
                             </span>
+                          )}
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          {template.description}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0">
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          selectedTemplateId === template.id 
+                            ? 'border-chateau-green-500' 
+                            : 'border-gray-300 dark:border-gray-600'
+                        }`}>
+                          {selectedTemplateId === template.id && (
+                            <div className="w-3 h-3 rounded-full bg-chateau-green-500"></div>
                           )}
                         </div>
                       </div>
                     </div>
-                    
-                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                      selectedTemplateId === template.id 
-                        ? 'border-chateau-green-500 bg-chateau-green-500'
-                        : 'border-gray-300 dark:border-gray-600'
-                    }`}>
-                      {selectedTemplateId === template.id && (
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" className="w-3 h-3">
-                          <path fillRule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clipRule="evenodd" />
-                        </svg>
-                      )}
+                    <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                      {template.ruleIds.length} {template.ruleIds.length === 1 ? 'rule' : 'rules'} included
                     </div>
                   </div>
-                </div>
-              )) : (
+                ))
+              ) : (
                 <div className="text-center py-8">
-                  <p className="text-gray-600 dark:text-gray-400">No templates available. Please create a template first.</p>
-                  <Link 
-                    href="/redaction-rules" 
-                    className="inline-block mt-4 text-chateau-green-600 hover:text-chateau-green-700 font-medium"
-                  >
-                    Create Templates
-                  </Link>
+                  <p className="text-gray-500 dark:text-gray-400">No templates available</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                    Please create a template in the Redaction Rules section first.
+                  </p>
                 </div>
               )}
             </div>
@@ -425,15 +422,15 @@ export default function DocumentDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={handleStartProcessing}
-                disabled={!selectedTemplateId}
-                className={`px-4 py-2 rounded-md ${
-                  !selectedTemplateId
-                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                    : 'bg-chateau-green-600 text-white hover:bg-chateau-green-700'
+                onClick={handleProcessDocument}
+                disabled={!selectedTemplateId || templates.length === 0}
+                className={`px-4 py-2 rounded-md text-white ${
+                  !selectedTemplateId || templates.length === 0
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-chateau-green-600 hover:bg-chateau-green-700'
                 }`}
               >
-                Apply Template & Process
+                Process Document
               </button>
             </div>
           </div>
