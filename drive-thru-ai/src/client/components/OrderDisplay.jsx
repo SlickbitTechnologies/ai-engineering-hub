@@ -132,7 +132,6 @@ const OrderDisplay = () => {
   };
 
   const getActionButton = (order) => {
-    console.log(order, 'orderlsjdhkj')
     switch (order.status) {
       case 'new':
         return (

@@ -135,6 +135,7 @@ const OrderingSimulation = () => {
 
   useEffect(() => {
     if(isSubmitted){
+      window.alert('Order placed successfully!')
       console.log(orderTotal, 'kjdssdhgkjorderTotal')
       submitOrderList()
     }

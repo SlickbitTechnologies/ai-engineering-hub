@@ -34,6 +34,7 @@ import CategoryIcon from '@mui/icons-material/Category';
 import DescriptionIcon from '@mui/icons-material/Description';
 import axios from 'axios';
 import panCake from '../assets/panCake.png';
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 
 // const categories = ['Burgers', 'Sides', 'Drinks', 'Desserts', 'Combos'];
 
@@ -165,10 +166,24 @@ const MenuManagement = () => {
   };
 
   const fetchCategories = async () => {
-    const response = await axios.get('/api/categories');
-    console.log(response, 'sdkhskdfjh')
-    setCategories(response?.data)
-  }
+    try {
+      const response = await axios.get('/api/categories');
+      // Sort categories by position if available and ensure each category has an id
+      const sortedCategories = response?.data
+        ?.filter(category => category && category.id) // Filter out any invalid categories
+        ?.map(category => ({
+          ...category,
+          id: category.id.toString() // Ensure ID is a string
+        }))
+        ?.sort((a, b) => (a.position || 0) - (b.position || 0));
+      
+      console.log('Fetched categories:', sortedCategories); // Debug log
+      setCategories(sortedCategories || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      setCategories([]);
+    }
+  };
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -310,6 +325,40 @@ const MenuManagement = () => {
     }
   };
 
+  const onDragEnd = async (result) => {
+    console.log('Drag ended:', result); // Debug log
+    if (!result.destination || !categories.length) return;
+
+    try {
+      const items = Array.from(categories);
+      const [reorderedItem] = items.splice(result.source.index, 1);
+      items.splice(result.destination.index, 0, reorderedItem);
+
+      // Update positions
+      const updatedItems = items.map((item, index) => ({
+        ...item,
+        id: item.id.toString(), // Ensure ID is string
+        position: index + 1
+      }));
+
+      console.log('Updated items:', updatedItems); // Debug log
+      setCategories(updatedItems);
+
+      // Update positions in the backend
+      await Promise.all(updatedItems.map(item =>
+        axios.put(`/api/categories/${item.id}`, {
+          name: item.name,
+          position: item.position
+        })
+      ));
+    } catch (error) {
+      console.error('Error updating category positions:', error);
+      // Revert to original order if backend update fails
+      fetchCategories();
+    }
+  };
+
+console.log(categories, 'categoriesksdj')
   return (
     <PageContainer>
       <Fade in timeout={800}>
@@ -510,12 +559,12 @@ const MenuManagement = () => {
           <Box sx={{ p: 3, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <motion.div
+                {/* <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                >
+                > */}
                   <CategoryIcon sx={{ fontSize: 40, color: 'primary.main' }} />
-                </motion.div>
+                {/* </motion.div> */}
                 <Typography variant="h5" sx={{ fontWeight: 600 }}>
                   Menu Categories
                 </Typography>
@@ -543,71 +592,113 @@ const MenuManagement = () => {
               </Zoom>
             </Box>
 
-            <Stack spacing={2}>
-              {categories.map((category, index) => (
-                <motion.div
-                  key={category}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.1 }}
-                  whileHover={{ scale: 1.01 }}
-                >
-                  <Paper
-                    elevation={2}
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
-                        boxShadow: 4,
-                      },
-                    }}
+            <DragDropContext onDragEnd={onDragEnd}>
+              <Droppable droppableId="categories">
+                {(provided) => (
+                  <Stack 
+                    spacing={2} 
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
                   >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <DragIndicatorIcon sx={{ color: 'text.secondary', cursor: 'grab' }} />
-                      <Box>
-                        <Typography variant="h6" sx={{ color: 'primary.main' }}>
-                          {category.name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Position: {index + 1}
-                        </Typography>
-                      </Box>
-                    </Box>
-                    
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Tooltip title="Edit Category">
-                        <AnimatedIconButton
-                          size="small"
-                          sx={{ bgcolor: 'action.hover' }}
-                          onClick={() => handleOpenCategoryModal(category)}
+                    {categories.map((category, index) => {
+                      // Ensure we have a valid category and ID
+                      if (!category || !category.id) return null;
+                      
+                      const dragId = `category-${category.id}`;
+                      console.log('Rendering category:', { id: category.id, dragId }); // Debug log
+                      
+                      return (
+                        <Draggable 
+                          key={dragId}
+                          draggableId={dragId}
+                          index={index}
                         >
-                          <EditIcon />
-                        </AnimatedIconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete Category">
-                        <AnimatedIconButton
-                          size="small"
-                          onClick={() => handleDeletecategory(category.id)}
-                          sx={{ 
-                            bgcolor: 'error.light',
-                            color: 'white',
-                            '&:hover': {
-                              bgcolor: 'error.main',
-                            }
-                          }}
-                        >
-                          <DeleteIcon />
-                        </AnimatedIconButton>
-                      </Tooltip>
-                    </Box>
-                  </Paper>
-                </motion.div>
-              ))}
-            </Stack>
+                          {(provided, snapshot) => (
+                            <motion.div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ duration: 0.3, delay: index * 0.1 }}
+                              style={{
+                                ...provided.draggableProps.style,
+                                transform: snapshot.isDragging ? 
+                                  provided.draggableProps.style.transform : 
+                                  'none'
+                              }}
+                            >
+                              <Paper
+                                elevation={snapshot.isDragging ? 8 : 2}
+                                sx={{
+                                  p: 2,
+                                  borderRadius: 2,
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  transition: 'all 0.3s ease',
+                                  bgcolor: snapshot.isDragging ? 'action.hover' : 'background.paper',
+                                  '&:hover': {
+                                    boxShadow: 4,
+                                  },
+                                }}
+                              >
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                  <Box {...provided.dragHandleProps}>
+                                    <DragIndicatorIcon 
+                                      sx={{ 
+                                        color: 'text.secondary', 
+                                        cursor: 'grab',
+                                        '&:active': { cursor: 'grabbing' }
+                                      }} 
+                                    />
+                                  </Box>
+                                  <Box>
+                                    <Typography variant="h6" sx={{ color: 'primary.main' }}>
+                                      {category.name}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Position: {index + 1}
+                                    </Typography>
+                                  </Box>
+                                </Box>
+                                
+                                <Box sx={{ display: 'flex', gap: 1 }}>
+                                  <Tooltip title="Edit Category">
+                                    <AnimatedIconButton
+                                      size="small"
+                                      sx={{ bgcolor: 'action.hover' }}
+                                      onClick={() => handleOpenCategoryModal(category)}
+                                    >
+                                      <EditIcon />
+                                    </AnimatedIconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Delete Category">
+                                    <AnimatedIconButton
+                                      size="small"
+                                      onClick={() => handleDeletecategory(category.id)}
+                                      sx={{ 
+                                        bgcolor: 'error.light',
+                                        color: 'white',
+                                        '&:hover': {
+                                          bgcolor: 'error.main',
+                                        }
+                                      }}
+                                    >
+                                      <DeleteIcon />
+                                    </AnimatedIconButton>
+                                  </Tooltip>
+                                </Box>
+                              </Paper>
+                            </motion.div>
+                          )}
+                        </Draggable>
+                      );
+                    })}
+                    {provided.placeholder}
+                  </Stack>
+                )}
+              </Droppable>
+            </DragDropContext>
           </Box>
         </Fade>
       )}
