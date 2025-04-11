@@ -197,7 +197,6 @@ const OrderDisplay = () => {
         return null;
     }
   };
-console.log(orders, 'ordersdkfj')
   return (
     <Fade in timeout={800}>
       <Box sx={{ p: 4 }}>

@@ -155,7 +155,6 @@ const MenuManagement = () => {
   const fetchMenuItems = async () => {
     try {
       const response = await axios.get('/api/menu-items');
-      console.log(response, 'sdfsdfresponse')
       setMenuItems(response.data);
       const filterCat = [...new Set(response.data.map(item => item.category))];
       setFilteredCategoryList(filterCat)
@@ -177,7 +176,6 @@ const MenuManagement = () => {
         }))
         ?.sort((a, b) => (a.position || 0) - (b.position || 0));
       
-      console.log('Fetched categories:', sortedCategories); // Debug log
       setCategories(sortedCategories || []);
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -237,10 +235,8 @@ const MenuManagement = () => {
       }
     }
   };
-  console.log(editItem, 'editItemjdsh')
 
   const handleSaveMenuItem = async () => {
-    console.log(formData, 'formDataformData')
     try {
       const obj = {
         name: formData.name,
@@ -276,7 +272,6 @@ const MenuManagement = () => {
   
 
   const handleOpenCategoryModal = (category = null) => {
-    console.log(category, 'dsfkjhcategory')
     if (category) {
       setEditingCategory(category);
       setCategoryFormData({
@@ -316,7 +311,6 @@ const MenuManagement = () => {
   };
 
   const handleDeletecategory = async (id) => {
-    console.log(id, 'ididididi')
     if (window.confirm('Are you sure you want to delete this category?')) {
       try {
         await axios.delete(`/api/categories/${id}`);
@@ -360,8 +354,6 @@ const MenuManagement = () => {
     }
   };
 
-console.log(categories, 'categoriesksdj')
-
 const handleAddCustomization = () => {
   setFormData({
     ...formData,
@@ -388,8 +380,6 @@ const handleCustomizationChange = (index, field, value) => {
     customizations: newCustomizations
   });
 };
-
-console.log(menuItems, 'menuItemskdjfk')
 
   return (
     <PageContainer>

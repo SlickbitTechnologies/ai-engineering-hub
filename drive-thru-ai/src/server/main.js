@@ -8,7 +8,6 @@ app.use(express.json());
 // Menu Items Routes
 app.get("/api/menu-items", (req, res) => {
   db.all("SELECT * FROM menu_items", (err, rows) => {
-    console.log(rows, 'rowssddssd')
     if (err) {
       res.status(500).json({ error: err.message });
       return;
@@ -23,7 +22,6 @@ app.get("/api/menu-items", (req, res) => {
 
 app.post("/api/menu-items", (req, res) => {
   const { name, price, description, category, available, customization } = req.body;
-  console.log(req.body, 'sdkjsjfsfhk')
   db.run(
     "INSERT INTO menu_items (name, price, description, category, available, customization) VALUES (?, ?, ?, ?, ?, ?)",
     [
@@ -82,7 +80,6 @@ app.get("/api/categories", (req, res) => {
 
 app.post("/api/categories", (req, res) => {
   const { name } = req.body;
-  console.log(req.body, 'sasdadkjsjfsfhk')
   db.run(
     "INSERT INTO categories (name) VALUES (?)",
     [name],
@@ -112,7 +109,6 @@ app.put("/api/categories/:id", (req, res) => {
 });
 
 app.delete("/api/categories/:id", (req, res) => {
-  console.log(req.params.id, 'sdkjhfksdjghf')
   db.run("DELETE FROM categories WHERE id = ?", [req.params.id], (err) => {
     if (err) {
       res.status(500).json({ error: err.message });
@@ -202,7 +198,6 @@ app.post("/api/process-order", async (req, res) => {
       )
     );
 
-    console.log(matchedItems, 'matchedItemsdjfh')
     if (matchedItems.length === 0) {
       res.json({ items: [] });
       return;

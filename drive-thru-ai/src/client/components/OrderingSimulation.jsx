@@ -64,7 +64,12 @@ const OrderingSimulation = () => {
   const [messages, setMessages] = useState([{
     type: 'assistant',
     text: 'Hello! Welcome to Burger Palace. What can I get for you today?',
-    timestamp: '16:53:48'
+    timestamp: new Date().toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit', 
+      hour12: false 
+    })
   }]);
   const [orderItems, setOrderItems] = useState([]);
   const [inputText, setInputText] = useState('');
@@ -117,9 +122,6 @@ const OrderingSimulation = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const messagesContainerRef = useRef(null);
 
-  console.log(JSON.stringify(orderItems), 'orderItemsorderItemsorderItems')
-  console.log(orderTotal, 'orderItemsOrderTotalllll')
-
   useEffect(() => {
     fetchMenuItems();
   }, []);
@@ -136,7 +138,6 @@ const OrderingSimulation = () => {
   useEffect(() => {
     if(isSubmitted){
       window.alert('Order placed successfully!')
-      console.log(orderTotal, 'kjdssdhgkjorderTotal')
       submitOrderList()
     }
   }, [isSubmitted])
@@ -171,7 +172,6 @@ const OrderingSimulation = () => {
   const startListening = async () => {
     if (isListening) return;
     const filterItems = menuItems.map(e => e.name)
-    console.log(filterItems, 'filterItemsfilterItems')
     try {
       setIsListening(true);
       const assistantId = '8a6c6580-b2c2-462e-859d-af0f51152d8c';
@@ -180,7 +180,6 @@ const OrderingSimulation = () => {
       vapiClient.current.on("message", (message) => {
         console.log("message => conversation-update ::", message);
         if (message?.role == "user" && message.transcriptType == 'final') {
-          console.log(message.transcript, 'kjsdfhkshkfd')
           handleUserMessage(message.transcript);
         }
 
@@ -211,6 +210,7 @@ const OrderingSimulation = () => {
   
 
   const stopListening = () => {
+    console.log(vapiClient.current.activeAssistant.stop(), '__vapiClientvapiClient')
     if (vapiClient.current && vapiClient.current.activeAssistant) {
       vapiClient.current.activeAssistant.stop();
       vapiClient.current.activeAssistant = null;
@@ -250,31 +250,55 @@ const OrderingSimulation = () => {
   };
 
   const addItemsToOrder = (items) => {
-    const newOrderItems = [
-      ...orderItems,
-      ...items.map(item => {
-        // Calculate the total price for the item, including customizations
-        const customizationTotal = item.customization?.reduce((sum, option) => sum + parseInt(option.price), 0) || 0;
-        const totalPrice = (parseInt(item.price) + customizationTotal) * (item.quantity || 1);
+    setOrderItems((prevOrderItems) => {
+      const updatedOrderItems = [...prevOrderItems];
   
-        return {
-          ...item,
-          totalPrice,
-        };
-      })
-    ];
+      items.forEach((newItem) => {
+        // Check if the item already exists in the order
+        const existingItemIndex = updatedOrderItems.findIndex(
+          (item) => item.id === newItem.id
+        );
   
-    setOrderItems(newOrderItems);
+        if (existingItemIndex !== -1) {
+          // If the item exists, update its quantity and total price
+          updatedOrderItems[existingItemIndex].quantity += newItem.quantity;
+          const customizationTotal =
+            newItem.customization?.reduce((sum, option) => sum + parseFloat(option.price), 0) || 0;
+          updatedOrderItems[existingItemIndex].totalPrice =
+            (updatedOrderItems[existingItemIndex].price + customizationTotal) *
+            updatedOrderItems[existingItemIndex].quantity;
+        } else {
+          // If the item does not exist, calculate its total price and add it
+          const customizationTotal =
+            newItem.customization?.reduce((sum, option) => sum + parseFloat(option.price), 0) || 0;
+          const totalPrice = (newItem.price + customizationTotal) * newItem.quantity;
   
-    // Calculate the new total
-    const total = newOrderItems.reduce((sum, item) => sum + item.totalPrice, 0);
-    setOrderTotal(total);
+          updatedOrderItems.push({
+            ...newItem,
+            totalPrice,
+          });
+        }
+      });
   
-    console.log(newOrderItems, 'Updated order items with customizations');
+      // Return the updated order items
+      return updatedOrderItems;
+    });
+  
+    // Update the total price
+    setOrderTotal((prevTotal) =>
+      items.reduce((sum, item) => {
+        const customizationTotal =
+          item.customization?.reduce((sum, option) => sum + parseFloat(option.price), 0) || 0;
+        const totalPrice = (item.price + customizationTotal) * item.quantity;
+        return sum + totalPrice;
+      }, prevTotal)
+    );
+  
+    console.log('Order items updated with customizations');
   };
 
   const handleUserMessage = async (text) => {
-    console.log(text, 'textsjhd')
+    console.log(text, 'text_text')
     setIsProcessingOrder(true);
     const newMessage = {
       type: 'user',
@@ -291,7 +315,6 @@ const OrderingSimulation = () => {
     try {
       // Process the order text to identify items
       const identifiedItems = processOrderText(text);
-      console.log(identifiedItems, 'identifiedItemsdhfj')
       if (identifiedItems.length > 0) {
         console.log(identifiedItems, 'identifiedItems')
         // Add items to order
@@ -318,20 +341,21 @@ const OrderingSimulation = () => {
         
         // Speak the confirmation
         // await speakText(confirmationMessage);
-      } else {
-        const noItemsMessage = "I couldn't identify any menu items in your order. Could you please try again?";
-        setMessages(prev => [...prev, {
-          type: 'assistant',
-          text: noItemsMessage,
-          timestamp: new Date().toLocaleTimeString([], { 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            second: '2-digit', 
-            hour12: false 
-          })
-        }]);
-        // await speakText(noItemsMessage);
       }
+      // else {
+      //   const noItemsMessage = "I couldn't identify any menu items in your order. Could you please try again?";
+      //   setMessages(prev => [...prev, {
+      //     type: 'assistant',
+      //     text: noItemsMessage,
+      //     timestamp: new Date().toLocaleTimeString([], { 
+      //       hour: '2-digit', 
+      //       minute: '2-digit', 
+      //       second: '2-digit', 
+      //       hour12: false 
+      //     })
+      //   }]);
+      //   // await speakText(noItemsMessage);
+      // }
       if(text == 'Thank you.'){
         console.log('Sumbmiting_your_order!')
         setIsSubmitted(true)
