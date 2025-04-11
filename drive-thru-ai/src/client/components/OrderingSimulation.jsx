@@ -26,6 +26,7 @@ import FastfoodIcon from '@mui/icons-material/Fastfood';
 import LocalDiningIcon from '@mui/icons-material/LocalDining';
 import DriveEtaIcon from '@mui/icons-material/DriveEta';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
+import Fuse from 'fuse.js';
 
 const pulseAnimation = keyframes`
   0% { transform: scale(1); opacity: 1; }
@@ -194,7 +195,7 @@ const OrderingSimulation = () => {
               second: '2-digit', 
               hour12: false 
             })
-          }]);
+          }]);          
         }
       });
       vapiClient.current.on("error", (e) => {
@@ -211,10 +212,17 @@ const OrderingSimulation = () => {
   
 
   const stopListening = () => {
-    console.log(vapiClient.current.activeAssistant.stop(), '__vapiClientvapiClient')
     if (vapiClient.current && vapiClient.current.activeAssistant) {
-      vapiClient.current.activeAssistant.stop();
-      vapiClient.current.activeAssistant = null;
+      try {
+        console.log('Stopping active assistant...');
+        vapiClient.current.activeAssistant.stop();
+        vapiClient.current.activeAssistant = null; // Reset activeAssistant
+        console.log('Assistant stopped successfully.');
+      } catch (error) {
+        console.error('Error stopping assistant:', error);
+      }
+    } else {
+      console.warn('No active assistant to stop.');
     }
     setIsListening(false);
   };
@@ -236,9 +244,9 @@ const OrderingSimulation = () => {
       // Check if the menu item's name is present in the text
       const regex = new RegExp(`(\\d+)?\\s*${menuItem.name.toLowerCase()}`, 'i'); // Match quantity and item name
       const match = text.toLowerCase().match(regex);
-  
+      console.log(match, 'matchmatchl');
       if (match) {
-        const quantity = match[1] ? parseInt(match[1]) : 1; // Default quantity is 1 if not specified
+        const quantity = match[1] ? parseInt(match[1], 10) : 1; // Default quantity is 1 if not specified
         items.push({
           ...menuItem,
           quantity,
@@ -298,84 +306,209 @@ const OrderingSimulation = () => {
     console.log('Order items updated with customizations');
   };
 
-  const handleUserMessage = async (text, from='voice') => {
-    console.log(text, 'text_text')
+  const findMatchedItems = (text) => {
+  console.log(text, 'Full text received');
+
+  // Configure Fuse.js for fuzzy matching
+  const fuse = new Fuse(menuItems, {
+    keys: ['name'], // Search by the 'name' field in menuItems
+    threshold: 0.4, // Adjust the threshold for matching accuracy (lower is stricter)
+  });
+
+  // Perform fuzzy search
+  const results = fuse.search(text);
+    console.log(results, 'resultslskdjlkdsj')
+  if(results.length > 0){
+    return results[0].item.name;
+  }
+  return text;
+  }
+
+  const removeMenuItems = async (text) => {
+    const regex = /remove\s+(\d+)?\s*(.+)/i; // Match "remove [quantity] [item name]"
+    const match = text.match(regex);
+    console.log(match, 'Regex match');
+  
+    if (match) {
+      const quantityToRemove = match[1] ? parseInt(match[1], 10) : 1; // Default quantity is 1
+      let itemName = match[2].toLowerCase().trim();
+  
+      // Remove trailing punctuation (e.g., ".")
+      itemName = itemName.replace(/[^\w\s]/g, '');
+      console.log(itemName, 'Cleaned item name');
+  
+      // Use fuzzy matching to find the closest match in the orderItems array
+      const fuse = new Fuse(orderItems, {
+        keys: ['name'], // Search by the 'name' field in orderItems
+        threshold: 0.4, // Adjust the threshold for matching accuracy (lower is stricter)
+      });
+  
+      const results = fuse.search(itemName);
+      console.log(results, 'Fuzzy search results');
+      const itemToRemove = results.length > 0 ? results[0].item : null;
+  
+      if (itemToRemove) {
+        console.log(itemToRemove, 'Item to remove');
+  
+        // Remove the item or reduce its quantity
+        setOrderItems((prevOrderItems) => {
+          const updatedOrderItems = prevOrderItems.map((item) => {
+            if (item.id === itemToRemove.id) {
+              const newQuantity = item.quantity - quantityToRemove;
+              if (newQuantity > 0) {
+                return { ...item, quantity: newQuantity };
+              }
+              return null; // Mark for removal
+            }
+            return item;
+          }).filter(Boolean); // Remove null items
+          console.log(updatedOrderItems, 'Updated order items');
+          return updatedOrderItems;
+        });
+  
+        // Update the total price
+        const customizationTotal =
+          itemToRemove.customization?.reduce(
+            (sum, option) => sum + parseFloat(option.price),
+            0
+          ) || 0;
+        const totalPriceToRemove =
+          (itemToRemove.price + customizationTotal) * quantityToRemove;
+  
+        setOrderTotal((prevTotal) => prevTotal - totalPriceToRemove);
+  
+        // Add assistant confirmation message
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: 'assistant',
+            text: `Removed ${quantityToRemove} ${itemToRemove.name}(s) from your order.`,
+            timestamp: new Date().toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false,
+            }),
+          },
+        ]);
+      } else {
+        // Item not found in the order
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: 'assistant',
+            text: `I couldn't find ${itemName} in your order.`,
+            timestamp: new Date().toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false,
+            }),
+          },
+        ]);
+      }
+    } else {
+      // Invalid command format
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: 'assistant',
+          text: "I couldn't understand your command. Please try again.",
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+          }),
+        },
+      ]);
+    }
+  };
+
+  const handleUserMessage = async (text, from = 'voice') => {
+    console.log(text, 'text_text');
     setIsProcessingOrder(true);
+  
     const newMessage = {
       type: 'user',
       text: text,
-      timestamp: new Date().toLocaleTimeString([], { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit', 
-        hour12: false 
-      })
+      timestamp: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }),
     };
-    setMessages(prev => [...prev, newMessage]);
-    
+    setMessages((prev) => [...prev, newMessage]);
+  
     try {
-      // Process the order text to identify items
-      const identifiedItems = processOrderText(text);
+
+      if (text.toLowerCase().startsWith('remove')) {
+        removeMenuItems(text)
+      }
+  
+      // Handle adding items to the order
+      const finalText = findMatchedItems(text);
+      console.log(finalText, 'finalTextfinalText');
+      const identifiedItems = processOrderText(finalText);
+  
       if (identifiedItems.length > 0) {
-        console.log(identifiedItems, 'identifiedItems')
-        // Add items to order
+        console.log(identifiedItems, 'identifiedItems');
         addItemsToOrder(identifiedItems);
-        
-        // Create confirmation message
+  
         const itemsList = identifiedItems
-          .map(item => `${item.quantity || 1} ${item.name}`)
+          .map((item) => `${item.quantity || 1} ${item.name}`)
           .join(', ');
-        
+  
         const confirmationMessage = `I've added ${itemsList} to your order. Would you like anything else?`;
-        
-        // Add assistant message
-        setMessages(prev => [...prev, {
-          type: 'assistant',
-          text: confirmationMessage,
-          timestamp: new Date().toLocaleTimeString([], { 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            second: '2-digit', 
-            hour12: false 
-          })
-        }]);
-        
-        // Speak the confirmation
-        // await speakText(confirmationMessage);
+  
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: 'assistant',
+            text: confirmationMessage,
+            timestamp: new Date().toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false,
+            }),
+          },
+        ]);
       } else {
-        if(from == 'inputType'){
-          const noItemsMessage = "I couldn't identify any menu items in your order. Could you please try again?";
-          setMessages(prev => [...prev, {
+        const noItemsMessage =
+          "I couldn't identify any menu items in your order. Could you please try again?";
+        setMessages((prev) => [
+          ...prev,
+          {
             type: 'assistant',
             text: noItemsMessage,
-            timestamp: new Date().toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit', 
-              second: '2-digit', 
-              hour12: false 
-            })
-          }]);
-        }
-        // await speakText(noItemsMessage);
-      }
-      if(text == 'Thank you.'){
-        console.log('Sumbmiting_your_order!')
-        setIsSubmitted(true)
+            timestamp: new Date().toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false,
+            }),
+          },
+        ]);
       }
     } catch (error) {
       console.error('Error processing order:', error);
-      const errorMessage = "Sorry, there was an error processing your order. Please try again.";
-      setMessages(prev => [...prev, {
-        type: 'assistant',
-        text: errorMessage,
-        timestamp: new Date().toLocaleTimeString([], { 
-          hour: '2-digit', 
-          minute: '2-digit', 
-          second: '2-digit', 
-          hour12: false 
-        })
-      }]);
-      // await speakText(errorMessage);
+      const errorMessage =
+        'Sorry, there was an error processing your order. Please try again.';
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: 'assistant',
+          text: errorMessage,
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+          }),
+        },
+      ]);
     }
     setIsProcessingOrder(false);
   };
