@@ -122,7 +122,7 @@ const MenuManagement = () => {
       ]
     }
   ]);
-  
+    console.log(menuItems, 'menuItemsmenuItems')
   const [open, setOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -192,14 +192,38 @@ const MenuManagement = () => {
   };
 
   const handleAvailabilityChange = async (itemId) => {
-    const updatedItems = menuItems.map(item => {
-      if (item.id === itemId) {
-        return { ...item, available: !item.available };
+    try {
+      // Find the item to update
+      const itemToUpdate = menuItems.find(item => item.id === itemId);
+  
+      if (!itemToUpdate) {
+        console.error('Item not found');
+        return;
       }
-      return item;
-    });
-    setMenuItems(updatedItems);
-    // TODO: Update availability in backend
+  
+      // Toggle the availability
+      const updatedItem = { ...itemToUpdate, available: !itemToUpdate.available };
+  
+      // Update the backend
+      await axios.put(`/api/menu-items/${itemId}`, {
+        name: updatedItem.name,
+        price: updatedItem.price,
+        description: updatedItem.description,
+        category: updatedItem.category,
+        available: updatedItem.available,
+        customization: updatedItem.customizations,
+      });
+  
+      // Update the state
+      const updatedItems = menuItems.map(item =>
+        item.id === itemId ? updatedItem : item
+      );
+  
+      setMenuItems(updatedItems);
+      console.log(updatedItems, 'Updated menu items');
+    } catch (error) {
+      console.error('Error updating availability:', error);
+    }
   };
 
   const handleOpen = (item = null) => {
@@ -485,7 +509,7 @@ const handleCustomizationChange = (index, field, value) => {
                               Available
                             </Typography> */}
                             <Switch
-                              checked={item.available}
+                              checked={item.available == '0' ? false : true}
                               onChange={() => handleAvailabilityChange(item.id)}
                               color="success"
                             />

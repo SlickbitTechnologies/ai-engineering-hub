@@ -129,7 +129,8 @@ const OrderingSimulation = () => {
   const fetchMenuItems = async () => {
     try {
       const response = await axios.get('/api/menu-items');
-      setMenuItems(response.data);
+      const filterAvailableItem = response.data.filter(item => item.available == '1')
+      setMenuItems(filterAvailableItem);
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
@@ -180,7 +181,7 @@ const OrderingSimulation = () => {
       vapiClient.current.on("message", (message) => {
         console.log("message => conversation-update ::", message);
         if (message?.role == "user" && message.transcriptType == 'final') {
-          handleUserMessage(message.transcript);
+          handleUserMessage(message.transcript, 'voice');
         }
 
         if(message?.role == "assistant" && message.transcriptType == 'final') {
@@ -204,7 +205,7 @@ const OrderingSimulation = () => {
       console.error('Error starting voice recognition:', error);
       setIsListening(false);
       // Show error to user
-      handleUserMessage("Sorry, there was an error starting voice recognition. Please try again or use text input instead.");
+      handleUserMessage("Sorry, there was an error starting voice recognition. Please try again or use text input instead.", 'voice');
     }
   };
   
@@ -297,7 +298,7 @@ const OrderingSimulation = () => {
     console.log('Order items updated with customizations');
   };
 
-  const handleUserMessage = async (text) => {
+  const handleUserMessage = async (text, from='voice') => {
     console.log(text, 'text_text')
     setIsProcessingOrder(true);
     const newMessage = {
@@ -341,21 +342,22 @@ const OrderingSimulation = () => {
         
         // Speak the confirmation
         // await speakText(confirmationMessage);
+      } else {
+        if(from == 'inputType'){
+          const noItemsMessage = "I couldn't identify any menu items in your order. Could you please try again?";
+          setMessages(prev => [...prev, {
+            type: 'assistant',
+            text: noItemsMessage,
+            timestamp: new Date().toLocaleTimeString([], { 
+              hour: '2-digit', 
+              minute: '2-digit', 
+              second: '2-digit', 
+              hour12: false 
+            })
+          }]);
+        }
+        // await speakText(noItemsMessage);
       }
-      // else {
-      //   const noItemsMessage = "I couldn't identify any menu items in your order. Could you please try again?";
-      //   setMessages(prev => [...prev, {
-      //     type: 'assistant',
-      //     text: noItemsMessage,
-      //     timestamp: new Date().toLocaleTimeString([], { 
-      //       hour: '2-digit', 
-      //       minute: '2-digit', 
-      //       second: '2-digit', 
-      //       hour12: false 
-      //     })
-      //   }]);
-      //   // await speakText(noItemsMessage);
-      // }
       if(text == 'Thank you.'){
         console.log('Sumbmiting_your_order!')
         setIsSubmitted(true)
@@ -380,7 +382,7 @@ const OrderingSimulation = () => {
 
   const handleSendMessage = () => {
     if (inputText.trim()) {
-      handleUserMessage(inputText);
+      handleUserMessage(inputText, 'inputType');
       setInputText('');
     }
   };
