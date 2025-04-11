@@ -64,7 +64,12 @@ const OrderingSimulation = () => {
   const [messages, setMessages] = useState([{
     type: 'assistant',
     text: 'Hello! Welcome to Burger Palace. What can I get for you today?',
-    timestamp: '16:53:48'
+    timestamp: new Date().toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit', 
+      hour12: false 
+    })
   }]);
   const [orderItems, setOrderItems] = useState([]);
   const [inputText, setInputText] = useState('');
@@ -117,9 +122,6 @@ const OrderingSimulation = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const messagesContainerRef = useRef(null);
 
-  console.log(JSON.stringify(orderItems), 'orderItemsorderItemsorderItems')
-  console.log(orderTotal, 'orderItemsOrderTotalllll')
-
   useEffect(() => {
     fetchMenuItems();
   }, []);
@@ -136,13 +138,12 @@ const OrderingSimulation = () => {
   useEffect(() => {
     if(isSubmitted){
       window.alert('Order placed successfully!')
-      console.log(orderTotal, 'kjdssdhgkjorderTotal')
       submitOrderList()
     }
   }, [isSubmitted])
 
   const submitOrderList = async() => {
-    const response = await axios.post('/api/process-order', {items: orderItems[0]?.name});      
+    const response = await axios.post('/api/process-order', {items: orderItems});      
   }
 
   const vapiClient = useRef(null);
@@ -170,22 +171,29 @@ const OrderingSimulation = () => {
 
   const startListening = async () => {
     if (isListening) return;
-    console.log(menuItems, 'menuItemsmenuItems')
+    const filterItems = menuItems.map(e => e.name)
     try {
       setIsListening(true);
       const assistantId = '8a6c6580-b2c2-462e-859d-af0f51152d8c';
-      await vapiClient.current.start(assistantId, {variableValues: {menu: JSON.stringify(menuItems)}});
+      await vapiClient.current.start(assistantId, {variableValues: {menu: JSON.stringify(filterItems)}});
 
       vapiClient.current.on("message", (message) => {
         console.log("message => conversation-update ::", message);
         if (message?.role == "user" && message.transcriptType == 'final') {
-          console.log(message.transcript, 'kjsdfhkshkfd')
           handleUserMessage(message.transcript);
-          // if(message.transcript == 'Thank you.'){
-          //   console.log('Sumbmiting your order!')
-          //   console.log(orderItems, 'orderItemsorderItems')
-          //   console.log(orderTotal, 'OrderTotalllll')
-          // }
+        }
+
+        if(message?.role == "assistant" && message.transcriptType == 'final') {
+          setMessages(prev => [...prev, {
+            type: 'assistant',
+            text: message.transcript,
+            timestamp: new Date().toLocaleTimeString([], { 
+              hour: '2-digit', 
+              minute: '2-digit', 
+              second: '2-digit', 
+              hour12: false 
+            })
+          }]);
         }
       });
       vapiClient.current.on("error", (e) => {
@@ -202,6 +210,7 @@ const OrderingSimulation = () => {
   
 
   const stopListening = () => {
+    console.log(vapiClient.current.activeAssistant.stop(), '__vapiClientvapiClient')
     if (vapiClient.current && vapiClient.current.activeAssistant) {
       vapiClient.current.activeAssistant.stop();
       vapiClient.current.activeAssistant = null;
@@ -219,48 +228,77 @@ const OrderingSimulation = () => {
   };
 
   const processOrderText = (text) => {
-    // Extract quantities and menu items from text
-    const words = text.toLowerCase().split(' ');
-    const quantities = [];
     const items = [];
-    let currentQuantity = 1;
-
-    words.forEach((word, index) => {
-      if (!isNaN(word)) {
-        currentQuantity = parseInt(word);
-      } else {
-        // Check if word matches any menu item
-        const matchedItem = menuItems.find(item => 
-          item.name.toLowerCase().includes(word) ||
-          word.includes(item.name.toLowerCase())
-        );
-        if (matchedItem) {
-          items.push({
-            ...matchedItem,
-            quantity: currentQuantity
-          });
-          currentQuantity = 1;
-        }
+    console.log(text, 'Full text received');
+  
+    menuItems.forEach((menuItem) => {
+      // Check if the menu item's name is present in the text
+      const regex = new RegExp(`(\\d+)?\\s*${menuItem.name.toLowerCase()}`, 'i'); // Match quantity and item name
+      const match = text.toLowerCase().match(regex);
+  
+      if (match) {
+        const quantity = match[1] ? parseInt(match[1]) : 1; // Default quantity is 1 if not specified
+        items.push({
+          ...menuItem,
+          quantity,
+        });
       }
     });
-
+  
+    console.log(items, 'Matched items with quantities');
     return items;
   };
 
   const addItemsToOrder = (items) => {
-    const newOrderItems = [...orderItems, ...items.map(item => ({
-      ...item,
-      totalPrice: item.price * (item.quantity || 1)
-    }))];
-    setOrderItems(newOrderItems);
-    
-    // Calculate new total
-    const total = newOrderItems.reduce((sum, item) => sum + item.totalPrice, 0);
-    setOrderTotal(total);
+    setOrderItems((prevOrderItems) => {
+      const updatedOrderItems = [...prevOrderItems];
+  
+      items.forEach((newItem) => {
+        // Check if the item already exists in the order
+        const existingItemIndex = updatedOrderItems.findIndex(
+          (item) => item.id === newItem.id
+        );
+  
+        if (existingItemIndex !== -1) {
+          // If the item exists, update its quantity and total price
+          updatedOrderItems[existingItemIndex].quantity += newItem.quantity;
+          const customizationTotal =
+            newItem.customization?.reduce((sum, option) => sum + parseFloat(option.price), 0) || 0;
+          updatedOrderItems[existingItemIndex].totalPrice =
+            (updatedOrderItems[existingItemIndex].price + customizationTotal) *
+            updatedOrderItems[existingItemIndex].quantity;
+        } else {
+          // If the item does not exist, calculate its total price and add it
+          const customizationTotal =
+            newItem.customization?.reduce((sum, option) => sum + parseFloat(option.price), 0) || 0;
+          const totalPrice = (newItem.price + customizationTotal) * newItem.quantity;
+  
+          updatedOrderItems.push({
+            ...newItem,
+            totalPrice,
+          });
+        }
+      });
+  
+      // Return the updated order items
+      return updatedOrderItems;
+    });
+  
+    // Update the total price
+    setOrderTotal((prevTotal) =>
+      items.reduce((sum, item) => {
+        const customizationTotal =
+          item.customization?.reduce((sum, option) => sum + parseFloat(option.price), 0) || 0;
+        const totalPrice = (item.price + customizationTotal) * item.quantity;
+        return sum + totalPrice;
+      }, prevTotal)
+    );
+  
+    console.log('Order items updated with customizations');
   };
 
   const handleUserMessage = async (text) => {
-    console.log(text, 'textsjhd')
+    console.log(text, 'text_text')
     setIsProcessingOrder(true);
     const newMessage = {
       type: 'user',
@@ -277,7 +315,6 @@ const OrderingSimulation = () => {
     try {
       // Process the order text to identify items
       const identifiedItems = processOrderText(text);
-      console.log(identifiedItems, 'identifiedItemsdhfj')
       if (identifiedItems.length > 0) {
         console.log(identifiedItems, 'identifiedItems')
         // Add items to order
@@ -304,20 +341,21 @@ const OrderingSimulation = () => {
         
         // Speak the confirmation
         // await speakText(confirmationMessage);
-      } else {
-        const noItemsMessage = "I couldn't identify any menu items in your order. Could you please try again?";
-        setMessages(prev => [...prev, {
-          type: 'assistant',
-          text: noItemsMessage,
-          timestamp: new Date().toLocaleTimeString([], { 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            second: '2-digit', 
-            hour12: false 
-          })
-        }]);
-        // await speakText(noItemsMessage);
       }
+      // else {
+      //   const noItemsMessage = "I couldn't identify any menu items in your order. Could you please try again?";
+      //   setMessages(prev => [...prev, {
+      //     type: 'assistant',
+      //     text: noItemsMessage,
+      //     timestamp: new Date().toLocaleTimeString([], { 
+      //       hour: '2-digit', 
+      //       minute: '2-digit', 
+      //       second: '2-digit', 
+      //       hour12: false 
+      //     })
+      //   }]);
+      //   // await speakText(noItemsMessage);
+      // }
       if(text == 'Thank you.'){
         console.log('Sumbmiting_your_order!')
         setIsSubmitted(true)
@@ -740,7 +778,7 @@ const OrderingSimulation = () => {
                               ${(item.price * (item.quantity || 1)).toFixed(2)}
                             </Typography>
                           </Box>
-                          {item.options && item.options.map((option, optIndex) => (
+                          {item.customization && item.customization.map((option, optIndex) => (
                             <motion.div
                               key={optIndex}
                               initial={{ opacity: 0, x: -10 }}
@@ -758,7 +796,7 @@ const OrderingSimulation = () => {
                                 }}
                               >
                                 <AddCircleIcon sx={{ fontSize: 14 }} />
-                                {option.name} (+${option.price.toFixed(2)})
+                                {option.name} (+${parseFloat(option.price).toFixed(2)})
                               </Typography>
                             </motion.div>
                           ))}
@@ -920,7 +958,9 @@ const OrderingSimulation = () => {
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                           {item.description}
                         </Typography>
-                        {/* <Divider sx={{ my: 1 }} />
+                        {item?.customization?.length > 0 &&
+                        <>
+                        <Divider sx={{ my: 1 }} />
                         <Box sx={{ mt: 2 }}>
                           <Typography variant="subtitle2" sx={{ 
                             display: 'flex', 
@@ -929,9 +969,9 @@ const OrderingSimulation = () => {
                             mb: 1
                           }}>
                             <AddCircleIcon sx={{ fontSize: 18 }} />
-                            Options:
+                            Customizations:
                           </Typography>
-                          {item.options.map((option, index) => (
+                          {item?.customization?.map((option, index) => (
                             <motion.div
                               key={index}
                               initial={{ opacity: 0, x: -10 }}
@@ -943,11 +983,13 @@ const OrderingSimulation = () => {
                                 color="text.secondary"
                                 sx={{ ml: 1, mb: 0.5 }}
                               >
-                                • {option.name} (+${option.price.toFixed(2)})
+                                • {option.name} (+${parseFloat(option.price).toFixed(2)})
                               </Typography>
                             </motion.div>
                           ))}
-                        </Box> */}
+                        </Box>
+                        </>
+                        }
                       </CardContent>
                     </Card>
                   </motion.div>

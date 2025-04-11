@@ -12,16 +12,26 @@ app.get("/api/menu-items", (req, res) => {
       res.status(500).json({ error: err.message });
       return;
     }
-    res.json(rows);
+    const menuItems = rows.map((row) => ({
+      ...row,
+      customization: row.customization ? JSON.parse(row.customization) : []
+    }));
+    res.json(menuItems);
   });
 });
 
 app.post("/api/menu-items", (req, res) => {
-  const { name, price, description, category, available } = req.body;
-  console.log(req.body, 'sdkjsjfsfhk')
+  const { name, price, description, category, available, customization } = req.body;
   db.run(
-    "INSERT INTO menu_items (name, price, description, category, available) VALUES (?, ?, ?, ?, ?)",
-    [name, price, description, category, available],
+    "INSERT INTO menu_items (name, price, description, category, available, customization) VALUES (?, ?, ?, ?, ?, ?)",
+    [
+      name, 
+      price, 
+      description, 
+      category, 
+      available, 
+      JSON.stringify(customization)
+    ],
     function(err) {
       if (err) {
         res.status(500).json({ error: err.message });
@@ -70,7 +80,6 @@ app.get("/api/categories", (req, res) => {
 
 app.post("/api/categories", (req, res) => {
   const { name } = req.body;
-  console.log(req.body, 'sasdadkjsjfsfhk')
   db.run(
     "INSERT INTO categories (name) VALUES (?)",
     [name],
@@ -100,7 +109,6 @@ app.put("/api/categories/:id", (req, res) => {
 });
 
 app.delete("/api/categories/:id", (req, res) => {
-  console.log(req.params.id, 'sdkjhfksdjghf')
   db.run("DELETE FROM categories WHERE id = ?", [req.params.id], (err) => {
     if (err) {
       res.status(500).json({ error: err.message });
@@ -120,7 +128,8 @@ app.get("/api/orders", (req, res) => {
           'id', mi.id,
           'name', mi.name,
           'price', mi.price,
-          'quantity', oi.quantity
+          'quantity', oi.quantity,
+          'customization', mi.customization
         ), '||'  -- Use custom separator
       ) as items_json
     FROM orders o
@@ -144,7 +153,12 @@ app.get("/api/orders", (req, res) => {
             // Split by custom separator and parse each JSON object
             row.items = row.items_json.split('||').map(itemStr => {
               try {
-                return JSON.parse(itemStr);
+                const parsedItem = JSON.parse(itemStr);
+                // Parse customization JSON if it exists
+                if (parsedItem.customization) {
+                  parsedItem.customization = JSON.parse(parsedItem.customization);
+                }
+                return parsedItem;
               } catch (parseErr) {
                 console.error('Error parsing item JSON:', itemStr);
                 return null;
@@ -168,8 +182,6 @@ app.get("/api/orders", (req, res) => {
 
 app.post("/api/process-order", async (req, res) => {
   const { items } = req.body;
-  console.log(req.body, 'sdjkfhksjdfg')
-  console.log(items, 'itemsdkjfhfk')
   // Simple items processing to match menu items
   // In a real application, you would use NLP or a more sophisticated matching system
   try {
@@ -181,10 +193,11 @@ app.post("/api/process-order", async (req, res) => {
     });
 
     const matchedItems = menuItems.filter(item =>
-      items?.toLowerCase().includes(item?.name?.toLowerCase())
+      items?.some(orderItem =>
+        orderItem?.name?.toLowerCase().includes(item?.name?.toLowerCase())
+      )
     );
 
-    console.log(matchedItems, 'matchedItemsdjfh')
     if (matchedItems.length === 0) {
       res.json({ items: [] });
       return;

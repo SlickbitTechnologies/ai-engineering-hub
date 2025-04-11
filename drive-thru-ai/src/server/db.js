@@ -24,7 +24,8 @@ const initializeDatabase = () => {
         price REAL NOT NULL,
         description TEXT,
         category TEXT NOT NULL,
-        available TEXT
+        available TEXT,
+        customization TEXT -- Store JSON as a string
       )
     `);
 

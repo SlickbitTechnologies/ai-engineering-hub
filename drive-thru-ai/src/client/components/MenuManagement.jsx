@@ -155,7 +155,6 @@ const MenuManagement = () => {
   const fetchMenuItems = async () => {
     try {
       const response = await axios.get('/api/menu-items');
-      console.log(response, 'sdfsdfresponse')
       setMenuItems(response.data);
       const filterCat = [...new Set(response.data.map(item => item.category))];
       setFilteredCategoryList(filterCat)
@@ -177,7 +176,6 @@ const MenuManagement = () => {
         }))
         ?.sort((a, b) => (a.position || 0) - (b.position || 0));
       
-      console.log('Fetched categories:', sortedCategories); // Debug log
       setCategories(sortedCategories || []);
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -237,7 +235,6 @@ const MenuManagement = () => {
       }
     }
   };
-  console.log(editItem, 'editItemjdsh')
 
   const handleSaveMenuItem = async () => {
     try {
@@ -247,6 +244,7 @@ const MenuManagement = () => {
         description: formData.description,
         category: formData.category,
         available: formData.available,
+        customization: formData.customizations
       };
   
       let itemResponse;
@@ -274,7 +272,6 @@ const MenuManagement = () => {
   
 
   const handleOpenCategoryModal = (category = null) => {
-    console.log(category, 'dsfkjhcategory')
     if (category) {
       setEditingCategory(category);
       setCategoryFormData({
@@ -314,7 +311,6 @@ const MenuManagement = () => {
   };
 
   const handleDeletecategory = async (id) => {
-    console.log(id, 'ididididi')
     if (window.confirm('Are you sure you want to delete this category?')) {
       try {
         await axios.delete(`/api/categories/${id}`);
@@ -358,7 +354,33 @@ const MenuManagement = () => {
     }
   };
 
-console.log(categories, 'categoriesksdj')
+const handleAddCustomization = () => {
+  setFormData({
+    ...formData,
+    customizations: [...formData.customizations, { name: '', price: '' }]
+  });
+};
+
+const handleRemoveCustomization = (index) => {
+  const newCustomizations = formData.customizations.filter((_, i) => i !== index);
+  setFormData({
+    ...formData,
+    customizations: newCustomizations
+  });
+};
+
+const handleCustomizationChange = (index, field, value) => {
+  const newCustomizations = [...formData.customizations];
+  newCustomizations[index] = {
+    ...newCustomizations[index],
+    [field]: value
+  };
+  setFormData({
+    ...formData,
+    customizations: newCustomizations
+  });
+};
+
   return (
     <PageContainer>
       <Fade in timeout={800}>
@@ -508,17 +530,17 @@ console.log(categories, 'categoriesksdj')
                           {item.description}
                         </Typography>
 
-                        {item?.customizations?.length > 0 && (
+                        {item?.customization?.length > 0 && (
                           <Box sx={{ mt: 2 }}>
                             <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <LocalDiningIcon sx={{ fontSize: 18 }} />
                               Customizations:
                             </Typography>
                             <Stack direction="row" spacing={2} flexWrap="wrap">
-                              {item.customizations.map((custom, index) => (
+                              {item.customization.map((custom, index) => (
                                 <Chip
                                   key={index}
-                                  label={`${custom.name} (+$${custom.price.toFixed(2)})`}
+                                  label={`${custom.name} (+$${custom?.price})`}
                                   size="small"
                                   variant="outlined"
                                 />
@@ -762,6 +784,80 @@ console.log(categories, 'categoriesksdj')
                 startAdornment: <DescriptionIcon sx={{ mr: 1, color: 'text.secondary' }} />,
               }}
             />
+
+            {/* Customizations Section */}
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle1" sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1, 
+                mb: 2,
+                color: 'primary.main',
+                fontWeight: 600 
+              }}>
+                <LocalDiningIcon />
+                Customizations
+              </Typography>
+
+              {formData?.customizations?.map((customization, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    display: 'flex',
+                    gap: 2,
+                    mb: 2,
+                    alignItems: 'center',
+                    p: 2,
+                    bgcolor: 'background.paper',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                  }}
+                >
+                  <TextField
+                    label="Option Name"
+                    size="small"
+                    value={customization.name}
+                    onChange={(e) => handleCustomizationChange(index, 'name', e.target.value)}
+                    sx={{ flex: 2 }}
+                  />
+                  <TextField
+                    label="Additional Price"
+                    type="number"
+                    size="small"
+                    value={customization.price}
+                    onChange={(e) => handleCustomizationChange(index, 'price', e.target.value)}
+                    InputProps={{
+                      startAdornment: <AttachMoneyIcon sx={{ color: 'text.secondary' }} />,
+                    }}
+                    sx={{ flex: 1 }}
+                  />
+                  <IconButton
+                    onClick={() => handleRemoveCustomization(index)}
+                    color="error"
+                    size="small"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+              ))}
+
+              <Button
+                startIcon={<AddIcon />}
+                onClick={handleAddCustomization}
+                variant="outlined"
+                size="small"
+                sx={{
+                  mt: 1,
+                  borderStyle: 'dashed',
+                  '&:hover': {
+                    borderStyle: 'dashed',
+                  }
+                }}
+              >
+                Add Customization Option
+              </Button>
+            </Box>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>

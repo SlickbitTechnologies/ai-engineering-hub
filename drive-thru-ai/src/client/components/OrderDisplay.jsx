@@ -43,61 +43,60 @@ const orderCardVariants = {
 
 const OrderDisplay = () => {
   const [orders, setOrders] = useState([
-    {
-      id: 2,
-      status: 'new',
-      timestamp: '16:46',
-      vehicle: 'Red SUV',
-      total: 22.97,
-      items: [
-        {
-          name: 'Burger Combo',
-          quantity: 2,
-          price: 19.98,
-          customizations: [
-            'Large Fries and Drink',
-            'No tomato'
-          ]
-        },
-        {
-          name: 'Ice Cream',
-          quantity: 1,
-          price: 2.99,
-          customizations: [
-            'Chocolate Sauce'
-          ]
-        }
-      ]
-    },
-    {
-      id: 3,
-      status: 'preparing',
-      timestamp: '16:48',
-      vehicle: 'Blue pickup truck',
-      total: 13.98,
-      items: [
-        {
-          name: 'Cheese Burger',
-          quantity: 1,
-          price: 6.99,
-          customizations: [
-            'Extra Patty',
-            'Bacon'
-          ]
-        },
-        {
-          name: 'French Fries',
-          quantity: 1,
-          price: 2.99,
-          customizations: [
-            'Large'
-          ]
-        }
-      ]
-    }
+    // {
+    //   id: 2,
+    //   status: 'new',
+    //   timestamp: '16:46',
+    //   vehicle: 'Red SUV',
+    //   total: 22.97,
+    //   items: [
+    //     {
+    //       name: 'Burger Combo',
+    //       quantity: 2,
+    //       price: 19.98,
+    //       customizations: [
+    //         'Large Fries and Drink',
+    //         'No tomato'
+    //       ]
+    //     },
+    //     {
+    //       name: 'Ice Cream',
+    //       quantity: 1,
+    //       price: 2.99,
+    //       customizations: [
+    //         'Chocolate Sauce'
+    //       ]
+    //     }
+    //   ]
+    // },
+    // {
+    //   id: 3,
+    //   status: 'preparing',
+    //   timestamp: '16:48',
+    //   vehicle: 'Blue pickup truck',
+    //   total: 13.98,
+    //   items: [
+    //     {
+    //       name: 'Cheese Burger',
+    //       quantity: 1,
+    //       price: 6.99,
+    //       customizations: [
+    //         'Extra Patty',
+    //         'Bacon'
+    //       ]
+    //     },
+    //     {
+    //       name: 'French Fries',
+    //       quantity: 1,
+    //       price: 2.99,
+    //       customizations: [
+    //         'Large'
+    //       ]
+    //     }
+    //   ]
+    // }
   ]);
 
-  console.log(orders, 'sdkhjkhsdf')
   useEffect(() => {
     fetchOrders();
   }, []);
@@ -105,7 +104,34 @@ const OrderDisplay = () => {
   const fetchOrders = async () => {
     try {
       const response = await axios.get('/api/orders');
-      setOrders(response.data);
+      const updatedOrders = response.data.map(order => {
+        // Calculate the total price for the order, including customizations
+        const total = order.items.reduce((sum, item) => {
+          // Ensure customization is an array
+          const customizationArray = Array.isArray(item.customization) ? item.customization : [];
+  
+          // Calculate the total price for customizations
+          const customizationTotal = customizationArray.reduce((custSum, cust) => {
+            return custSum + (parseFloat(cust.price) || 0); // Ensure cust.price is a valid number
+          }, 0);
+  
+          // Calculate the total price for the item
+          const itemPrice = parseFloat(item.price) || 0; // Ensure item.price is a valid number
+          const quantity = item.quantity || 1; // Default quantity to 1 if not specified
+          const itemTotal = (itemPrice + customizationTotal) * quantity;
+  
+          console.log(`Item: ${item.name}, Price: ${itemPrice}, Customization Total: ${customizationTotal}, Quantity: ${quantity}, Item Total: ${itemTotal}`);
+  
+          return sum + itemTotal;
+        }, 0);
+  
+        return {
+          ...order,
+          total: total.toFixed(2) // Ensure total is formatted to 2 decimal places
+        };
+      });
+  
+      setOrders(updatedOrders);
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
@@ -171,7 +197,6 @@ const OrderDisplay = () => {
         return null;
     }
   };
-
   return (
     <Fade in timeout={800}>
       <Box sx={{ p: 4 }}>
@@ -269,7 +294,15 @@ const OrderDisplay = () => {
                                     ${item.price.toFixed(2)}
                                   </Typography>
                                 </Box>
-                                {item?.customizations?.map((customization, custIndex) => (
+                                <Box sx={{ 
+                                  display: 'flex', 
+                                  justifyContent: 'start',
+                                  flexDirection:'column',
+                                  textAlign: 'left',
+                                  mb: 0.5,
+                                  ml: 3
+                                }}>
+                                {item?.customization?.map((customization, custIndex) => (
                                   <motion.div
                                     key={custIndex}
                                     initial={{ opacity: 0, x: -10 }}
@@ -280,17 +313,18 @@ const OrderDisplay = () => {
                                       variant="body2"
                                       sx={{
                                         color: '#ff5722',
-                                        ml: 2,
+                                        ml: 0,
                                         '&::before': {
                                           content: '"•"',
                                           marginRight: '4px'
                                         }
                                       }}
                                     >
-                                      {customization}
+                                      {customization.name} (${parseFloat(customization.price).toFixed(2)})
                                     </Typography>
                                   </motion.div>
                                 ))}
+                                </Box>
                               </Box>
                             </motion.div>
                           ))}
@@ -310,12 +344,20 @@ const OrderDisplay = () => {
                             alignItems: 'center', 
                             bgcolor: '#FFF'
                           }}>
-                            <Box>
-                              <Typography variant="body2" color="text.secondary">Total:</Typography>
-                              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                                ${order.total.toFixed(2)}
-                              </Typography>
-                            </Box>
+                            <Grid>
+                              <Box sx={{display:'flex', flexDirection: 'row', alignItems:'center'}}>
+                                <Typography variant="body2" color="text.secondary">Sub Total:</Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                  ${parseFloat(order.total).toFixed(2)}
+                                </Typography>
+                              </Box>
+                              <Box sx={{display:'flex', flexDirection: 'row', alignItems:'center'}}>
+                                <Typography variant="body2" color="text.secondary">Total:</Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                  ${parseFloat(order.total * 1.08).toFixed(2)}
+                                </Typography>
+                              </Box>
+                            </Grid>
                             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                               {getActionButton(order)}
                             </motion.div>
