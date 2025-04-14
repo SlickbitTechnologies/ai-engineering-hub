@@ -1,4 +1,5 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
+import { getDocumentsFromLocalStorage, syncDocumentsToLocalStorage } from '@/utils/localStorage';
 
 export interface Document {
     id: string;
@@ -17,12 +18,31 @@ export interface Document {
 interface DocumentState {
     documents: Document[];
     selectedDocument: Document | null;
+    isLoading: boolean;
+    error: string | null;
 }
 
 const initialState: DocumentState = {
     documents: [],
     selectedDocument: null,
+    isLoading: false,
+    error: null
 };
+
+// Async thunk to load documents from local storage
+export const loadDocuments = createAsyncThunk(
+    'documents/loadDocuments',
+    async () => {
+        try {
+            // Load documents from local storage
+            const documents = getDocumentsFromLocalStorage();
+            return documents;
+        } catch (error) {
+            console.error('Error loading documents from local storage:', error);
+            throw error;
+        }
+    }
+);
 
 const documentSlice = createSlice({
     name: 'documents',
@@ -30,6 +50,8 @@ const documentSlice = createSlice({
     reducers: {
         addDocument: (state, action: PayloadAction<Document>) => {
             state.documents.push(action.payload);
+            // Sync to local storage after adding
+            syncDocumentsToLocalStorage(state.documents);
         },
         selectDocument: (state, action: PayloadAction<string>) => {
             state.selectedDocument = state.documents.find(doc => doc.id === action.payload) || null;
@@ -41,6 +63,8 @@ const documentSlice = createSlice({
                 if (state.selectedDocument?.id === action.payload.id) {
                     state.selectedDocument = { ...state.selectedDocument, ...action.payload.updates };
                 }
+                // Sync to local storage after updating
+                syncDocumentsToLocalStorage(state.documents);
             }
         },
         removeDocument: (state, action: PayloadAction<{ id: string }>) => {
@@ -48,7 +72,24 @@ const documentSlice = createSlice({
             if (state.selectedDocument?.id === action.payload.id) {
                 state.selectedDocument = null;
             }
+            // Sync to local storage after removing
+            syncDocumentsToLocalStorage(state.documents);
         },
+    },
+    extraReducers: (builder) => {
+        builder
+            .addCase(loadDocuments.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
+            .addCase(loadDocuments.fulfilled, (state, action) => {
+                state.isLoading = false;
+                state.documents = action.payload;
+            })
+            .addCase(loadDocuments.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.error.message || 'Failed to load documents';
+            });
     },
 });
 

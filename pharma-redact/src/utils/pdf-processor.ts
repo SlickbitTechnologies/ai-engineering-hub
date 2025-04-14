@@ -44,25 +44,27 @@ export class PDFProcessor {
         }, 100);
     }
 
-    // Main method to process a PDF and apply redactions
-    public static async processPDF(pdfBytes: Uint8Array, template: RedactionTemplate): Promise<Uint8Array> {
+    /**
+     * Process the PDF, applying redactions to sensitive information identified by the AI.
+     * @param pdfData The PDF file data as a Uint8Array
+     * @param template Optional template ID to use for redaction rules
+     * @returns A Uint8Array containing the redacted PDF
+     */
+    static async processPDF(pdfData: Uint8Array, template?: RedactionTemplate): Promise<Uint8Array> {
+        // Log start of PDF redaction process
         console.log("Starting PDF redaction process");
-        this.reportProgress({ stage: 'extracting', progress: 0 });
+        console.log("PDF size:", pdfData.length, "bytes");
 
         try {
-            // Load the PDF document using PDF-lib
-            console.log("Loading PDF document, size:", pdfBytes.length, "bytes");
-            const pdfDoc = await PDFDocument.load(pdfBytes, {
-                ignoreEncryption: true,
-                updateMetadata: false
-            });
-
+            // Load the PDF document using pdf-lib
+            const pdfDoc = await PDFDocument.load(pdfData, { ignoreEncryption: true });
             const totalPages = pdfDoc.getPageCount();
-            console.log(`Loaded PDF with ${totalPages} pages`);
 
-            // If the PDF has no pages, use simple redaction
+            console.log(`PDF loaded successfully with ${totalPages} pages`);
+
+            // If there are no pages, return a mock redacted PDF
             if (totalPages === 0) {
-                console.error("PDF has no pages, using simple fallback");
+                console.warn("PDF has no pages, creating simple redacted PDF");
                 return this.createSimpleRedactedPDF();
             }
 
@@ -77,9 +79,17 @@ export class PDFProcessor {
                 throw new Error("Failed to load PDF.js library");
             }
 
-            // Load the PDF once with PDF.js for text extraction
-            // Create a copy of the buffer for PDF.js to prevent ArrayBuffer detachment
-            const pdfBytesForPdfJs = new Uint8Array(pdfBytes);
+            // Report progress at the start
+            this.reportProgress({
+                stage: 'extracting',
+                progress: 0,
+                page: 1,
+                totalPages,
+                entitiesFound: 0
+            });
+
+            // Load the PDF with PDF.js for text extraction
+            const pdfBytesForPdfJs = new Uint8Array(pdfData);
             let pdfjsDocument;
             try {
                 const loadingTask = pdfjsLib.getDocument({ data: pdfBytesForPdfJs });
@@ -90,7 +100,7 @@ export class PDFProcessor {
                 throw new Error("Could not load PDF with PDF.js for text extraction");
             }
 
-            // Extract text from each page using PDF.js for real text extraction
+            // Extract text from each page using PDF.js
             for (let i = 0; i < totalPages; i++) {
                 this.reportProgress({
                     stage: 'extracting',
@@ -100,7 +110,7 @@ export class PDFProcessor {
                 });
 
                 try {
-                    // Extract real text from the PDF page using already loaded PDF.js document
+                    // Extract text from the PDF page
                     const pageText = await this.extractTextFromPdfjsDocument(pdfjsDocument, i);
                     pageTexts[i] = pageText;
 
@@ -135,12 +145,11 @@ export class PDFProcessor {
                 });
 
                 try {
-                    // Use real API endpoint to detect entities
-                    const entities = await this.detectEntities(
+                    // Use API endpoint to detect entities
+                    const entities = await this.queryLLM(
                         pageTexts[i],
                         i,
-                        'document',
-                        template
+                        template?.id
                     );
 
                     // Store entities with their text positions
@@ -160,11 +169,49 @@ export class PDFProcessor {
                 entitiesFound: totalEntitiesFound
             });
 
+            // If no entities were found, still mark the document as analyzed
+            if (totalEntitiesFound === 0) {
+                console.log("No entities were found in the document");
+
+                // Add a "DOCUMENT ANALYZED" label to the first page
+                const firstPage = pdfDoc.getPage(0);
+                firstPage.drawText('DOCUMENT ANALYZED - NO SENSITIVE INFORMATION FOUND', {
+                    x: 50,
+                    y: 50,
+                    size: 14,
+                    color: rgb(0.2, 0.6, 0.2)
+                });
+
+                // Add a small indicator at the bottom of each page
+                for (let i = 0; i < totalPages; i++) {
+                    const page = pdfDoc.getPage(i);
+                    page.drawText('ANALYZED - NO REDACTIONS NEEDED', {
+                        x: 50,
+                        y: 20,
+                        size: 6,
+                        color: rgb(0.7, 0.7, 0.7)
+                    });
+                }
+
+                // Report completion
+                this.reportProgress({ stage: 'complete', progress: 100 });
+
+                // Save the PDF with specific options to ensure compatibility
+                console.log("Saving analyzed PDF...");
+                const savedPdf = await pdfDoc.save({
+                    addDefaultPage: false,
+                    useObjectStreams: false
+                });
+
+                console.log("PDF saved successfully, size:", savedPdf.length, "bytes");
+                return savedPdf;
+            }
+
             // Reload the PDF with PDF.js to get text positions
             let newPdfjsDocument;
             try {
                 // Make another new copy to prevent detachment
-                const newPdfBytesForPdfJs = new Uint8Array(pdfBytes);
+                const newPdfBytesForPdfJs = new Uint8Array(pdfData);
                 const loadingTask = pdfjsLib.getDocument({ data: newPdfBytesForPdfJs });
                 newPdfjsDocument = await loadingTask.promise;
                 console.log("PDF reloaded successfully with PDF.js for text positions");
@@ -176,7 +223,7 @@ export class PDFProcessor {
             // Calculate all positions before applying redactions
             const allPositions: Record<number, Array<Coordinates & { type: string }>> = {};
 
-            // Calculate positions for all pages first to avoid constant document reloading
+            // Calculate positions for all pages first
             for (let i = 0; i < totalPages; i++) {
                 const pageEntities = detectedEntities[i] || [];
                 if (pageEntities.length === 0) continue;
@@ -229,16 +276,6 @@ export class PDFProcessor {
                         borderWidth: 1,
                         borderColor: rgb(0.2, 0.2, 0.2),
                     });
-
-                    // For debugging: Add tiny label above important redactions showing the category
-                    if (['PERSON', 'COMPANY', 'EMAIL', 'PHONE'].includes(position.type)) {
-                        page.drawText(position.type, {
-                            x: position.x,
-                            y: position.y + position.height + 2,
-                            size: 4,
-                            color: rgb(0.5, 0, 0),
-                        });
-                    }
                 }
 
                 // If no entities were found on this page, add a small indicator that the page was analyzed
@@ -249,6 +286,14 @@ export class PDFProcessor {
                         y: 20,
                         size: 6,
                         color: rgb(0.7, 0.7, 0.7)
+                    });
+                } else {
+                    // Add a count of redactions at the bottom of the page
+                    page.drawText(`${positions.length} REDACTION(S) APPLIED - PAGE ${i + 1}`, {
+                        x: 30,
+                        y: 20,
+                        size: 8,
+                        color: rgb(0.5, 0, 0)
                     });
                 }
 
@@ -264,10 +309,17 @@ export class PDFProcessor {
                 color: rgb(0.6, 0, 0)
             });
 
+            firstPage.drawText(`${totalEntitiesFound} sensitive items redacted`, {
+                x: 50,
+                y: 30,
+                size: 12,
+                color: rgb(0.5, 0, 0)
+            });
+
             // Report completion
             this.reportProgress({ stage: 'complete', progress: 100 });
 
-            // Save the PDF with correct options
+            // Save the PDF with specific options to ensure compatibility
             console.log("Saving redacted PDF...");
             const savedPdf = await pdfDoc.save({
                 addDefaultPage: false,
@@ -472,12 +524,12 @@ export class PDFProcessor {
                 const start = item.str.indexOf(searchText);
                 const matchWidth = this.estimateTextWidth(searchText, item);
 
-                // Adjust position for better text coverage
+                // Adjusted positioning for better text coverage
                 results.push({
-                    x: item.transform[4] + this.estimateTextWidth(item.str.substring(0, start), item),
-                    y: item.transform[5] - (item.height || 12) * 0.8, // Move up slightly to better cover text
-                    width: matchWidth,
-                    height: (item.height || 12) * 1.2  // Make slightly taller to fully cover text
+                    x: item.transform[4] + this.estimateTextWidth(item.str.substring(0, start), item) - 3, // More left padding
+                    y: item.transform[5] - (item.height || 12) * 0.9, // Move up more to better cover text
+                    width: matchWidth + 6, // More horizontal padding 
+                    height: (item.height || 12) * 1.5  // Taller box to ensure complete coverage
                 });
             }
         }
@@ -492,10 +544,10 @@ export class PDFProcessor {
                     const matchWidth = this.estimateTextWidth(item.str.substring(start, start + searchText.length), item);
 
                     results.push({
-                        x: item.transform[4] + this.estimateTextWidth(item.str.substring(0, start), item),
-                        y: item.transform[5] - (item.height || 12) * 0.8,
-                        width: matchWidth,
-                        height: (item.height || 12) * 1.2
+                        x: item.transform[4] + this.estimateTextWidth(item.str.substring(0, start), item) - 3,
+                        y: item.transform[5] - (item.height || 12) * 0.9,
+                        width: matchWidth + 6,
+                        height: (item.height || 12) * 1.5
                     });
                 }
             }
@@ -515,10 +567,61 @@ export class PDFProcessor {
                         const matchWidth = this.estimateTextWidth(part, item);
 
                         results.push({
-                            x: item.transform[4] + this.estimateTextWidth(item.str.substring(0, start), item),
-                            y: item.transform[5] - (item.height || 12) * 0.8,
-                            width: matchWidth,
-                            height: (item.height || 12) * 1.2
+                            x: item.transform[4] + this.estimateTextWidth(item.str.substring(0, start), item) - 3,
+                            y: item.transform[5] - (item.height || 12) * 0.9,
+                            width: matchWidth + 6,
+                            height: (item.height || 12) * 1.5
+                        });
+                    }
+                }
+            }
+        }
+
+        // Handle specifically problematic entity types that might be missed
+        if (results.length === 0) {
+            // Special handling for common patterns that might be missed
+            const specialPatterns = {
+                EMAIL: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}/i,
+                PHONE: /(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/,
+                PERSON: /Dr\.\s+[A-Z][a-z]+\s+[A-Z][a-z]+/
+            };
+
+            // Check if searchText matches any special pattern
+            let matchType = null;
+            for (const [type, pattern] of Object.entries(specialPatterns)) {
+                if (pattern.test(searchText)) {
+                    matchType = type;
+                    break;
+                }
+            }
+
+            if (matchType) {
+                // For these special types, look for any partial match in items
+                for (const item of items) {
+                    // Look for even partial matches for emails, phones or person names
+                    if (matchType === 'EMAIL' && item.str.includes('@')) {
+                        results.push({
+                            x: item.transform[4] - 3,
+                            y: item.transform[5] - (item.height || 12) * 0.9,
+                            width: this.estimateTextWidth(item.str, item) + 6,
+                            height: (item.height || 12) * 1.5
+                        });
+                    }
+                    else if (matchType === 'PHONE' && /\d{3}/.test(item.str)) {
+                        results.push({
+                            x: item.transform[4] - 3,
+                            y: item.transform[5] - (item.height || 12) * 0.9,
+                            width: this.estimateTextWidth(item.str, item) + 6,
+                            height: (item.height || 12) * 1.5
+                        });
+                    }
+                    else if (matchType === 'PERSON' && /Dr\./.test(item.str)) {
+                        // For person names starting with Dr., redact more aggressively
+                        results.push({
+                            x: item.transform[4] - 3,
+                            y: item.transform[5] - (item.height || 12) * 0.9,
+                            width: this.estimateTextWidth(item.str, item) + 6,
+                            height: (item.height || 12) * 1.5
                         });
                     }
                 }
@@ -532,12 +635,12 @@ export class PDFProcessor {
     private static estimateTextWidth(text: string, item: any): number {
         // If item has width information, use it proportionally
         if (item.width) {
-            return (text.length / item.str.length) * item.width * 1.05; // Add 5% to ensure full coverage
+            return (text.length / item.str.length) * item.width * 1.15; // Increase from 1.05 to 1.15 for better coverage
         }
 
         // Otherwise estimate based on font size
         const fontSize = item.height || 12;
-        const avgCharWidth = fontSize * 0.65; // Increase from 0.6 to 0.65 for better width estimation
+        const avgCharWidth = fontSize * 0.7; // Increase from 0.65 to 0.7 for better width estimation
         return text.length * avgCharWidth;
     }
 
@@ -548,15 +651,8 @@ export class PDFProcessor {
         return parts.filter(part => part.length > 0);
     }
 
-    // Method to detect entities using the Gemini API
-    private static async detectEntities(
-        text: string,
-        page: number,
-        context: string = 'document',
-        template?: RedactionTemplate
-    ): Promise<RedactionEntity[]> {
-        console.log(`Detecting entities on page ${page}, text length: ${text.length}`);
-
+    // Method to query the LLM for entity detection
+    private static async queryLLM(text: string, page: number, templateId?: string): Promise<RedactionEntity[]> {
         try {
             // Call the redaction API endpoint
             const response = await fetch('/api/redact', {
@@ -567,8 +663,8 @@ export class PDFProcessor {
                 body: JSON.stringify({
                     text,
                     pageNumber: page,
-                    context,
-                    templateId: template?.id
+                    context: 'pharmaceutical',
+                    templateId
                 }),
             });
 
@@ -595,56 +691,184 @@ export class PDFProcessor {
                 coordinates: { x: 0, y: 0, width: 0, height: 0 } // Default coordinates, will be updated later
             }));
 
-            console.log(`Found ${entities.length} entities on page ${page}`);
             return entities;
         } catch (error) {
-            console.error('Error detecting entities:', error);
-
-            // If API call fails, fall back to regex patterns from template
-            if (template?.categories) {
-                console.log("API detection failed, using fallback template patterns");
-                return this.detectEntitiesWithRegex(text, page, template);
-            }
-
+            console.error('Error in LLM query:', error);
             return [];
         }
     }
 
-    // Fallback method using regex patterns from template
-    private static detectEntitiesWithRegex(
-        text: string,
-        page: number,
-        template: RedactionTemplate
-    ): RedactionEntity[] {
+    // Method to detect entities from the text using regex as a fallback
+    private static async detectEntities(text: string, pageNumber: number, templateId?: string): Promise<RedactionEntity[]> {
+        console.log(`Detecting entities on page ${pageNumber}`);
+
+        try {
+            // First try to use the LLM API for detection
+            const llmEntities = await this.queryLLM(text, pageNumber, templateId);
+
+            if (llmEntities && llmEntities.length > 0) {
+                console.log(`LLM detected ${llmEntities.length} entities on page ${pageNumber}`);
+                return llmEntities;
+            }
+        } catch (error) {
+            console.error('Error using LLM for entity detection, falling back to regex:', error);
+        }
+
+        // If LLM fails or returns no entities, use regex patterns as fallback
+        console.log('Using regex fallback for entity detection');
+
         const entities: RedactionEntity[] = [];
 
-        // Use regex patterns defined in template
-        template.categories.forEach(category => {
-            if (category.patterns) {
-                category.patterns.forEach(pattern => {
-                    try {
-                        const regex = new RegExp(pattern, 'gi');
-                        let match;
-                        while ((match = regex.exec(text)) !== null) {
-                            entities.push({
-                                id: `regex-${page}-${match.index}`,
-                                text: match[0],
-                                type: category.type,
-                                page,
-                                start: match.index,
-                                end: match.index + match[0].length,
-                                confidence: 0.7, // Lower confidence for regex matches
-                                coordinates: { x: 0, y: 0, width: 0, height: 0 } // Default coordinates, will be updated later
-                            });
+        // Enhanced regex patterns for better detection
+        const patterns = {
+            // Names - expanded to catch more name formats
+            names: [
+                /Dr\.\s+([A-Z][a-z]+(\s+[A-Z][a-z]+)+)/g,  // Dr. First Last
+                /([A-Z][a-z]+\s+[A-Z][a-z]+)/g,            // First Last
+                /([A-Z][a-z]+\s+[A-Z]\.\s+[A-Z][a-z]+)/g,  // First M. Last
+                /Prof\.\s+([A-Z][a-z]+(\s+[A-Z][a-z]+)+)/g, // Prof. First Last
+                /PI:\s+([A-Z][a-z]+(\s+[A-Z][a-z]+)+)/g    // PI: First Last
+            ],
+
+            // Email addresses
+            emails: [/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g],
+
+            // Phone numbers - handle various formats
+            phones: [
+                /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g,      // 123-456-7890, 123.456.7890, 123 456 7890
+                /\(\d{3}\)\s?\d{3}[-.\s]?\d{4}/g,          // (123) 456-7890
+                /\+\d{1,3}\s?\(\d{3}\)\s?\d{3}[-.\s]?\d{4}/g  // +1 (123) 456-7890
+            ],
+
+            // Clinical trial identifiers
+            clinicalTrials: [
+                /\b[A-Z]{2,}\d{3,8}\b/g,                   // Clinical trial IDs like NCT01234567
+                /Protocol\s+(Number|ID|No)?\.?\s*:?\s*([A-Z0-9\-]+)/gi, // Protocol Number: XYZ-123
+                /Study\s+(Number|ID|No)?\.?\s*:?\s*([A-Z0-9\-]+)/gi     // Study ID: XYZ-123
+            ],
+
+            // Organizations
+            organizations: [
+                /([A-Z][a-z]+(\s+[A-Z][a-z]+)*\s+(Inc|LLC|Corp|Corporation|Labs|Laboratories|Pharma|Pharmaceuticals))/g,
+                /([A-Z][a-z]*[A-Z][a-z]*(\s+[A-Z][a-z]+)*)/g,  // CamelCase organization names like NovaEndo Labs
+                /University\s+of\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)*/g  // University of State
+            ],
+
+            // Addresses
+            addresses: [
+                /\d+\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)*\s+(St|Street|Ave|Avenue|Blvd|Boulevard|Rd|Road|Drive|Dr)/gi,
+                /[A-Z][a-z]+(\s+[A-Z][a-z]+)*,\s+[A-Z]{2}\s+\d{5}/g  // City, State ZIP
+            ],
+
+            // Dates
+            dates: [
+                /\b(0?[1-9]|1[0-2])[\/\-.](0?[1-9]|[12][0-9]|3[01])[\/\-.](19|20)\d{2}\b/g,  // MM/DD/YYYY
+                /\b(19|20)\d{2}[\/\-.](0?[1-9]|1[0-2])[\/\-.](0?[1-9]|[12][0-9]|3[01])\b/g,  // YYYY/MM/DD
+                /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(0?[1-9]|[12][0-9]|3[01]),?\s+(19|20)\d{2}\b/g  // Month DD, YYYY
+            ],
+
+            // Medical record numbers, patient IDs
+            patientIDs: [
+                /Patient\s+ID\s*:?\s*([A-Z0-9\-]+)/gi,
+                /MRN\s*:?\s*([A-Z0-9\-]+)/gi,
+                /\b[A-Z]{2,3}-\d{6,8}\b/g  // Standard formatted patient IDs like PT-123456
+            ],
+
+            // Drug or compound identifiers
+            drugIDs: [
+                /Compound\s+ID\s*:?\s*([A-Z0-9\-]+)/gi,
+                /Drug\s+Code\s*:?\s*([A-Z0-9\-]+)/gi
+            ]
+        };
+
+        // Critical entity words to check for exact matches (case insensitive)
+        const criticalEntities = [
+            'confidential', 'proprietary', 'not for distribution',
+            'internal use only', 'trade secret', 'investigational',
+            'GDPR', 'personal data', 'sensitive', 'restricted'
+        ];
+
+        let entityId = 0;
+
+        // Process each pattern category
+        Object.entries(patterns).forEach(([category, regexList]) => {
+            regexList.forEach(regex => {
+                let match;
+                while ((match = regex.exec(text)) !== null) {
+                    // The first capture group if it exists, otherwise the entire match
+                    const value = match[1] || match[0];
+
+                    // Get the position in the text
+                    const startIndex = match.index;
+                    const endIndex = startIndex + value.length;
+
+                    // Create a redaction entity
+                    entities.push({
+                        id: `entity_${pageNumber}_${entityId++}`,
+                        type: category,
+                        text: value.trim(),
+                        page: pageNumber,
+                        confidence: 0.95,  // High confidence for regex matches
+                        coordinates: {
+                            x: 0,  // Placeholder, to be replaced with actual coordinates
+                            y: 0,
+                            width: 0,
+                            height: 0
                         }
-                    } catch (e) {
-                        console.error(`Invalid regex pattern: ${pattern}`, e);
+                    });
+                }
+            });
+        });
+
+        // Check for critical words
+        criticalEntities.forEach(term => {
+            const termRegex = new RegExp(`\\b${term}\\b`, 'gi');
+            let match;
+            while ((match = termRegex.exec(text)) !== null) {
+                entities.push({
+                    id: `entity_${pageNumber}_${entityId++}`,
+                    type: 'critical',
+                    text: match[0],
+                    page: pageNumber,
+                    confidence: 0.98,
+                    coordinates: {
+                        x: 0,
+                        y: 0,
+                        width: 0,
+                        height: 0
                     }
                 });
             }
         });
 
-        console.log(`Found ${entities.length} entities with regex patterns`);
+        // Special entities commonly found in pharmaceutical documents
+        const specialItems = [
+            { regex: /PI\s*:\s*([^,\n\r]+)/i, type: 'pi_name' },
+            { regex: /Sponsor\s*:\s*([^,\n\r]+)/i, type: 'sponsor' },
+            { regex: /IRB\s+Approval\s+Number\s*:\s*([A-Z0-9\-]+)/i, type: 'irb_number' },
+            { regex: /Investigator\s*:\s*([^,\n\r]+)/i, type: 'investigator' },
+        ];
+
+        specialItems.forEach(item => {
+            const match = text.match(item.regex);
+            if (match && match[1]) {
+                entities.push({
+                    id: `entity_${pageNumber}_${entityId++}`,
+                    type: item.type,
+                    text: match[1].trim(),
+                    page: pageNumber,
+                    confidence: 0.97,
+                    coordinates: {
+                        x: 0,
+                        y: 0,
+                        width: 0,
+                        height: 0
+                    }
+                });
+            }
+        });
+
+        console.log(`Regex detected ${entities.length} entities on page ${pageNumber}`);
         return entities;
     }
 
@@ -723,7 +947,7 @@ export class PDFProcessor {
                 40, 82, 101, 100, 97, 99, 116, 101, 100, 41, 32, 84, 106, 10, 69,
                 84, 10, 101, 110, 100, 115, 116, 114, 101, 97, 109, 10, 101, 110,
                 100, 111, 98, 106, 10, 120, 114, 101, 102, 10, 48, 32, 53, 10, 48,
-                48, 48, 48, 48, 48, 48, 48, 48, 48, 32, 54, 53, 53, 51, 53, 32, 102,
+                48, 48, 48, 48, 48, 48, 48, 48, 48, 32, 54, 53, 53, 53, 53, 32, 102,
                 32, 10, 48, 48, 48, 48, 48, 48, 48, 48, 49, 56, 32, 48, 48, 48, 48,
                 48, 32, 110, 32, 10, 48, 48, 48, 48, 48, 48, 48, 48, 55, 55, 32, 48,
                 48, 48, 48, 48, 32, 110, 32, 10, 48, 48, 48, 48, 48, 48, 48, 49, 55,

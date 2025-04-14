@@ -12,7 +12,7 @@ import {
 } from '@/store/slices/documentsSlice';
 import { RootState } from '@/store';
 import { MainLayout } from '@/components/layout/main-layout';
-import { uploadFileToStorage } from '@/utils/firebase';
+import { uploadFileToLocalStorage, addDocumentToLocalStorage, deleteDocument as deleteLocalDocument } from '@/utils/localStorage';
 
 type UploadSource = 'local' | 'dms' | 'sharepoint';
 
@@ -98,8 +98,8 @@ export default function DocumentsPage() {
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         
-        // Upload file to Firebase Storage
-        const fileUrl = await uploadFileToStorage(file);
+        // Upload file to local storage instead of Firebase
+        const fileUrl = await uploadFileToLocalStorage(file);
         
         // Calculate progress
         const currentProgress = Math.round(((i + 1) / selectedFiles.length) * 100);
@@ -117,7 +117,7 @@ export default function DocumentsPage() {
           fileUrl
         };
         
-        // Add to Firestore and Redux
+        // Add document to Redux and local storage
         dispatch(addDocument(newDocument) as any);
       }
       
@@ -134,11 +134,16 @@ export default function DocumentsPage() {
 
   const handleDeleteDocument = async (doc: Document) => {
     try {
+      // Delete document from local storage instead of Firebase
+      if (doc.fileUrl) {
+        await deleteLocalDocument(doc.fileUrl, doc.id);
+      }
+      
+      // Remove from Redux store
       await dispatch(removeDocument({ 
-        id: doc.id, 
-        fileUrl: doc.fileUrl, 
-        firestoreId: doc.firestoreId || doc.id 
+        id: doc.id
       }) as any);
+      
       setShowDeleteConfirm(null);
     } catch (error) {
       console.error('Error deleting document:', error);

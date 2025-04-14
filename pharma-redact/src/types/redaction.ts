@@ -27,7 +27,7 @@ export interface RedactionTemplate {
     id: string;
     name: string;
     description: string;
-    rules: {
+    rules?: {
         redactTypes: string[];
         excludeContexts: string[];
     };

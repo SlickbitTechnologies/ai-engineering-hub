@@ -5,7 +5,7 @@ import { Providers } from "@/store/providers";
 import { AuthProvider } from "@/context/AuthContext";
 import { useEffect } from "react";
 import { useDispatch } from "react-redux";
-import { fetchDocuments } from "@/store/slices/documentsSlice";
+import { loadDocuments } from "@/store/slices/documentSlice";
 
 export default function RootLayout({
   children,
@@ -39,8 +39,8 @@ function AppInitializer() {
   const dispatch = useDispatch();
   
   useEffect(() => {
-    // Load documents from Firebase on app initialization
-    dispatch(fetchDocuments() as any);
+    // Load documents from local storage on app initialization
+    dispatch(loadDocuments() as any);
   }, [dispatch]);
   
   return null;

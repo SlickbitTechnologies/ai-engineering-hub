@@ -1,4 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { RedactionTemplate } from '@/types/redaction';
+import { redactionTemplates as initialTemplates } from '@/config/redactionTemplates';
 
 export interface RedactionRule {
     id: string;
@@ -31,10 +33,12 @@ export interface RedactionItem {
 interface RedactionState {
     rules: RedactionRule[];
     items: RedactionItem[];
+    templates: RedactionTemplate[];
     isProcessing: boolean;
     processingProgress: number;
     error: string | null;
     selectedRuleId: string | null;
+    selectedTemplateId: string | null;
 }
 
 const initialState: RedactionState = {
@@ -71,10 +75,12 @@ const initialState: RedactionState = {
         },
     ],
     items: [],
+    templates: initialTemplates,
     isProcessing: false,
     processingProgress: 0,
     error: null,
     selectedRuleId: null,
+    selectedTemplateId: null,
 };
 
 export const redactionSlice = createSlice({
@@ -144,6 +150,26 @@ export const redactionSlice = createSlice({
         selectRule: (state, action: PayloadAction<string | null>) => {
             state.selectedRuleId = action.payload;
         },
+        // Template management actions
+        addTemplate: (state, action: PayloadAction<Omit<RedactionTemplate, 'id'>>) => {
+            const newTemplate: RedactionTemplate = {
+                ...action.payload,
+                id: Date.now().toString(),
+            };
+            state.templates.push(newTemplate);
+        },
+        updateTemplate: (state, action: PayloadAction<Partial<RedactionTemplate> & { id: string }>) => {
+            const index = state.templates.findIndex(template => template.id === action.payload.id);
+            if (index !== -1) {
+                state.templates[index] = { ...state.templates[index], ...action.payload };
+            }
+        },
+        deleteTemplate: (state, action: PayloadAction<string>) => {
+            state.templates = state.templates.filter(template => template.id !== action.payload);
+        },
+        selectTemplate: (state, action: PayloadAction<string | null>) => {
+            state.selectedTemplateId = action.payload;
+        },
     },
 });
 
@@ -161,6 +187,10 @@ export const {
     rejectRedactionItem,
     clearRedactionItems,
     selectRule,
+    addTemplate,
+    updateTemplate,
+    deleteTemplate,
+    selectTemplate,
 } = redactionSlice.actions;
 
 export default redactionSlice.reducer; 

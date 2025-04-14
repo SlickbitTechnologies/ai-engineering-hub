@@ -4,26 +4,35 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
-import { Document, updateDocument, removeDocument } from "@/store/slices/documentSlice";
+import { Document, updateDocumentStatus, updateDocumentProperties, removeDocument } from "@/store/slices/documentsSlice";
 import { MainLayout } from "@/components/layout/main-layout";
 import Link from "next/link";
 import { PDFProcessor } from '@/utils/pdf-processor';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/firebase/firebaseConfig';
+import { storeRedactedFileLocally, getViewableUrl, deleteDocument as deleteLocalDocument } from '@/utils/localStorage';
 import { redactionTemplates } from "@/config/redactionTemplates";
+import { motion } from "framer-motion";
+import { RedactionTemplate } from "@/types/redaction";
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardFooter, 
+  CardHeader, 
+  CardTitle 
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export default function DocumentDetailPage() {
   const params = useParams();
   const router = useRouter();
   const dispatch = useDispatch();
-  const documentId = params.documentId as string;
+  // Get documentId with null check
+  const documentId = params?.documentId as string;
   
   // Get document from Redux store
-  const { documents } = useSelector((state: RootState) => state.documents as {
-    documents: Document[];
-    isLoading: boolean;
-    error: string | null;
-  });
+  const { documents, isLoading } = useSelector((state: RootState) => state.documents);
+  const { templates } = useSelector((state: RootState) => state.redaction);
   
   // Find the document with matching ID
   const documentFromStore = documents.find(doc => doc.id === documentId);
@@ -33,11 +42,12 @@ export default function DocumentDetailPage() {
     if (!documentFromStore && !isLoading && documents.length > 0) {
       router.push('/documents');
     }
-  }, [documentFromStore, documents, router]);
+  }, [documentFromStore, documents, router, isLoading]);
   
   const [document, setDocument] = useState<Document | undefined>(documentFromStore);
-  const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [progress, setProgress] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
@@ -50,7 +60,22 @@ export default function DocumentDetailPage() {
     }
   }, [documentFromStore]);
 
+  const handleShowTemplateSelector = () => {
+    setShowTemplateSelector(true);
+    // Default select the first template
+    if (templates.length > 0 && !selectedTemplateId) {
+      setSelectedTemplateId(templates[0].id);
+    }
+  };
+
   const handleProcessDocument = async () => {
+    if (!selectedTemplateId) {
+      alert("Please select a template first");
+      return;
+    }
+
+    setShowTemplateSelector(false);
+    
     try {
       setIsProcessing(true);
       setProcessingProgress(0);
@@ -61,28 +86,47 @@ export default function DocumentDetailPage() {
         throw new Error('Document not found');
       }
 
-      // Fetch the PDF file
-      const response = await fetch(document.path);
-      const pdfBytes = await response.arrayBuffer();
+      // Get the selected template
+      const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
+      if (!selectedTemplate) {
+        throw new Error('Template not found');
+      }
 
-      // Process the PDF with AI-based redaction
+      // Update document status to processing
+      dispatch(updateDocumentStatus({
+        id: documentId,
+        status: 'processing'
+      }));
+
+      // Fetch the PDF file
+      // Check if it's a local URL (starts with local://)
+      let pdfBytes;
+      if (document.fileUrl && document.fileUrl.startsWith('local://')) {
+        const blob = await fetch(await getViewableUrl(document.fileUrl)).then(res => res.arrayBuffer());
+        pdfBytes = blob;
+      } else {
+        const response = await fetch(document.path);
+        pdfBytes = await response.arrayBuffer();
+      }
+
+      // Process the PDF with the selected template
       const redactedPdfBytes = await PDFProcessor.processPDF(
         new Uint8Array(pdfBytes),
-        redactionTemplates[0] // Using the Pharmaceutical Default template
+        selectedTemplate // Using the selected template
       );
 
-      // Upload the redacted PDF to Firebase Storage
+      // Store the redacted PDF locally instead of uploading to Firebase
       const redactedFileName = `redacted_${document.name}`;
-      const redactedPath = `documents/${documentId}/${redactedFileName}`;
-      
-      const storageRef = ref(storage, redactedPath);
-      await uploadBytes(storageRef, new Blob([redactedPdfBytes]));
-      const redactedUrl = await getDownloadURL(storageRef);
+      const redactedUrl = await storeRedactedFileLocally(
+        documentId,
+        redactedPdfBytes,
+        redactedFileName
+      );
 
-      // Update document status in Redux
-      dispatch(updateDocument({
+      // Update document status and redactedUrl in Redux
+      dispatch(updateDocumentProperties({
         id: documentId,
-        updates: {
+        properties: {
           status: 'redacted',
           redactedUrl: redactedUrl
         }
@@ -93,6 +137,12 @@ export default function DocumentDetailPage() {
     } catch (error) {
       console.error('Error processing document:', error);
       setProcessingStatus('error');
+      
+      // Update document status to error
+      dispatch(updateDocumentStatus({
+        id: documentId,
+        status: 'error'
+      }));
     } finally {
       setIsProcessing(false);
     }
@@ -102,9 +152,18 @@ export default function DocumentDetailPage() {
     if (!document) return;
     
     try {
+      // Delete document from local storage
+      if (document.fileUrl) {
+        await deleteLocalDocument(document.fileUrl, document.id);
+      }
+      
+      // Remove from Redux store
       await dispatch(removeDocument({ 
-        id: document.id
-      }));
+        id: document.id,
+        fileUrl: document.fileUrl,
+        firestoreId: document.firestoreId
+      }) as any);
+      
       router.push('/documents');
     } catch (error) {
       console.error('Error deleting document:', error);
@@ -189,17 +248,23 @@ export default function DocumentDetailPage() {
                     View Redaction Report
                   </Link>
                   <a
-                    href={document.redactedUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      if (document.redactedUrl) {
+                        const viewableUrl = await getViewableUrl(document.redactedUrl);
+                        window.open(viewableUrl, '_blank');
+                      }
+                    }}
+                    href="#"
                     className="px-4 py-2 ml-2 rounded-lg border border-chateau-green-600 text-chateau-green-600 font-medium hover:bg-chateau-green-50 transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 active:translate-y-0.5"
                   >
                     View Redacted Document
                   </a>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (document.redactedUrl) {
-                        window.open(document.redactedUrl, '_blank');
+                        const viewableUrl = await getViewableUrl(document.redactedUrl);
+                        window.open(viewableUrl, '_blank');
                       }
                     }}
                     className="px-4 py-2 ml-2 rounded-lg border border-chateau-green-600 text-chateau-green-600 font-medium hover:bg-chateau-green-50 transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 active:translate-y-0.5"
@@ -208,26 +273,27 @@ export default function DocumentDetailPage() {
                   </button>
                 </>
               ) : (
-                <button
-                  onClick={handleProcessDocument}
+                <Button
+                  onClick={handleShowTemplateSelector}
                   disabled={isProcessing || document.status === 'processing'}
                   className={`px-4 py-2 rounded-lg shadow-sm ${
                     isProcessing || document.status === 'processing'
                       ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                      : 'bg-chateau-green-600 text-white hover:bg-chateau-green-700 focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 active:translate-y-0.5'
-                  } font-medium transition-all`}
+                      : 'bg-chateau-green-600 text-white hover:bg-chateau-green-700'
+                  }`}
                 >
                   {isProcessing || document.status === 'processing' ? 'Processing...' : 'Process Document'}
-                </button>
+                </Button>
               )}
               
               {/* Delete button */}
-              <button
+              <Button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="px-4 py-2 rounded-lg border border-red-600 text-red-600 font-medium hover:bg-red-50 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 active:translate-y-0.5"
+                variant="destructive"
+                className="px-4 py-2 rounded-lg"
               >
                 Delete Document
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -271,17 +337,23 @@ export default function DocumentDetailPage() {
                         View Redaction Report
                       </Link>
                       <a
-                        href={document.redactedUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          if (document.redactedUrl) {
+                            const viewableUrl = await getViewableUrl(document.redactedUrl);
+                            window.open(viewableUrl, '_blank');
+                          }
+                        }}
+                        href="#"
                         className="px-4 py-2 rounded-lg border border-chateau-green-600 text-chateau-green-600 font-medium hover:bg-chateau-green-50 transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 active:translate-y-0.5"
                       >
                         View Redacted Document
                       </a>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (document.redactedUrl) {
-                            window.open(document.redactedUrl, '_blank');
+                            const viewableUrl = await getViewableUrl(document.redactedUrl);
+                            window.open(viewableUrl, '_blank');
                           }
                         }}
                         className="px-4 py-2 rounded-lg border border-chateau-green-600 text-chateau-green-600 font-medium hover:bg-chateau-green-50 transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 active:translate-y-0.5"
@@ -402,34 +474,100 @@ export default function DocumentDetailPage() {
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="text-center">
-              <svg className="h-12 w-12 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              <h3 className="text-xl font-medium text-gray-900 mb-2">Delete Document</h3>
-              <p className="text-gray-600 mb-6">
-                Are you sure you want to delete this document? This action cannot be undone.
-              </p>
+      {/* Template Selector Modal */}
+      {showTemplateSelector && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-2xl w-full"
+          >
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              Select Redaction Template
+            </h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              Choose a template to apply to your document. Each template contains different redaction rules.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {templates.length > 0 ? (
+                templates.map((template: RedactionTemplate) => (
+                  <div
+                    key={template.id}
+                    className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                      selectedTemplateId === template.id 
+                        ? 'border-chateau-green-500 bg-chateau-green-50'
+                        : 'border-gray-200 hover:border-chateau-green-300'
+                    }`}
+                    onClick={() => setSelectedTemplateId(template.id)}
+                  >
+                    <h3 className="font-medium text-gray-900">{template.name}</h3>
+                    <p className="text-sm text-gray-600 mt-1">{template.description}</p>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {template.categories.map((category, index) => (
+                        <Badge key={index} variant="secondary">
+                          {category.type}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-2 text-center py-8 border border-dashed rounded-lg">
+                  <p className="text-gray-500">No templates available. Please create templates in the Redaction Rules section.</p>
+                </div>
+              )}
             </div>
-            <div className="flex space-x-3 justify-center">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500"
+            
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowTemplateSelector(false)}
               >
                 Cancel
-              </button>
-              <button
-                onClick={handleDeleteDocument}
-                className="px-4 py-2 bg-red-600 text-white rounded-md shadow-sm text-sm font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              </Button>
+              <Button
+                onClick={handleProcessDocument}
+                disabled={!selectedTemplateId || templates.length === 0}
+                className="bg-chateau-green-600 hover:bg-chateau-green-700"
               >
-                Delete
-              </button>
+                Process with Selected Template
+              </Button>
             </div>
-          </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full"
+          >
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Delete Document</h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              Are you sure you want to delete this document? This action cannot be undone.
+            </p>
+            
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteDocument}
+              >
+                Delete Document
+              </Button>
+            </div>
+          </motion.div>
         </div>
       )}
     </MainLayout>

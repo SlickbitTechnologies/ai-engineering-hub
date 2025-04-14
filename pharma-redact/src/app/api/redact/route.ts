@@ -4,49 +4,83 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Initialize Gemini AI with the 2.0 Flash model
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
 
-// Helper function for regex-based entity detection as a fallback
+// Helper function to detect entities using regex
 async function detectEntitiesWithRegex(text: string, pageNumber: number): Promise<any[]> {
+    console.log("Using regex fallback for entity detection");
+
+    // Only use regex patterns without forcing specific redactions
+    const patterns = {
+        emails: [/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g],
+        phones: [
+            /\b(\+\d{1,2}\s)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g,
+            /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g
+        ],
+        ssns: [/\b\d{3}[-]?\d{2}[-]?\d{4}\b/g],
+        persons: [
+            /\b(Dr|Mr|Mrs|Ms|Miss|Prof)\.\s+[A-Z][a-z]+\s+[A-Z][a-z]+\b/g,
+            /\b[A-Z][a-z]+\s+[A-Z][a-z]+\s+(MD|PhD|PharmD|DO|RN)\b/g
+        ],
+        companies: [
+            /\b[A-Z][a-z]*[A-Z][a-z]*\s+(Pharma|Pharmaceuticals|Labs|Laboratories|Bio|Biotech)\b/g,
+            /\b[A-Z][a-z]+\s+(Inc|LLC|Corp|Corporation)\b/g
+        ],
+        addresses: [
+            /\b\d+\s+[A-Z][a-z]+(\s+[A-Z][a-z]+)*\s+(St|Street|Ave|Avenue|Blvd|Boulevard|Rd|Road|Lane|Ln|Drive|Dr)\b/gi,
+            /\b[A-Z][a-z]+(\s+[A-Z][a-z]+)*,\s+[A-Z]{2}\s+\d{5}(-\d{4})?\b/g
+        ],
+        identifiers: [
+            /\b(Protocol\s+ID|Study\s+ID)\s*:\s*[A-Z0-9-]+\b/gi,
+            /\b[A-Z]{2,3}-\d{3,6}\b/g
+        ]
+    };
+
+    // Remove the force redacted items list
+
     const entities: any[] = [];
+    let id = 1;
 
-    // Define regex patterns for common sensitive information
-    const patterns = [
-        {
-            pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
-            category: 'EMAIL'
-        },
-        {
-            pattern: /\(\d{3}\)\s*\d{3}-\d{4}/g,
-            category: 'PHONE'
-        },
-        {
-            pattern: /Dr\.\s+[A-Z][a-z]+\s+[A-Z][a-z]+/g,
-            category: 'PERSON'
-        },
-        {
-            pattern: /\b[A-Z][a-z]+(?:endo|labs|pharmaceuticals)\b/gi,
-            category: 'COMPANY'
-        },
-        {
-            pattern: /\d+\s+[A-Z][a-z]+\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr),?\s+[A-Z][a-z]+,?\s+[A-Z]{2}\s+\d{5}/g,
-            category: 'ADDRESS'
-        },
-    ];
+    // Process each type of pattern
+    for (const [category, regexList] of Object.entries(patterns)) {
+        for (const regex of regexList) {
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+                // Check that this match doesn't overlap with already detected entities
+                const start = match.index;
+                const end = start + match[0].length;
 
-    // Apply each pattern
-    for (const { pattern, category } of patterns) {
-        let match;
-        // Reset the regex before each use
-        pattern.lastIndex = 0;
+                // Skip if this entity overlaps with something we already found
+                const overlaps = entities.some(entity =>
+                    (start >= entity.start && start < entity.end) ||
+                    (end > entity.start && end <= entity.end) ||
+                    (start <= entity.start && end >= entity.end)
+                );
 
-        while ((match = pattern.exec(text)) !== null) {
-            entities.push({
-                text: match[0],
-                category,
-                page: pageNumber,
-                start: match.index,
-                end: match.index + match[0].length,
-                confidence: 0.7
-            });
+                if (!overlaps) {
+                    // Map category names to the expected format
+                    let mappedCategory: string;
+                    switch (category) {
+                        case 'emails': mappedCategory = 'EMAIL'; break;
+                        case 'phones': mappedCategory = 'PHONE'; break;
+                        case 'ssns': mappedCategory = 'SSN'; break;
+                        case 'persons': mappedCategory = 'PERSON'; break;
+                        case 'companies': mappedCategory = 'COMPANY'; break;
+                        case 'addresses': mappedCategory = 'ADDRESS'; break;
+                        case 'identifiers': mappedCategory = 'IDENTIFIER'; break;
+                        default: mappedCategory = category.toUpperCase();
+                    }
+
+                    entities.push({
+                        text: match[0],
+                        category: mappedCategory,
+                        page: pageNumber,
+                        start: start,
+                        end: end,
+                        confidence: 0.85  // Regex detection confidence
+                    });
+
+                    id++;
+                }
+            }
         }
     }
 
@@ -73,7 +107,7 @@ Context of this section: ${context || 'clinical protocol'}
 
 RULES FOR REDACTION:
 1. ALWAYS REDACT the following types of PII:
-   - Full names of individuals (tag as PERSON) such as investigators, sponsors, contacts
+   - Full names of individuals (tag as PERSON) such as Principal Investigator, investigators, sponsors, contacts
    - Email addresses (tag as EMAIL)
    - Physical addresses including city, state, postal code (tag as ADDRESS)
    - Phone numbers in any format (tag as PHONE)
