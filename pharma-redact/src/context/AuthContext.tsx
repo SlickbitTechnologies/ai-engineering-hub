@@ -2,11 +2,20 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { 
+  signInWithEmailAndPassword, 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged, 
+  User as FirebaseUser
+} from 'firebase/auth';
+import { auth, googleProvider } from '@/utils/firebase';
 
 interface User {
   name: string;
   email: string;
   avatar?: string | null;
+  uid: string;
 }
 
 interface AuthContextType {
@@ -14,14 +23,16 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => void;
 }
 
-const AuthContext = createContext<AuthContextType>({
+export const AuthContext = createContext<AuthContextType>({
   user: null,
   isAuthenticated: false,
   isLoading: true,
   login: async () => {},
+  loginWithGoogle: async () => {},
   logout: () => {},
 });
 
@@ -32,52 +43,78 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
+  // Convert Firebase user to app user
+  const formatUser = (firebaseUser: FirebaseUser): User => {
+    return {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email || 'anonymous@example.com',
+      name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Anonymous User',
+      avatar: firebaseUser.photoURL
+    };
+  };
+
   // Check if user is logged in on initial load
   useEffect(() => {
-    // In a real app, this would verify the token with the server
-    const checkAuth = async () => {
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setIsLoading(true);
+      if (firebaseUser) {
+        const formattedUser = formatUser(firebaseUser);
+        setUser(formattedUser);
+        localStorage.setItem("user", JSON.stringify(formattedUser));
+      } else {
+        setUser(null);
+        localStorage.removeItem("user");
       }
       setIsLoading(false);
-    };
+    });
 
-    checkAuth();
+    return () => unsubscribe();
   }, []);
 
-  // Login function
+  // Login with email and password
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // In a real app, this would be an API call to authenticate
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock user data
-      const userData: User = {
-        name: email.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-        email: email,
-        avatar: null
-      };
-      
-      // Save to local storage
-      localStorage.setItem("user", JSON.stringify(userData));
-      setUser(userData);
-
-      // Redirect to documents page
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const formattedUser = formatUser(userCredential.user);
+      setUser(formattedUser);
+      localStorage.setItem("user", JSON.stringify(formattedUser));
       router.push("/documents");
     } catch (error) {
+      console.error("Login failed:", error);
       throw new Error("Login failed");
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Login with Google
+  const loginWithGoogle = async () => {
+    setIsLoading(true);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const formattedUser = formatUser(result.user);
+      setUser(formattedUser);
+      localStorage.setItem("user", JSON.stringify(formattedUser));
+      router.push("/documents");
+    } catch (error) {
+      console.error("Google login failed:", error);
+      throw new Error("Google login failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Logout function
-  const logout = () => {
-    localStorage.removeItem("user");
-    setUser(null);
-    router.push("/login");
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      localStorage.removeItem("user");
+      setUser(null);
+      router.push("/login");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   return (
@@ -87,6 +124,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAuthenticated: !!user,
         isLoading,
         login,
+        loginWithGoogle,
         logout,
       }}
     >

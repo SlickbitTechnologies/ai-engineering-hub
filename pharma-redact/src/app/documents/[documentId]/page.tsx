@@ -4,9 +4,13 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
-import { Document, updateDocumentStatus, removeDocument } from "@/store/slices/documentsSlice";
+import { Document, updateDocument, removeDocument } from "@/store/slices/documentSlice";
 import { MainLayout } from "@/components/layout/main-layout";
 import Link from "next/link";
+import { PDFProcessor } from '@/utils/pdf-processor';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/firebase/firebaseConfig';
+import { redactionTemplates } from "@/config/redactionTemplates";
 
 export default function DocumentDetailPage() {
   const params = useParams();
@@ -36,6 +40,8 @@ export default function DocumentDetailPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingStatus, setProcessingStatus] = useState<'success' | 'error' | 'pending'>('pending');
 
   // Update local state when Redux store changes
   useEffect(() => {
@@ -44,24 +50,52 @@ export default function DocumentDetailPage() {
     }
   }, [documentFromStore]);
 
-  const handleProcessDocument = () => {
-    if (!document) return;
-    
-    setIsProcessing(true);
-    dispatch(updateDocumentStatus({ id: documentId, status: 'processing' }));
-    
-    // Simulate processing
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsProcessing(false);
-          dispatch(updateDocumentStatus({ id: documentId, status: 'redacted' }));
-          return 100;
+  const handleProcessDocument = async () => {
+    try {
+      setIsProcessing(true);
+      setProcessingProgress(0);
+
+      // Get the document from Redux store
+      const document = documents.find(doc => doc.id === documentId);
+      if (!document) {
+        throw new Error('Document not found');
+      }
+
+      // Fetch the PDF file
+      const response = await fetch(document.path);
+      const pdfBytes = await response.arrayBuffer();
+
+      // Process the PDF with AI-based redaction
+      const redactedPdfBytes = await PDFProcessor.processPDF(
+        new Uint8Array(pdfBytes),
+        redactionTemplates[0] // Using the Pharmaceutical Default template
+      );
+
+      // Upload the redacted PDF to Firebase Storage
+      const redactedFileName = `redacted_${document.name}`;
+      const redactedPath = `documents/${documentId}/${redactedFileName}`;
+      
+      const storageRef = ref(storage, redactedPath);
+      await uploadBytes(storageRef, new Blob([redactedPdfBytes]));
+      const redactedUrl = await getDownloadURL(storageRef);
+
+      // Update document status in Redux
+      dispatch(updateDocument({
+        id: documentId,
+        updates: {
+          status: 'redacted',
+          redactedUrl: redactedUrl
         }
-        return prev + 10;
-      });
-    }, 500);
+      }));
+
+      setProcessingProgress(100);
+      setProcessingStatus('success');
+    } catch (error) {
+      console.error('Error processing document:', error);
+      setProcessingStatus('error');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleDeleteDocument = async () => {
@@ -69,10 +103,8 @@ export default function DocumentDetailPage() {
     
     try {
       await dispatch(removeDocument({ 
-        id: document.id, 
-        fileUrl: document.fileUrl, 
-        firestoreId: document.firestoreId || document.id 
-      }) as any);
+        id: document.id
+      }));
       router.push('/documents');
     } catch (error) {
       console.error('Error deleting document:', error);
@@ -156,8 +188,21 @@ export default function DocumentDetailPage() {
                   >
                     View Redaction Report
                   </Link>
+                  <a
+                    href={document.redactedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 ml-2 rounded-lg border border-chateau-green-600 text-chateau-green-600 font-medium hover:bg-chateau-green-50 transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 active:translate-y-0.5"
+                  >
+                    View Redacted Document
+                  </a>
                   <button
-                    className="px-4 py-2 rounded-lg border border-chateau-green-600 text-chateau-green-600 font-medium hover:bg-chateau-green-50 transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 active:translate-y-0.5"
+                    onClick={() => {
+                      if (document.redactedUrl) {
+                        window.open(document.redactedUrl, '_blank');
+                      }
+                    }}
+                    className="px-4 py-2 ml-2 rounded-lg border border-chateau-green-600 text-chateau-green-600 font-medium hover:bg-chateau-green-50 transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 active:translate-y-0.5"
                   >
                     Download Redacted Document
                   </button>
@@ -225,7 +270,20 @@ export default function DocumentDetailPage() {
                       >
                         View Redaction Report
                       </Link>
+                      <a
+                        href={document.redactedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 rounded-lg border border-chateau-green-600 text-chateau-green-600 font-medium hover:bg-chateau-green-50 transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 active:translate-y-0.5"
+                      >
+                        View Redacted Document
+                      </a>
                       <button
+                        onClick={() => {
+                          if (document.redactedUrl) {
+                            window.open(document.redactedUrl, '_blank');
+                          }
+                        }}
                         className="px-4 py-2 rounded-lg border border-chateau-green-600 text-chateau-green-600 font-medium hover:bg-chateau-green-50 transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 active:translate-y-0.5"
                       >
                         Download Redacted Document
