@@ -17,15 +17,19 @@ ChartJS.register(
   Title
 );
 
-const TopicsBarChart: React.FC = () => {
+interface TopicsBarChartProps {
+  topics: Array<{ topic: string; percentage: number; }>;
+}
+
+const TopicsBarChart: React.FC<TopicsBarChartProps> = ({ topics }) => {
   console.log('Rendering TopicsBarChart component');
   
   // Bar chart data for topics
   const barData = {
-    labels: ['Claim Status', 'Coverage Details', 'Next Steps', 'Payment', 'Documentation'],
+    labels: topics.map(t => t.topic),
     datasets: [
       {
-        data: [36, 27, 18, 13, 6],
+        data: topics.map(t => t.percentage),
         backgroundColor: '#0ea5e9', // blue
         borderRadius: 4,
       },

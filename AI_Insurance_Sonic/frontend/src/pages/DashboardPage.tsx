@@ -9,9 +9,17 @@ import BarChart from '../components/dashboard/BarChart';
 import { Link } from 'react-router-dom';
 import { DataTable } from '../components/common';
 import { Column } from '../components/common/DataTable';
+import { useGetCallsQuery } from '../redux/callsApi';
 
 const DashboardPage: React.FC = () => {
   console.log('Rendering Dashboard page');
+
+  const { data: callsData, isLoading: isCallsLoading } = useGetCallsQuery({
+    page: 1,
+    limit: 5,
+    sortBy: 'date',
+    sortOrder: 'desc'
+  });
 
   // Metrics data
   const metricsData = useMemo(() => [
@@ -121,55 +129,6 @@ const DashboardPage: React.FC = () => {
       },
     ],
   }), []);
-
-  // Recent calls data
-  const recentCallsData = useMemo(() => [
-    {
-      id: 1,
-      date: '2025-04-08',
-      agent: 'Sarah Johnson',
-      customer: 'Michael Smith',
-      duration: '8:32',
-      category: 'Claim Inquiry',
-      sentiment: 'Positive'
-    },
-    {
-      id: 2,
-      date: '2025-04-08',
-      agent: 'David Lee',
-      customer: 'Emma Wilson',
-      duration: '12:07',
-      category: 'Policy Renewal',
-      sentiment: 'Neutral'
-    },
-    {
-      id: 3,
-      date: '2025-04-07',
-      agent: 'Jessica Brown',
-      customer: 'Thomas Davis',
-      duration: '5:18',
-      category: 'Billing Issue',
-      sentiment: 'Negative'
-    },
-    {
-      id: 4,
-      date: '2025-04-07',
-      agent: 'Robert Miller',
-      customer: 'Olivia Garcia',
-      duration: '10:45',
-      category: 'New Policy',
-      sentiment: 'Positive'
-    },
-    {
-      id: 5,
-      date: '2025-04-06',
-      agent: 'Sarah Johnson',
-      customer: 'William Johnson',
-      duration: '7:50',
-      category: 'Coverage Question',
-      sentiment: 'Neutral'
-    }
-  ], []);
 
   // Recent calls columns
   const recentCallsColumns: Column[] = useMemo(() => [
@@ -287,8 +246,8 @@ const DashboardPage: React.FC = () => {
         </div>
         <DataTable
           columns={recentCallsColumns}
-          data={recentCallsData}
-          emptyMessage="No recent calls found."
+          data={callsData?.calls || []}
+          emptyMessage={isCallsLoading ? "Loading recent calls..." : "No recent calls found."}
         />
       </div>
     </>

@@ -7,33 +7,60 @@ interface TopicData {
   percentage: number;
 }
 
+type KPIStatus = 'success' | 'warning' | 'danger';
+
 interface CallInsightsProps {
   sentimentAnalysis: {
     positive: number;
+    negative?: number;
+    neutral?: number;
   };
   topicsDiscussed: TopicData[];
   kpiScore: string;
+  kpiMetrics?: {
+    greeting: number;
+    identityVerification: number;
+    problemUnderstanding: number;
+    solutionOffering: number;
+    empathy: number;
+    requiredDisclosures: number;
+    closing: number;
+  };
+  emotional: {
+    satisfaction: number;
+    frustration: number;
+    confidence: number;
+    confusion: number;
+  };
 }
+
+const getStatusFromScore = (score: number): KPIStatus => {
+  if (score >= 90) return 'success';
+  if (score >= 70) return 'warning';
+  return 'danger';
+};
 
 const CallInsights: React.FC<CallInsightsProps> = ({ 
   sentimentAnalysis, 
   topicsDiscussed,
-  kpiScore
+  kpiScore,
+  kpiMetrics,
+  emotional
 }) => {
   console.log('Rendering CallInsights component');
   
   const [activeTab, setActiveTab] = useState('insights');
   
-  // KPI metrics mock data (in real app would be passed as props)
-  const kpiMetrics = [
-    { name: 'Greeting', score: 100, status: 'success' as const },
-    { name: 'Identity Verification', score: 100, status: 'success' as const },
-    { name: 'Problem Understanding', score: 95, status: 'success' as const },
-    { name: 'Solution Offering', score: 98, status: 'success' as const },
-    { name: 'Empathy', score: 90, status: 'success' as const },
-    { name: 'Required Disclosures', score: 75, status: 'warning' as const },
-    { name: 'Closing', score: 96, status: 'success' as const }
-  ];
+  // Convert kpiMetrics to the format expected by KPIAnalysisTab
+  const formattedKPIMetrics = kpiMetrics ? [
+    { name: 'Greeting', score: kpiMetrics.greeting, status: getStatusFromScore(kpiMetrics.greeting) },
+    { name: 'Identity Verification', score: kpiMetrics.identityVerification, status: getStatusFromScore(kpiMetrics.identityVerification) },
+    { name: 'Problem Understanding', score: kpiMetrics.problemUnderstanding, status: getStatusFromScore(kpiMetrics.problemUnderstanding) },
+    { name: 'Solution Offering', score: kpiMetrics.solutionOffering, status: getStatusFromScore(kpiMetrics.solutionOffering) },
+    { name: 'Empathy', score: kpiMetrics.empathy, status: getStatusFromScore(kpiMetrics.empathy) },
+    { name: 'Required Disclosures', score: kpiMetrics.requiredDisclosures, status: getStatusFromScore(kpiMetrics.requiredDisclosures) },
+    { name: 'Closing', score: kpiMetrics.closing, status: getStatusFromScore(kpiMetrics.closing) }
+  ] : [];
   
   return (
     <div>
@@ -64,16 +91,18 @@ const CallInsights: React.FC<CallInsightsProps> = ({
 
       {activeTab === 'insights' && (
         <SentimentAnalysisTab 
-          positive={65} 
-          neutral={30} 
-          negative={5} 
+          positive={sentimentAnalysis.positive} 
+          neutral={sentimentAnalysis.neutral || 0} 
+          negative={sentimentAnalysis.negative || 0}
+          topicsDiscussed={topicsDiscussed}
+          emotional={emotional}
         />
       )}
 
       {activeTab === 'kpi' && (
         <KPIAnalysisTab 
           overallScore={kpiScore}
-          metrics={kpiMetrics}
+          metrics={formattedKPIMetrics}
         />
       )}
     </div>

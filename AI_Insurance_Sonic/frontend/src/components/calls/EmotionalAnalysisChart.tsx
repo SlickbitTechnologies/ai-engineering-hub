@@ -17,15 +17,27 @@ ChartJS.register(
   Title
 );
 
-const EmotionalAnalysisChart: React.FC = () => {
-  console.log('Rendering EmotionalAnalysisChart component');
-  
+interface EmotionalAnalysisProps {
+  emotional: {
+    satisfaction: number;
+    frustration: number;
+    confidence: number;
+    confusion: number;
+  };
+}
+
+const EmotionalAnalysisChart: React.FC<EmotionalAnalysisProps> = ({ emotional }) => {
   // Emotional analysis data
   const emotionalAnalysisData = {
     labels: ['Satisfaction', 'Confidence', 'Confusion', 'Frustration'],
     datasets: [
       {
-        data: [72, 85, 15, 8],
+        data: [
+          emotional.satisfaction,
+          emotional.confidence,
+          emotional.confusion,
+          emotional.frustration
+        ],
         backgroundColor: [
           '#10b981', // green for positive emotions
           '#10b981', 
@@ -76,7 +88,7 @@ const EmotionalAnalysisChart: React.FC = () => {
   };
 
   return (
-    <div className="p-4  rounded-lg bg-white">
+    <div className="p-4 rounded-lg bg-white">
       <h3 className="text-lg font-medium mb-4">Emotional Analysis</h3>
       <div className="h-64">
         <Bar data={emotionalAnalysisData} options={emotionalAnalysisOptions} />

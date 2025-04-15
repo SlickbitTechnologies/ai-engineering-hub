@@ -1,9 +1,3 @@
-import AIModelCard from './AIModelCard';
-import AnalysisSettingsCard from './AnalysisSettingsCard';
-import UserManagementCard from './UserManagementCard';
-
-export {
-  AIModelCard,
-  AnalysisSettingsCard,
-  UserManagementCard
-}; 
+export { default as AIModelCard } from './AIModelCard';
+export { default as AnalysisSettingsCard } from './AnalysisSettingsCard';
+export { default as UserManagementCard } from './UserManagementCard'; 

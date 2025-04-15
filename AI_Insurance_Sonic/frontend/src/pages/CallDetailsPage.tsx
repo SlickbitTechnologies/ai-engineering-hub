@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   CallDetailHeader,
@@ -6,104 +6,33 @@ import {
   CallSummary,
   CallInsights
 } from '../components/calls';
-
-interface CallData {
-  id: number;
-  date: string;
-  time: string;
-  agent: string;
-  customer: string;
-  duration: string;
-  category: string;
-  sentiment: 'Positive' | 'Neutral' | 'Negative';
-  kpiScore: string;
-  isCompliant: boolean;
-  transcript: {
-    time: string;
-    speaker: 'Agent' | 'Customer';
-    text: string;
-  }[];
-  keyMetrics: {
-    date: string;
-    time: string;
-    duration: string;
-    category: string;
-    agent: string;
-    customer: string;
-  };
-  keyPhrases: string[];
-  sentimentAnalysis: {
-    positive: number;
-  };
-  topicsDiscussed: {
-    topic: string;
-    percentage: number;
-  }[];
-}
+import { useGetCallByIdQuery } from '../redux/callsApi';
 
 const CallDetailsPage: React.FC = () => {
-  console.log('Rendering Call Details page');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  // Mock data for the selected call
-  const callData: CallData = useMemo(() => ({
-    id: parseInt(id || '2'),
-    date: '2025-04-10',
-    time: '10:24 AM',
-    agent: 'Sarah Johnson',
-    customer: 'Michael Smith',
-    duration: '8:32',
-    category: 'Claim Inquiry',
-    sentiment: 'Positive',
-    kpiScore: '92%',
-    isCompliant: true,
-    transcript: [
-      {
-        time: '0:00',
-        speaker: 'Agent',
-        text: 'I see your claim here for water damage reported on April 2nd. A claims adjuster was assigned to your case, and it looks like they completed an inspection yesterday. Is that correct?'
-      },
-      {
-        time: '0:56',
-        speaker: 'Customer',
-        text: 'Yes, that\'s right. John came out yesterday and took a lot of photos. I\'m just wondering what the next steps are and when I might expect to hear about the claim amount.'
-      },
-      {
-        time: '1:10',
-        speaker: 'Agent',
-        text: 'That\'s a great question. According to our system, the adjuster is currently preparing the report. This typically takes 2-3 business days after the inspection. Once the report is complete, you\'ll receive an email with the proposed claim amount and next steps. Based on when the inspection was done, you should expect to hear back by Friday at the latest.'
-      }
-    ],
-    keyMetrics: {
-      date: '2025-04-09',
-      time: '10:24 AM',
-      duration: '8:32',
-      category: 'Claim Inquiry',
-      agent: 'Sarah Johnson',
-      customer: 'Michael Smith'
-    },
-    keyPhrases: [
-      'water damage claim',
-      'claim adjuster',
-      'inspection report',
-      'proposed claim amount', 
-      'coverage limit',
-      'deductible'
-    ],
-    sentimentAnalysis: {
-      positive: 65
-    },
-    topicsDiscussed: [
-      { topic: 'Claim Status', percentage: 80 },
-      { topic: 'Coverage Details', percentage: 60 },
-      { topic: 'Next Steps', percentage: 40 }
-    ]
-  }), [id]);
-
+  const { data: callData, isLoading, error } = useGetCallByIdQuery(id || '');
+console.log("callData",callData);
   const handleBackToList = () => {
     navigate('/calls');
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg text-gray-600">Loading call details...</div>
+      </div>
+    );
+  }
+
+  if (error || !callData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg text-red-600">Error loading call details</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-4 text-gray-800 bg-gray-50">
@@ -112,18 +41,25 @@ const CallDetailsPage: React.FC = () => {
         onBack={handleBackToList} 
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <CallAudioTranscript 
-            duration={callData.duration}
-            agent={callData.agent}
-            customer={callData.customer}
-            category={callData.category}
-            transcript={callData.transcript}
-          />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-16rem)]">
+        <div className="lg:col-span-2 bg-white rounded-lg shadow overflow-hidden">
+          <div className="h-full flex flex-col">
+            <div className="p-4 border-b">
+              <h2 className="text-lg font-semibold">Call Transcript</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <CallAudioTranscript 
+                duration={callData.duration}
+                agent={callData.agent}
+                customer={callData.customer}
+                category={callData.category}
+                transcript={callData.transcript}
+              />
+            </div>
+          </div>
         </div>
 
-        <div>
+        <div className="bg-white rounded-lg shadow h-full">
           <CallSummary 
             sentiment={callData.sentiment}
             isCompliant={callData.isCompliant}
@@ -139,6 +75,8 @@ const CallDetailsPage: React.FC = () => {
           sentimentAnalysis={callData.sentimentAnalysis} 
           topicsDiscussed={callData.topicsDiscussed} 
           kpiScore={callData.kpiScore}
+          kpiMetrics={callData.kpiMetrics}
+          emotional={callData.emotional}
         />
       </div>
     </div>

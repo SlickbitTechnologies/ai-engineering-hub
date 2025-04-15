@@ -18,13 +18,15 @@ interface AIModelCardProps {
   onModelConfigChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
   onProviderChange: (providerId: string) => void;
   onSliderChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onSave: () => Promise<void>;
 }
 
 const AIModelCard: React.FC<AIModelCardProps> = ({
   modelConfig,
   onModelConfigChange,
   onProviderChange,
-  onSliderChange
+  onSliderChange,
+  onSave
 }) => {
   console.log('Rendering AIModelCard component');
 
@@ -152,7 +154,10 @@ const AIModelCard: React.FC<AIModelCardProps> = ({
       </div>
       
       <div className="mt-6">
-        <button className="px-4 py-2 bg-[#00aff0] text-white rounded-md hover:bg-[#0099d6]">
+        <button 
+          className="px-4 py-2 bg-[#00aff0] text-white rounded-md hover:bg-[#0099d6]"
+          onClick={onSave}
+        >
           Save Configuration
         </button>
       </div>

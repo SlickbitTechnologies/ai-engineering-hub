@@ -4,16 +4,30 @@ import TopicsBarChart from './TopicsBarChart';
 import SentimentTrendChart from './SentimentTrendChart';
 import EmotionalAnalysisChart from './EmotionalAnalysisChart';
 
+interface TopicData {
+  topic: string;
+  percentage: number;
+}
+
 interface SentimentAnalysisTabProps {
   positive: number;
   neutral: number;
   negative: number;
+  topicsDiscussed?: TopicData[];
+  emotional: {
+    satisfaction: number;
+    frustration: number;
+    confidence: number;
+    confusion: number;
+  };
 }
 
 const SentimentAnalysisTab: React.FC<SentimentAnalysisTabProps> = ({
   positive,
   neutral,
-  negative
+  negative,
+  topicsDiscussed = [],
+  emotional
 }) => {
   console.log('Rendering SentimentAnalysisTab component');
 
@@ -28,7 +42,7 @@ const SentimentAnalysisTab: React.FC<SentimentAnalysisTabProps> = ({
             neutral={neutral} 
             negative={negative} 
           />
-          <TopicsBarChart />
+          <TopicsBarChart topics={topicsDiscussed} />
         </div>
       </div>
       
@@ -39,7 +53,7 @@ const SentimentAnalysisTab: React.FC<SentimentAnalysisTabProps> = ({
       
       {/* Card 3: Emotional Analysis */}
       <div className="p-4 rounded-lg bg-white">
-        <EmotionalAnalysisChart />
+        <EmotionalAnalysisChart emotional={emotional} />
       </div>
     </div>
   );

@@ -1,0 +1,51 @@
+{
+  "name": "backend_node",
+  "version": "1.0.0",
+  "description": "Node.js backend for AI Insurance Sonic",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "test": "jest",
+    "migrate": "ts-node src/db/migrations.ts"
+  },
+  "keywords": [
+    "insurance",
+    "audio",
+    "analysis",
+    "ai"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.14.0",
+    "@types/sequelize": "^4.28.20",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "firebase-admin": "^13.2.0",
+    "get-audio-duration": "^4.0.1",
+    "multer": "^1.4.5-lts.2",
+    "openai": "^4.93.0",
+    "sequelize": "^6.37.7",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3",
+    "uuid": "^11.1.0",
+    "whisper-node": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/sqlite3": "^3.1.11",
+    "@types/uuid": "^10.0.0",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.9",
+    "ts-jest": "^29.3.1",
+    "ts-node-dev": "^2.0.0"
+  }
+}

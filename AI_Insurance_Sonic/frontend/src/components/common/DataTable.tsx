@@ -1,5 +1,6 @@
 import React from 'react';
 import { FaSortUp, FaSortDown, FaSort } from 'react-icons/fa';
+import Pagination from './Pagination';
 
 export interface Column {
   key: string;
@@ -16,6 +17,11 @@ interface DataTableProps {
   sortDirection?: 'asc' | 'desc';
   onSort?: (column: string) => void;
   emptyMessage?: string;
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+  };
 }
 
 const DataTable: React.FC<DataTableProps> = ({
@@ -24,7 +30,8 @@ const DataTable: React.FC<DataTableProps> = ({
   sortColumn,
   sortDirection,
   onSort,
-  emptyMessage = 'No data found.'
+  emptyMessage = 'No data found.',
+  pagination
 }) => {
   console.log('Rendering DataTable component');
 
@@ -50,50 +57,59 @@ const DataTable: React.FC<DataTableProps> = ({
   };
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            {columns.map((column) => (
-              <th 
-                key={column.key}
-                scope="col" 
-                className={`px-6 py-3 ${getColumnAlignment(column.align)} text-xs font-medium text-gray-500 uppercase tracking-wider ${column.sortable ? 'cursor-pointer' : ''}`}
-                onClick={() => column.sortable && onSort && onSort(column.key)}
-              >
-                <div className="flex items-center">
-                  {column.label} {column.sortable && renderSortIndicator(column.key)}
-                </div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {data.length > 0 ? (
-            data.map((item, index) => (
-              <tr key={index} className="hover:bg-gray-50">
-                {columns.map((column) => (
-                  <td 
-                    key={`${index}-${column.key}`}
-                    className={`px-6 py-4 whitespace-nowrap ${getColumnAlignment(column.align)}`}
-                  >
-                    {column.render 
-                      ? column.render(item[column.key], item)
-                      : <div className="text-sm text-gray-900">{item[column.key]}</div>
-                    }
-                  </td>
-                ))}
-              </tr>
-            ))
-          ) : (
+    <div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
             <tr>
-              <td colSpan={columns.length} className="px-6 py-4 text-center text-gray-500">
-                {emptyMessage}
-              </td>
+              {columns.map((column) => (
+                <th 
+                  key={column.key}
+                  scope="col" 
+                  className={`px-6 py-3 ${getColumnAlignment(column.align)} text-xs font-medium text-gray-500 uppercase tracking-wider ${column.sortable ? 'cursor-pointer' : ''}`}
+                  onClick={() => column.sortable && onSort && onSort(column.key)}
+                >
+                  <div className="flex items-center">
+                    {column.label} {column.sortable && renderSortIndicator(column.key)}
+                  </div>
+                </th>
+              ))}
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {data.length > 0 ? (
+              data.map((item, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  {columns.map((column) => (
+                    <td 
+                      key={`${index}-${column.key}`}
+                      className={`px-6 py-4 whitespace-nowrap ${getColumnAlignment(column.align)}`}
+                    >
+                      {column.render 
+                        ? column.render(item[column.key], item)
+                        : <div className="text-sm text-gray-900">{item[column.key]}</div>
+                      }
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={columns.length} className="px-6 py-4 text-center text-gray-500">
+                  {emptyMessage}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {pagination && (
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.onPageChange}
+        />
+      )}
     </div>
   );
 };

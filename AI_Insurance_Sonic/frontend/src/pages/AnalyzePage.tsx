@@ -1,61 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tab } from '@headlessui/react';
 import { FaCloudUploadAlt, FaCheckCircle, FaSpinner, FaExclamationCircle } from 'react-icons/fa';
+import { useCreateBatchMutation, useGetBatchesQuery, useUploadFilesMutation, Batch, AudioFile, useTestAnalyzeApiQuery } from '../redux/analyzeApi';
+import { parseApiError } from '../services/errorHandler';
+import { FetchBaseQueryError } from '@reduxjs/toolkit/query/react';
+import { SerializedError } from '@reduxjs/toolkit';
+import { toast, Toaster } from 'react-hot-toast';
 
 function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-// Define the batch interface
-interface Batch {
-  id: number;
-  name: string;
-  uploadDate: string;
-  fileCount: number;
-  processed: number;
-  status: 'completed' | 'processing' | 'failed';
-}
-
 // BatchStatus component
 const BatchStatus: React.FC = () => {
-  // Mock batch data
-  const batches: Batch[] = [
-    {
-      id: 1,
-      name: 'March Claims Calls',
-      uploadDate: '2025-03-15',
-      fileCount: 124,
-      processed: 124,
-      status: 'completed'
-    },
-    {
-      id: 2,
-      name: 'Customer Service Q1',
-      uploadDate: '2025-04-01',
-      fileCount: 240,
-      processed: 163,
-      status: 'processing'
-    },
-    {
-      id: 3,
-      name: 'Sales Team Calls',
-      uploadDate: '2025-04-05',
-      fileCount: 78,
-      processed: 25,
-      status: 'processing'
-    },
-    {
-      id: 4,
-      name: 'Agent Training Calls',
-      uploadDate: '2025-03-28',
-      fileCount: 56,
-      processed: 25,
-      status: 'failed'
-    }
-  ];
+  console.log('Rendering BatchStatus component');
+  
+  // Get batches from API
+  const { data: batches, isLoading, error } = useGetBatchesQuery();
 
   // Render status indicator badge
-  const renderStatusBadge = (status: 'completed' | 'processing' | 'failed') => {
+  const renderStatusBadge = (status: 'pending' | 'processing' | 'completed' | 'failed') => {
     switch (status) {
       case 'completed':
         return (
@@ -69,6 +33,12 @@ const BatchStatus: React.FC = () => {
             <FaSpinner className="mr-1 animate-spin" /> Processing
           </span>
         );
+      case 'pending':
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+            <FaSpinner className="mr-1" /> Pending
+          </span>
+        );
       case 'failed':
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
@@ -79,10 +49,51 @@ const BatchStatus: React.FC = () => {
   };
 
   // Calculate progress percentage
-  const getProgressPercentage = (processed: number, total: number) => {
-    return Math.round((processed / total) * 100);
+  const getProgressPercentage = (batch: Batch) => {
+    if (batch.total_audio_files === 0) {
+      return 0;
+    }
+    return Math.round((batch.completed_files / batch.total_audio_files) * 100);
   };
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold">Batch Processing Status</h2>
+        <div className="flex justify-center">
+          <FaSpinner className="animate-spin text-[#00aff0] text-4xl" />
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    const apiError = parseApiError(error as FetchBaseQueryError | SerializedError);
+    return (
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold">Batch Processing Status</h2>
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-700">
+          <h3 className="text-lg font-semibold mb-2">Error Loading Batches</h3>
+          <p>{apiError.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (!batches || batches.length === 0) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold">Batch Processing Status</h2>
+        <div className="bg-gray-50 border border-gray-200 rounded-md p-8 text-center">
+          <p className="text-gray-500">No batches found. Upload some files to get started.</p>
+        </div>
+      </div>
+    );
+  }
+  console.log(batches);
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Batch Processing Status</h2>
@@ -92,9 +103,9 @@ const BatchStatus: React.FC = () => {
           <div key={batch.id} className="bg-white p-6 rounded-lg shadow border border-gray-200">
             <div className="flex justify-between items-start mb-2">
               <div>
-                <h3 className="text-lg font-medium text-gray-900">{batch.name}</h3>
+                <h3 className="text-lg font-medium text-gray-900">{batch.description}</h3>
                 <p className="text-sm text-gray-500">
-                  Uploaded on {batch.uploadDate} • {batch.fileCount} files
+                  Uploaded on {new Date(batch.createdAt).toLocaleDateString()} • {batch.total_audio_files} files
                 </p>
               </div>
               <div>{renderStatusBadge(batch.status)}</div>
@@ -104,13 +115,13 @@ const BatchStatus: React.FC = () => {
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm font-medium text-gray-700">Processing progress</span>
                 <span className="text-sm font-medium text-gray-700">
-                  {batch.processed} of {batch.fileCount} files ({getProgressPercentage(batch.processed, batch.fileCount)}%)
+                  {batch.completed_files} of {batch.total_audio_files} files ({getProgressPercentage(batch)}%)
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5">
                 <div 
                   className="bg-[#00aff0] h-2.5 rounded-full" 
-                  style={{ width: `${getProgressPercentage(batch.processed, batch.fileCount)}%` }}
+                  style={{ width: `${getProgressPercentage(batch)}%` }}
                 ></div>
               </div>
             </div>
@@ -137,6 +148,19 @@ const AnalyzePage: React.FC = () => {
   
   const [batchName, setBatchName] = useState('');
   const [files, setFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  
+  // Redux API hooks
+  const [createBatch, { isLoading: isCreatingBatch }] = useCreateBatchMutation();
+  const [uploadFiles, { isLoading: isUploadingFiles }] = useUploadFilesMutation();
+
+
+
+  // Set isUploading based on API loading states
+  useEffect(() => {
+    setIsUploading(isCreatingBatch || isUploadingFiles);
+  }, [isCreatingBatch, isUploadingFiles]);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -173,19 +197,60 @@ const AnalyzePage: React.FC = () => {
   const handleClear = () => {
     setFiles([]);
     setBatchName('');
+    setUploadError(null);
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     console.log('Uploading files:', files);
     console.log('Batch name:', batchName);
-    // In a real app, you would upload the files to a server here
-    alert(`Uploading ${files.length} files with batch name: ${batchName}`);
+    
+    if (!files.length || !batchName) {
+      setUploadError('Please provide a batch name and select at least one file.');
+      return;
+    }
+    
+    setUploadError(null);
+    setIsUploading(true);
+    
+    try {
+      // Step 1: Create a new batch
+      const batch = await createBatch({ name: batchName }).unwrap();
+      console.log('Batch created:', batch);
+      
+      // Step 2: Upload files to the batch
+      const formData = new FormData();
+      // Append each file with the same key name 'files'
+      for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+      }
+      
+      console.log('Sending form data:', formData);
+      
+      const uploadedFiles = await uploadFiles({ batchId: batch.id, files: formData }).unwrap();
+      console.log('Files uploaded:', uploadedFiles);
+      
+      // Clear the form
+      handleClear();
+      
+      // Success message
+      toast.success(`Successfully uploaded ${uploadedFiles.length} files to batch "${batchName}"`);
+    } catch (err) {
+      console.error('Error uploading files:', err);
+      const apiError = parseApiError(err as FetchBaseQueryError | SerializedError);
+      setUploadError(`Failed to upload files: ${apiError.message}`);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const tabCategories = ['Upload Files', 'Batch Status'];
 
   return (
-    <div>
+    <div className="container mx-auto px-4 py-8">
+      <Toaster position="top-right" />
+      {/* Debug API Connection */}
+    
+      
       <div className="mb-6">
         <Tab.Group>
           <Tab.List className="flex space-x-8 border-b border-gray-200">
@@ -211,14 +276,21 @@ const AnalyzePage: React.FC = () => {
               <div className="bg-white p-6 rounded-lg shadow">
                 <h2 className="text-xl font-semibold mb-4">Upload Audio Files</h2>
                 
+                {uploadError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700">
+                    {uploadError}
+                  </div>
+                )}
+                
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Batch Name</label>
                   <input
                     type="text"
-                    className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#00aff0]"
+                    className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#00aff0] text-black"
                     placeholder="Enter a name for this batch"
                     value={batchName}
                     onChange={(e) => setBatchName(e.target.value)}
+                    disabled={isUploading}
                   />
                 </div>
                 
@@ -230,14 +302,15 @@ const AnalyzePage: React.FC = () => {
                   <FaCloudUploadAlt className="text-gray-400 text-5xl mb-3" />
                   <p className="text-lg font-medium mb-1">Drag audio files here or click to browse</p>
                   <p className="text-sm text-gray-500 mb-4">Supports .mp3, .wav and .m4a files up to 500MB each</p>
-                  <label className="px-4 py-2 bg-gray-200 text-gray-700 rounded cursor-pointer hover:bg-gray-300">
+                  <label className={`px-4 py-2 bg-gray-200 text-gray-700 rounded cursor-pointer hover:bg-gray-300 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     Select Files
                     <input
                       type="file"
                       className="hidden"
                       multiple
-                      accept=".mp3,.wav,.m4a"
+                      accept="audio/mpeg,audio/wav,audio/mp4,.mp3,.wav,.m4a"
                       onChange={handleFileSelect}
+                      disabled={isUploading}
                     />
                   </label>
                 </div>
@@ -257,17 +330,25 @@ const AnalyzePage: React.FC = () => {
                 
                 <div className="flex justify-end space-x-2">
                   <button 
-                    className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-100"
+                    className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={handleClear}
+                    disabled={isUploading}
                   >
                     Clear
                   </button>
                   <button 
-                    className={`px-4 py-2 bg-[#00aff0] text-white rounded hover:bg-[#0099d6] ${(!files.length || !batchName) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`px-4 py-2 bg-[#00aff0] text-white rounded hover:bg-[#0099d6] disabled:opacity-50 disabled:cursor-not-allowed flex items-center`}
                     onClick={handleUpload}
-                    disabled={!files.length || !batchName}
+                    disabled={isUploading || !files.length || !batchName}
                   >
-                    Upload and Process
+                    {isUploading ? (
+                      <>
+                        <FaSpinner className="animate-spin mr-2" />
+                        Uploading...
+                      </>
+                    ) : (
+                      'Upload and Process'
+                    )}
                   </button>
                 </div>
               </div>

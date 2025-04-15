@@ -1,0 +1,80 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum BatchStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Batch {
+  id          Int         @id @default(autoincrement())
+  name        String
+  createdAt   DateTime    @default(now()) @map("created_at")
+  status      BatchStatus @default(PENDING)
+  audioFiles  AudioFile[] @relation("BatchToAudioFiles")
+
+  @@map("batches")
+}
+
+model AudioFile {
+  id              Int      @id @default(autoincrement())
+  filename        String
+  originalFilename String  @map("original_filename")
+  contentType     String   @map("content_type")
+  size           Int
+  filePath       String   @map("file_path")
+  fileUrl        String   @map("file_url")
+  uploadedAt     DateTime @default(now()) @map("uploaded_at")
+  processed      Int      @default(0)
+  batchId        Int      @map("batch_id")
+  batch          Batch    @relation("BatchToAudioFiles", fields: [batchId], references: [id])
+
+  @@map("audio_files")
+}
+
+model AnalysisSettings {
+  id                        Int     @id @default(autoincrement())
+  sentimentAnalysisEnabled  Boolean @default(true) @map("sentiment_analysis_enabled")
+  keywordExtractionEnabled  Boolean @default(true) @map("keyword_extraction_enabled")
+  topicDetectionEnabled     Boolean @default(false) @map("topic_detection_enabled")
+
+  @@map("analysis_settings")
+}
+
+model ModelConfiguration {
+  id                Int     @id @default(autoincrement())
+  provider          String
+  modelName         String  @map("model_name")
+  apiKey           String  @map("api_key")
+  maxTokens        Int     @map("max_tokens")
+  temperature      Float
+  topP             Float   @map("top_p")
+  frequencyPenalty Float   @map("frequency_penalty")
+  presencePenalty  Float   @map("presence_penalty")
+  systemPrompt     String  @map("system_prompt")
+
+  @@map("model_configurations")
+}
+
+model User {
+  id    Int     @id @default(autoincrement())
+  name  String
+  email String  @unique
+  role  String
+
+  @@map("users")
+}

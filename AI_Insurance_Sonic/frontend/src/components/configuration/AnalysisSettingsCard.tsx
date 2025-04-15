@@ -1,91 +1,122 @@
 import React from 'react';
 
-interface AnalysisSettings {
-  sentimentAnalysis: {
-    enabled: boolean;
-  };
-  keywordExtraction: {
-    enabled: boolean;
-  };
-  topicDetection: {
-    enabled: boolean;
-  };
+// Define the sentiment analysis settings interface
+interface SentimentAnalysisSettings {
+  enabled: boolean;
 }
 
+// Define the keyword extraction settings interface
+interface KeywordExtractionSettings {
+  enabled: boolean;
+}
+
+// Define the topic detection settings interface
+interface TopicDetectionSettings {
+  enabled: boolean;
+}
+
+// Combined settings interface
+interface AnalysisSettings {
+  sentimentAnalysis: SentimentAnalysisSettings;
+  keywordExtraction: KeywordExtractionSettings;
+  topicDetection: TopicDetectionSettings;
+}
+
+// Props interface
 interface AnalysisSettingsCardProps {
   settings: AnalysisSettings;
   onToggleChange: (settingType: 'sentiment' | 'keyword' | 'topic') => void;
+  saveSettings: () => Promise<void>;
 }
 
 const AnalysisSettingsCard: React.FC<AnalysisSettingsCardProps> = ({
   settings,
-  onToggleChange
+  onToggleChange,
+  saveSettings
 }) => {
   console.log('Rendering AnalysisSettingsCard component');
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-xl font-semibold mb-2 text-gray-900">Call Analysis Settings</h2>
-      <p className="text-gray-600 mb-6">Customize the settings for analyzing call transcripts.</p>
+    <div className="bg-white shadow rounded-lg p-6">
+      <h2 className="text-xl font-semibold mb-4">Call Analysis Settings</h2>
+      <p className="text-gray-600 mb-6">Configure which features are enabled for call analysis.</p>
       
       <div className="space-y-4">
-        <div className="border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-medium text-gray-900">Enable Sentiment Analysis</h3>
-              <p className="text-sm text-gray-500">Analyze the sentiment of the call for better insights.</p>
-            </div>
+        {/* Sentiment Analysis */}
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div>
+            <h3 className="font-medium">Sentiment Analysis</h3>
+            <p className="text-sm text-gray-600">Detect the emotional tone of conversations</p>
+          </div>
+          <div>
             <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
+                className="sr-only peer"
                 checked={settings.sentimentAnalysis.enabled}
                 onChange={() => onToggleChange('sentiment')}
-                className="sr-only peer"
               />
-              <div className={`w-11 h-6 rounded-full peer ${settings.sentimentAnalysis.enabled ? 'bg-[#00aff0]' : 'bg-gray-200'} peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-100 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all`}></div>
+              <div className={`w-11 h-6 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 ${
+                settings.sentimentAnalysis.enabled 
+                  ? 'bg-blue-600 peer-checked:after:translate-x-full' 
+                  : 'bg-gray-200'
+              } after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all`}></div>
             </label>
           </div>
         </div>
         
-        <div className="border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-medium text-gray-900">Enable Keyword Extraction</h3>
-              <p className="text-sm text-gray-500">Automatically extract important keywords from the call.</p>
-            </div>
+        {/* Keyword Extraction */}
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div>
+            <h3 className="font-medium">Keyword Extraction</h3>
+            <p className="text-sm text-gray-600">Identify important words and phrases in conversations</p>
+          </div>
+          <div>
             <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
+                className="sr-only peer"
                 checked={settings.keywordExtraction.enabled}
                 onChange={() => onToggleChange('keyword')}
-                className="sr-only peer"
               />
-              <div className={`w-11 h-6 rounded-full peer ${settings.keywordExtraction.enabled ? 'bg-[#00aff0]' : 'bg-gray-200'} peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-100 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all`}></div>
+              <div className={`w-11 h-6 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 ${
+                settings.keywordExtraction.enabled 
+                  ? 'bg-blue-600 peer-checked:after:translate-x-full' 
+                  : 'bg-gray-200'
+              } after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all`}></div>
             </label>
           </div>
         </div>
         
-        <div className="border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-medium text-gray-900">Enable Topic Detection</h3>
-              <p className="text-sm text-gray-500">Identify the main topics discussed during the call.</p>
-            </div>
+        {/* Topic Detection */}
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div>
+            <h3 className="font-medium">Topic Detection</h3>
+            <p className="text-sm text-gray-600">Identify main topics discussed in conversations</p>
+          </div>
+          <div>
             <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
+                className="sr-only peer"
                 checked={settings.topicDetection.enabled}
                 onChange={() => onToggleChange('topic')}
-                className="sr-only peer"
               />
-              <div className={`w-11 h-6 rounded-full peer ${settings.topicDetection.enabled ? 'bg-[#00aff0]' : 'bg-gray-200'} peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-100 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all`}></div>
+              <div className={`w-11 h-6 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 ${
+                settings.topicDetection.enabled 
+                  ? 'bg-blue-600 peer-checked:after:translate-x-full' 
+                  : 'bg-gray-200'
+              } after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all`}></div>
             </label>
           </div>
         </div>
       </div>
       
       <div className="mt-6">
-        <button className="px-4 py-2 bg-[#00aff0] text-white rounded-md hover:bg-[#0099d6]">
+        <button 
+          className="px-4 py-2 bg-[#00aff0] text-white rounded-md hover:bg-[#0099d6]"
+          onClick={saveSettings}
+        >
           Save Settings
         </button>
       </div>

@@ -1,4 +1,5 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { createApi } from '@reduxjs/toolkit/query/react';
+import { baseQuery } from '../services/api';
 import { DashboardState } from './dashboardSlice';
 
 // Mock response data (in a real app, this would come from the server)
@@ -113,7 +114,7 @@ const mockDashboardData: DashboardState = {
 // Define the API service
 export const dashboardApi = createApi({
   reducerPath: 'dashboardApi',
-  baseQuery: fetchBaseQuery({ baseUrl: '/' }), // In a real app, this would be your API endpoint
+  baseQuery,
   endpoints: (builder) => ({
     getDashboardData: builder.query<DashboardState, void>({
       queryFn: () => {
