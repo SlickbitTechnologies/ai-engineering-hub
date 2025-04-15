@@ -49,7 +49,10 @@ Sign up for ngrok and install your authtoken.
 
 Start ngrok with this command:
 
- - ngrok http --host-header=localhost 3001
+ - ngrok http --url=localhost 3001
+
+example: ngrok http --url=national-tough-ghost.ngrok-free.app 3001
+
 Use the generated ngrok URL in your application instead of localhost.
 
 ---
