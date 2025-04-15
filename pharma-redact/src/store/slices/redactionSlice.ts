@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { RedactionTemplate } from '@/types/redaction';
+import { RedactionTemplate, RedactionEntity, RedactionReport } from '@/types/redaction';
 import { redactionTemplates as initialTemplates } from '@/config/redactionTemplates';
 
 export interface RedactionRule {
@@ -30,10 +30,16 @@ export interface RedactionItem {
     isRejected: boolean;
 }
 
+// Store redaction reports by document ID
+export interface RedactionReportStore {
+    [documentId: string]: RedactionReport;
+}
+
 interface RedactionState {
     rules: RedactionRule[];
     items: RedactionItem[];
     templates: RedactionTemplate[];
+    reports: RedactionReportStore;
     isProcessing: boolean;
     processingProgress: number;
     error: string | null;
@@ -76,6 +82,7 @@ const initialState: RedactionState = {
     ],
     items: [],
     templates: initialTemplates,
+    reports: {},
     isProcessing: false,
     processingProgress: 0,
     error: null,
@@ -170,6 +177,14 @@ export const redactionSlice = createSlice({
         selectTemplate: (state, action: PayloadAction<string | null>) => {
             state.selectedTemplateId = action.payload;
         },
+        // Redaction report actions
+        saveRedactionReport: (state, action: PayloadAction<{ documentId: string, report: RedactionReport }>) => {
+            const { documentId, report } = action.payload;
+            state.reports[documentId] = report;
+        },
+        clearRedactionReport: (state, action: PayloadAction<string>) => {
+            delete state.reports[action.payload];
+        },
     },
 });
 
@@ -191,6 +206,8 @@ export const {
     updateTemplate,
     deleteTemplate,
     selectTemplate,
+    saveRedactionReport,
+    clearRedactionReport,
 } = redactionSlice.actions;
 
 export default redactionSlice.reducer; 

@@ -34,7 +34,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">
       {/* Left side - Illustration */}
-      <div className="hidden md:flex md:w-1/2 bg-chateau-green-600 text-white p-12 flex-col justify-between">
+      <div className="hidden md:flex md:w-1/2 bg-primary-600 text-white p-12 flex-col justify-between">
         <div>
           <div className="flex items-center gap-3">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-10 w-10">
@@ -106,7 +106,7 @@ export default function LoginPage() {
       {/* Right side - Login form */}
       <div className="flex-1 flex flex-col justify-center items-center p-8 md:p-12">
         <div className="md:hidden mb-8 flex flex-col items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-12 w-12 text-chateau-green-600">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-12 w-12 text-primary-600">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
           <h1 className="text-2xl font-bold text-gray-900 mt-2">PharmaRedact</h1>
@@ -118,7 +118,7 @@ export default function LoginPage() {
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-gray-900">Sign in to your account</h2>
               <p className="text-gray-600 mt-1">Welcome back! Please enter your details below.</p>
-              <p className="text-xs text-chateau-green-600 mt-2 bg-chateau-green-50 p-2 rounded">
+              <p className="text-xs text-primary-600 mt-2 bg-primary-50 p-2 rounded">
                 For demo purposes, you can use any email and password
               </p>
             </div>
@@ -142,7 +142,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-chateau-green-500 focus:border-chateau-green-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                   placeholder="name@company.com"
                 />
               </div>
@@ -152,7 +152,7 @@ export default function LoginPage() {
                   <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                     Password
                   </label>
-                  <a href="#" className="text-sm font-medium text-chateau-green-600 hover:text-chateau-green-700">
+                  <a href="#" className="text-sm font-medium text-primary-600 hover:text-primary-700">
                     Forgot password?
                   </a>
                 </div>
@@ -164,7 +164,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-chateau-green-500 focus:border-chateau-green-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                   placeholder="••••••••"
                 />
               </div>
@@ -176,7 +176,7 @@ export default function LoginPage() {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 text-chateau-green-600 border-gray-300 rounded focus:ring-chateau-green-500"
+                  className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                 />
                 <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
                   Remember me
@@ -186,7 +186,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`w-full py-3 px-4 bg-chateau-green-600 hover:bg-chateau-green-700 text-white font-medium rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 ${
+                className={`w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
                   isLoading ? 'opacity-70 cursor-not-allowed' : ''
                 }`}
               >
@@ -216,8 +216,8 @@ export default function LoginPage() {
             
             <div className="mt-6 text-center">
               <p className="text-gray-600">
-                Don't have an account?{' '}
-                <Link href="/signup" className="font-medium text-chateau-green-600 hover:text-chateau-green-700">
+                Don&apos;t have an account?{' '}
+                <Link href="/signup" className="font-medium text-primary-600 hover:text-primary-700">
                   Sign up
                 </Link>
               </p>

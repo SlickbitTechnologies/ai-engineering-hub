@@ -6,6 +6,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { loadDocuments } from "@/store/slices/documentSlice";
+import { Toaster } from "@/components/ui/toaster";
 
 export default function RootLayout({
   children,
@@ -27,6 +28,7 @@ export default function RootLayout({
           <AuthProvider>
             <AppInitializer />
             {children}
+            <Toaster />
           </AuthProvider>
         </Providers>
       </body>

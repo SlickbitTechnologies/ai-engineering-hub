@@ -227,9 +227,9 @@ export default function RedactionRulesPage() {
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Redaction Management</h1>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Redaction Settings</h1>
               <p className="text-gray-600 dark:text-gray-300 mt-1">
-                Manage rules and templates for automatic document redaction
+                Create rules and templates for automatic document redaction
               </p>
             </div>
           </div>

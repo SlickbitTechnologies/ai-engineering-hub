@@ -110,7 +110,7 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">
       {/* Left side - Illustration */}
-      <div className="hidden md:flex md:w-1/2 bg-chateau-green-600 text-white p-12 flex-col justify-between">
+      <div className="hidden md:flex md:w-1/2 bg-primary-600 text-white p-12 flex-col justify-between">
         <div>
           <div className="flex items-center gap-3">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-10 w-10">
@@ -180,7 +180,7 @@ export default function SignupPage() {
       {/* Right side - Signup form */}
       <div className="flex-1 flex flex-col justify-center items-center p-6 md:p-12">
         <div className="md:hidden mb-8 flex flex-col items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-12 w-12 text-chateau-green-600">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-12 w-12 text-primary-600">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
           <h1 className="text-2xl font-bold text-gray-900 mt-2">PharmaRedact</h1>
@@ -235,7 +235,7 @@ export default function SignupPage() {
                     required
                     value={formData.firstName}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-chateau-green-500 focus:border-chateau-green-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                   />
                 </div>
                 <div>
@@ -249,7 +249,7 @@ export default function SignupPage() {
                     required
                     value={formData.lastName}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-chateau-green-500 focus:border-chateau-green-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                   />
                 </div>
               </div>
@@ -266,7 +266,7 @@ export default function SignupPage() {
                   required
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-chateau-green-500 focus:border-chateau-green-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                   placeholder="name@company.com"
                 />
               </div>
@@ -282,7 +282,7 @@ export default function SignupPage() {
                   required
                   value={formData.company}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-chateau-green-500 focus:border-chateau-green-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
               
@@ -298,7 +298,7 @@ export default function SignupPage() {
                   required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-chateau-green-500 focus:border-chateau-green-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                 />
                 
                 {/* Password strength meter */}
@@ -332,7 +332,7 @@ export default function SignupPage() {
                   required
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-chateau-green-500 focus:border-chateau-green-500 ${
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-primary-500 focus:border-primary-500 ${
                     formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword
                       ? 'border-red-500'
                       : 'border-gray-300'
@@ -347,7 +347,7 @@ export default function SignupPage() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className={`w-full py-3 px-4 bg-chateau-green-600 hover:bg-chateau-green-700 text-white font-medium rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 ${
+                  className={`w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
                     isLoading ? 'opacity-70 cursor-not-allowed' : ''
                   }`}
                 >
@@ -359,7 +359,7 @@ export default function SignupPage() {
             <div className="mt-6 text-center">
               <p className="text-gray-600">
                 Already have an account?{' '}
-                <Link href="/login" className="font-medium text-chateau-green-600 hover:text-chateau-green-700">
+                <Link href="/login" className="font-medium text-primary-600 hover:text-primary-700">
                   Sign in
                 </Link>
               </p>

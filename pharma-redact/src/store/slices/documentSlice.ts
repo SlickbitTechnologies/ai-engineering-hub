@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
-import { getDocumentsFromLocalStorage, syncDocumentsToLocalStorage } from '@/utils/localStorage';
+import { getDocumentsFromLocalStorage, syncDocumentsToLocalStorage, DocumentMetadata } from '@/utils/localStorage';
 
 export interface Document {
     id: string;
@@ -13,6 +13,7 @@ export interface Document {
     redactedUrl?: string;
     fileUrl?: string;
     firestoreId?: string;
+    entitiesFound?: number;
 }
 
 interface DocumentState {
@@ -51,7 +52,7 @@ const documentSlice = createSlice({
         addDocument: (state, action: PayloadAction<Document>) => {
             state.documents.push(action.payload);
             // Sync to local storage after adding
-            syncDocumentsToLocalStorage(state.documents);
+            syncDocumentsToLocalStorage(state.documents as unknown as DocumentMetadata[]);
         },
         selectDocument: (state, action: PayloadAction<string>) => {
             state.selectedDocument = state.documents.find(doc => doc.id === action.payload) || null;
@@ -64,7 +65,7 @@ const documentSlice = createSlice({
                     state.selectedDocument = { ...state.selectedDocument, ...action.payload.updates };
                 }
                 // Sync to local storage after updating
-                syncDocumentsToLocalStorage(state.documents);
+                syncDocumentsToLocalStorage(state.documents as unknown as DocumentMetadata[]);
             }
         },
         removeDocument: (state, action: PayloadAction<{ id: string }>) => {
@@ -73,7 +74,7 @@ const documentSlice = createSlice({
                 state.selectedDocument = null;
             }
             // Sync to local storage after removing
-            syncDocumentsToLocalStorage(state.documents);
+            syncDocumentsToLocalStorage(state.documents as unknown as DocumentMetadata[]);
         },
     },
     extraReducers: (builder) => {

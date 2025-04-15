@@ -13,6 +13,7 @@ export interface Document {
     fileUrl?: string; // URL to Firebase Storage file
     firestoreId?: string; // Firestore document ID
     redactedUrl?: string; // URL to redacted version of the document
+    entitiesFound?: number;
 }
 
 interface DocumentsState {

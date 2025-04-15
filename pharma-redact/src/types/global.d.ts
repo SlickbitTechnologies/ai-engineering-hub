@@ -6,4 +6,12 @@ declare global {
     }
 }
 
+export { };
+
+declare global {
+    interface Window {
+        pdfjsLib: any;
+    }
+}
+
 export { }; 

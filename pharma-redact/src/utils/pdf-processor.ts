@@ -1,6 +1,7 @@
 import { PDFDocument, PDFPage, rgb } from 'pdf-lib';
 import { RedactionTemplate } from '@/config/redactionTemplates';
 import { Coordinates, RedactionEntity } from '@/types/redaction';
+import { chunk } from 'lodash';
 
 interface ProcessingProgress {
     stage: 'extracting' | 'detecting' | 'mapping' | 'redacting' | 'complete';
@@ -10,9 +11,24 @@ interface ProcessingProgress {
     entitiesFound?: number;
 }
 
+export interface PDFProcessResult {
+    redactedPdf: Uint8Array;
+    entities: RedactionEntity[];
+}
+
+export interface RedactionPreview {
+    totalEntitiesEstimate: number;
+    previewEntities: RedactionEntity[];
+    pageCount: number;
+    samplePages: number[];
+}
+
 export class PDFProcessor {
     // Callback for progress updates
     private static progressCallback: ((progress: ProcessingProgress) => void) | null = null;
+
+    // Maximum chunk size for processing large documents
+    private static readonly MAX_CHUNK_SIZE = 5; // Process 5 pages at a time for large documents
 
     // Set the progress callback
     public static setProgressCallback(callback: (progress: ProcessingProgress) => void) {
@@ -45,17 +61,102 @@ export class PDFProcessor {
     }
 
     /**
+     * Generate a redaction preview for a document, processing only a few sample pages
+     * @param pdfData The PDF file data as a Uint8Array
+     * @param template Template to use for redaction rules
+     * @returns A RedactionPreview with estimated entities and sample data
+     */
+    static async generatePreview(
+        pdfData: Uint8Array,
+        template: RedactionTemplate
+    ): Promise<RedactionPreview> {
+        try {
+            // Load the PDF document
+            const pdfDoc = await PDFDocument.load(pdfData, { ignoreEncryption: true });
+            const totalPages = pdfDoc.getPageCount();
+
+            // Determine sample pages to process (first, middle, and last pages)
+            const samplePages: number[] = [];
+
+            if (totalPages <= 3) {
+                // For small documents, process all pages
+                for (let i = 0; i < totalPages; i++) {
+                    samplePages.push(i);
+                }
+            } else {
+                // For larger documents, process first, middle, and last page
+                samplePages.push(0); // First page
+                samplePages.push(Math.floor(totalPages / 2)); // Middle page
+                samplePages.push(totalPages - 1); // Last page
+            }
+
+            // Load PDF.js for text extraction
+            const pdfjsLib = await this.loadPdfJs();
+            if (!pdfjsLib) {
+                throw new Error("Failed to load PDF.js library");
+            }
+
+            // Load the PDF for processing
+            const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfData) });
+            const pdfjsDocument = await loadingTask.promise;
+
+            // Extract text and detect entities from sample pages
+            const sampleEntities: RedactionEntity[] = [];
+
+            for (const pageIndex of samplePages) {
+                try {
+                    // Extract text from the PDF page
+                    const pageText = await this.extractTextFromPdfjsDocument(pdfjsDocument, pageIndex);
+
+                    // Detect entities on the page
+                    const entities = await this.queryLLM(pageText, pageIndex, template.id);
+                    sampleEntities.push(...entities);
+                } catch (error) {
+                    console.error(`Error processing preview page ${pageIndex}:`, error);
+                }
+            }
+
+            // Clean up
+            await pdfjsDocument.destroy();
+
+            // Estimate total entities in the document
+            const avgEntitiesPerPage = sampleEntities.length / samplePages.length;
+            const totalEntitiesEstimate = Math.round(avgEntitiesPerPage * totalPages);
+
+            return {
+                totalEntitiesEstimate,
+                previewEntities: sampleEntities,
+                pageCount: totalPages,
+                samplePages
+            };
+        } catch (error) {
+            console.error("Error generating preview:", error);
+            throw new Error("Failed to generate redaction preview");
+        }
+    }
+
+    /**
      * Process the PDF, applying redactions to sensitive information identified by the AI.
      * @param pdfData The PDF file data as a Uint8Array
-     * @param template Optional template ID to use for redaction rules
-     * @returns A Uint8Array containing the redacted PDF
+     * @param template Template to use for redaction rules
+     * @param signal Optional AbortSignal for cancellation
+     * @returns A PDFProcessResult containing the redacted PDF and entities
      */
-    static async processPDF(pdfData: Uint8Array, template?: RedactionTemplate): Promise<Uint8Array> {
+    static async processPDF(
+        pdfData: Uint8Array,
+        template: RedactionTemplate,
+        signal?: AbortSignal
+    ): Promise<PDFProcessResult> {
         // Log start of PDF redaction process
         console.log("Starting PDF redaction process");
         console.log("PDF size:", pdfData.length, "bytes");
 
         try {
+            // Check if operation was cancelled
+            if (signal?.aborted) {
+                throw new DOMException("PDF processing aborted", "AbortError");
+            }
+
             // Load the PDF document using pdf-lib
             const pdfDoc = await PDFDocument.load(pdfData, { ignoreEncryption: true });
             const totalPages = pdfDoc.getPageCount();
@@ -65,12 +166,17 @@ export class PDFProcessor {
             // If there are no pages, return a mock redacted PDF
             if (totalPages === 0) {
                 console.warn("PDF has no pages, creating simple redacted PDF");
-                return this.createSimpleRedactedPDF();
+                const simplePdf = await this.createSimpleRedactedPDF();
+                return {
+                    redactedPdf: simplePdf,
+                    entities: []
+                };
             }
 
             // Store extracted text and entity detection results
             const pageTexts: string[] = [];
             const detectedEntities: Record<number, RedactionEntity[]> = {};
+            let allEntities: RedactionEntity[] = [];
             let totalEntitiesFound = 0;
 
             // Load the PDF.js library dynamically
@@ -88,6 +194,11 @@ export class PDFProcessor {
                 entitiesFound: 0
             });
 
+            // Check if operation was cancelled
+            if (signal?.aborted) {
+                throw new DOMException("PDF processing aborted", "AbortError");
+            }
+
             // Load the PDF with PDF.js for text extraction
             const pdfBytesForPdfJs = new Uint8Array(pdfData);
             let pdfjsDocument;
@@ -100,24 +211,163 @@ export class PDFProcessor {
                 throw new Error("Could not load PDF with PDF.js for text extraction");
             }
 
-            // Extract text from each page using PDF.js
-            for (let i = 0; i < totalPages; i++) {
-                this.reportProgress({
-                    stage: 'extracting',
-                    progress: Math.round((i / totalPages) * 100),
-                    page: i + 1,
-                    totalPages
-                });
+            // For large documents, process in chunks to avoid memory issues
+            const isLargeDocument = totalPages > 20;
+            let pageIndices = Array.from({ length: totalPages }, (_, i) => i);
 
-                try {
-                    // Extract text from the PDF page
-                    const pageText = await this.extractTextFromPdfjsDocument(pdfjsDocument, i);
-                    pageTexts[i] = pageText;
+            if (isLargeDocument) {
+                console.log(`Processing large document with ${totalPages} pages in chunks`);
+                const pageChunks = chunk(pageIndices, this.MAX_CHUNK_SIZE);
 
-                    console.log(`Extracted text from page ${i + 1}: ${pageText.substring(0, 100)}...`);
-                } catch (error) {
-                    console.error(`Error extracting text from page ${i + 1}:`, error);
-                    pageTexts[i] = "";
+                for (let chunkIndex = 0; chunkIndex < pageChunks.length; chunkIndex++) {
+                    // Check if operation was cancelled
+                    if (signal?.aborted) {
+                        throw new DOMException("PDF processing aborted", "AbortError");
+                    }
+
+                    const currentChunk = pageChunks[chunkIndex];
+                    console.log(`Processing chunk ${chunkIndex + 1} of ${pageChunks.length} (pages ${currentChunk[0] + 1}-${currentChunk[currentChunk.length - 1] + 1})`);
+
+                    // Extract text from each page in the chunk
+                    for (const pageIndex of currentChunk) {
+                        // Check if operation was cancelled
+                        if (signal?.aborted) {
+                            throw new DOMException("PDF processing aborted", "AbortError");
+                        }
+
+                        this.reportProgress({
+                            stage: 'extracting',
+                            progress: Math.round(((chunkIndex * this.MAX_CHUNK_SIZE + currentChunk.indexOf(pageIndex) + 1) / totalPages) * 100),
+                            page: pageIndex + 1,
+                            totalPages
+                        });
+
+                        try {
+                            // Extract text from the PDF page
+                            const pageText = await this.extractTextFromPdfjsDocument(pdfjsDocument, pageIndex);
+                            pageTexts[pageIndex] = pageText;
+
+                            console.log(`Extracted text from page ${pageIndex + 1}: ${pageText.substring(0, 100)}...`);
+                        } catch (error) {
+                            console.error(`Error extracting text from page ${pageIndex + 1}:`, error);
+                            pageTexts[pageIndex] = "";
+                        }
+                    }
+
+                    // Detect entities in the current chunk
+                    for (const pageIndex of currentChunk) {
+                        // Check if operation was cancelled
+                        if (signal?.aborted) {
+                            throw new DOMException("PDF processing aborted", "AbortError");
+                        }
+
+                        if (!pageTexts[pageIndex] || pageTexts[pageIndex].trim() === '') {
+                            console.log(`Page ${pageIndex + 1} has no text, skipping entity detection`);
+                            continue;
+                        }
+
+                        this.reportProgress({
+                            stage: 'detecting',
+                            progress: Math.round(((chunkIndex * this.MAX_CHUNK_SIZE + currentChunk.indexOf(pageIndex) + 1) / totalPages) * 100),
+                            page: pageIndex + 1,
+                            totalPages
+                        });
+
+                        try {
+                            // Use API endpoint to detect entities
+                            const entities = await this.queryLLM(
+                                pageTexts[pageIndex],
+                                pageIndex,
+                                template.id
+                            );
+
+                            // Store entities with their text positions
+                            detectedEntities[pageIndex] = entities;
+                            totalEntitiesFound += entities.length;
+                            allEntities = [...allEntities, ...entities];
+
+                            console.log(`Detected ${entities.length} entities on page ${pageIndex + 1}`);
+                        } catch (error) {
+                            console.error(`Error detecting entities on page ${pageIndex + 1}:`, error);
+                        }
+                    }
+
+                    // Optional: Clean up memory after each chunk
+                    if (isLargeDocument && chunkIndex < pageChunks.length - 1) {
+                        // Clear page texts for processed chunk to free memory
+                        for (const pageIndex of currentChunk) {
+                            pageTexts[pageIndex] = ""; // Keep the array structure but free the strings
+                        }
+
+                        // Force garbage collection if possible
+                        if (global.gc) {
+                            global.gc();
+                        }
+                    }
+                }
+            } else {
+                // For smaller documents, extract text from all pages at once
+                for (let i = 0; i < totalPages; i++) {
+                    // Check if operation was cancelled
+                    if (signal?.aborted) {
+                        throw new DOMException("PDF processing aborted", "AbortError");
+                    }
+
+                    this.reportProgress({
+                        stage: 'extracting',
+                        progress: Math.round((i / totalPages) * 100),
+                        page: i + 1,
+                        totalPages
+                    });
+
+                    try {
+                        // Extract text from the PDF page
+                        const pageText = await this.extractTextFromPdfjsDocument(pdfjsDocument, i);
+                        pageTexts[i] = pageText;
+
+                        console.log(`Extracted text from page ${i + 1}: ${pageText.substring(0, 100)}...`);
+                    } catch (error) {
+                        console.error(`Error extracting text from page ${i + 1}:`, error);
+                        pageTexts[i] = "";
+                    }
+                }
+
+                // Detect entities in each page
+                for (let i = 0; i < pageTexts.length; i++) {
+                    // Check if operation was cancelled
+                    if (signal?.aborted) {
+                        throw new DOMException("PDF processing aborted", "AbortError");
+                    }
+
+                    if (!pageTexts[i] || pageTexts[i].trim() === '') {
+                        console.log(`Page ${i + 1} has no text, skipping entity detection`);
+                        continue;
+                    }
+
+                    this.reportProgress({
+                        stage: 'detecting',
+                        progress: Math.round((i / pageTexts.length) * 100),
+                        page: i + 1,
+                        totalPages
+                    });
+
+                    try {
+                        // Use API endpoint to detect entities
+                        const entities = await this.queryLLM(
+                            pageTexts[i],
+                            i,
+                            template.id
+                        );
+
+                        // Store entities with their text positions
+                        detectedEntities[i] = entities;
+                        totalEntitiesFound += entities.length;
+                        allEntities = [...allEntities, ...entities];
+
+                        console.log(`Detected ${entities.length} entities on page ${i + 1}`);
+                    } catch (error) {
+                        console.error(`Error detecting entities on page ${i + 1}:`, error);
+                    }
                 }
             }
 
@@ -130,36 +380,9 @@ export class PDFProcessor {
                 }
             }
 
-            // Detect entities in the extracted text
-            for (let i = 0; i < pageTexts.length; i++) {
-                if (!pageTexts[i] || pageTexts[i].trim() === '') {
-                    console.log(`Page ${i + 1} has no text, skipping entity detection`);
-                    continue;
-                }
-
-                this.reportProgress({
-                    stage: 'detecting',
-                    progress: Math.round((i / pageTexts.length) * 100),
-                    page: i + 1,
-                    totalPages
-                });
-
-                try {
-                    // Use API endpoint to detect entities
-                    const entities = await this.queryLLM(
-                        pageTexts[i],
-                        i,
-                        template?.id
-                    );
-
-                    // Store entities with their text positions
-                    detectedEntities[i] = entities;
-                    totalEntitiesFound += entities.length;
-
-                    console.log(`Detected ${entities.length} entities on page ${i + 1}`);
-                } catch (error) {
-                    console.error(`Error detecting entities on page ${i + 1}:`, error);
-                }
+            // Check if operation was cancelled
+            if (signal?.aborted) {
+                throw new DOMException("PDF processing aborted", "AbortError");
             }
 
             // Report the total number of entities found
@@ -184,6 +407,11 @@ export class PDFProcessor {
 
                 // Add a small indicator at the bottom of each page
                 for (let i = 0; i < totalPages; i++) {
+                    // Check if operation was cancelled
+                    if (signal?.aborted) {
+                        throw new DOMException("PDF processing aborted", "AbortError");
+                    }
+
                     const page = pdfDoc.getPage(i);
                     page.drawText('ANALYZED - NO REDACTIONS NEEDED', {
                         x: 50,
@@ -198,13 +426,22 @@ export class PDFProcessor {
 
                 // Save the PDF with specific options to ensure compatibility
                 console.log("Saving analyzed PDF...");
-                const savedPdf = await pdfDoc.save({
-                    addDefaultPage: false,
-                    useObjectStreams: false
-                });
+                try {
+                    const pdfBytes = await pdfDoc.save({ addDefaultPage: false, useObjectStreams: false });
+                    console.log("PDF saved successfully:", pdfBytes.length, "bytes");
+                    return {
+                        redactedPdf: pdfBytes,
+                        entities: allEntities
+                    };
+                } catch (saveError) {
+                    console.error("Error saving PDF:", saveError);
+                    throw new Error("Failed to save analyzed PDF");
+                }
+            }
 
-                console.log("PDF saved successfully, size:", savedPdf.length, "bytes");
-                return savedPdf;
+            // Check if operation was cancelled
+            if (signal?.aborted) {
+                throw new DOMException("PDF processing aborted", "AbortError");
             }
 
             // Reload the PDF with PDF.js to get text positions
@@ -223,21 +460,73 @@ export class PDFProcessor {
             // Calculate all positions before applying redactions
             const allPositions: Record<number, Array<Coordinates & { type: string }>> = {};
 
-            // Calculate positions for all pages first
-            for (let i = 0; i < totalPages; i++) {
-                const pageEntities = detectedEntities[i] || [];
-                if (pageEntities.length === 0) continue;
+            // Process page positions in chunks for large documents
+            if (isLargeDocument) {
+                const pageChunks = chunk(Object.keys(detectedEntities).map(Number), this.MAX_CHUNK_SIZE);
 
-                try {
-                    const positions = await this.calculateEntityPositionsFromDocument(
-                        newPdfjsDocument,
-                        i,
-                        pageEntities
-                    );
-                    allPositions[i] = positions;
-                } catch (error) {
-                    console.error(`Error calculating positions for page ${i + 1}:`, error);
-                    allPositions[i] = [];
+                for (let chunkIndex = 0; chunkIndex < pageChunks.length; chunkIndex++) {
+                    // Check if operation was cancelled
+                    if (signal?.aborted) {
+                        throw new DOMException("PDF processing aborted", "AbortError");
+                    }
+
+                    const currentChunk = pageChunks[chunkIndex];
+
+                    // Calculate positions for pages in this chunk
+                    for (const pageIndex of currentChunk) {
+                        const pageEntities = detectedEntities[pageIndex] || [];
+                        if (pageEntities.length === 0) continue;
+
+                        this.reportProgress({
+                            stage: 'mapping',
+                            progress: Math.round(((chunkIndex * this.MAX_CHUNK_SIZE + currentChunk.indexOf(pageIndex) + 1) / Object.keys(detectedEntities).length) * 100),
+                            page: pageIndex + 1,
+                            totalPages
+                        });
+
+                        try {
+                            const positions = await this.calculateEntityPositionsFromDocument(
+                                newPdfjsDocument,
+                                pageIndex,
+                                pageEntities
+                            );
+                            allPositions[pageIndex] = positions;
+                        } catch (error) {
+                            console.error(`Error calculating positions for page ${pageIndex + 1}:`, error);
+                            allPositions[pageIndex] = [];
+                        }
+                    }
+                }
+            } else {
+                // Calculate positions for all pages
+                for (const pageIndexStr in detectedEntities) {
+                    // Check if operation was cancelled
+                    if (signal?.aborted) {
+                        throw new DOMException("PDF processing aborted", "AbortError");
+                    }
+
+                    const pageIndex = parseInt(pageIndexStr);
+                    const pageEntities = detectedEntities[pageIndex] || [];
+                    if (pageEntities.length === 0) continue;
+
+                    this.reportProgress({
+                        stage: 'mapping',
+                        progress: Math.round((parseInt(pageIndexStr) / Object.keys(detectedEntities).length) * 100),
+                        page: pageIndex + 1,
+                        totalPages
+                    });
+
+                    try {
+                        const positions = await this.calculateEntityPositionsFromDocument(
+                            newPdfjsDocument,
+                            pageIndex,
+                            pageEntities
+                        );
+                        allPositions[pageIndex] = positions;
+                    } catch (error) {
+                        console.error(`Error calculating positions for page ${pageIndex + 1}:`, error);
+                        allPositions[pageIndex] = [];
+                    }
                 }
             }
 
@@ -250,88 +539,134 @@ export class PDFProcessor {
                 }
             }
 
+            // Check if operation was cancelled
+            if (signal?.aborted) {
+                throw new DOMException("PDF processing aborted", "AbortError");
+            }
+
             // Apply redactions to each page based on detected entities
-            for (let i = 0; i < totalPages; i++) {
+            const pageIndicesWithEntities = Object.keys(detectedEntities).map(Number);
+            const redactPromises = pageIndicesWithEntities.map(async (pageIndex) => {
+                // Check if operation was cancelled
+                if (signal?.aborted) {
+                    throw new DOMException("PDF processing aborted", "AbortError");
+                }
+
+                const entities = detectedEntities[pageIndex];
+                const page = pdfDoc.getPage(pageIndex);
+
+                // Progress reporting for redaction phase
                 this.reportProgress({
                     stage: 'redacting',
-                    progress: Math.round((i / totalPages) * 100),
-                    page: i + 1,
+                    progress: Math.round((pageIndicesWithEntities.indexOf(pageIndex) / pageIndicesWithEntities.length) * 90),
+                    page: pageIndex + 1,
                     totalPages,
                     entitiesFound: totalEntitiesFound
                 });
 
-                const page = pdfDoc.getPage(i);
-                const positions = allPositions[i] || [];
+                // Define redactions on this page
+                for (const entity of entities) {
+                    try {
+                        if (entity.coordinates) {
+                            const { x, y, width, height } = entity.coordinates;
 
-                // Apply redactions at the calculated positions
-                for (const position of positions) {
-                    // Draw black rectangle over the sensitive text
-                    page.drawRectangle({
-                        x: position.x,
-                        y: position.y,
-                        width: position.width,
-                        height: position.height,
-                        color: rgb(0, 0, 0),
-                        opacity: 1.0,
-                        borderWidth: 1,
-                        borderColor: rgb(0.2, 0.2, 0.2),
-                    });
+                            // Draw a black rectangle over the sensitive information
+                            page.drawRectangle({
+                                x: x,
+                                y: y,
+                                width: width,
+                                height: height,
+                                color: rgb(0, 0, 0),
+                                opacity: 1,
+                                borderColor: rgb(0, 0, 0),
+                                borderWidth: 0,
+                            });
+                        } else {
+                            console.warn(`Entity ${entity.id} has no coordinates, skipping redaction`);
+                        }
+                    } catch (error) {
+                        console.error(`Error applying redaction on page ${pageIndex}:`, error);
+                    }
                 }
 
-                // If no entities were found on this page, add a small indicator that the page was analyzed
-                if (positions.length === 0) {
-                    // Add a small indicator at the bottom of the page
-                    page.drawText('ANALYZED - NO REDACTIONS NEEDED', {
-                        x: 50,
-                        y: 20,
-                        size: 6,
-                        color: rgb(0.7, 0.7, 0.7)
-                    });
-                } else {
-                    // Add a count of redactions at the bottom of the page
-                    page.drawText(`${positions.length} REDACTION(S) APPLIED - PAGE ${i + 1}`, {
-                        x: 30,
-                        y: 20,
-                        size: 8,
-                        color: rgb(0.5, 0, 0)
-                    });
-                }
+                return { pageIndex, count: entities.length };
+            });
 
-                console.log(`Applied ${positions.length} redactions to page ${i + 1}`);
+            // Wait for all redactions to be applied
+            await Promise.all(redactPromises);
+
+            // Check if operation was cancelled
+            if (signal?.aborted) {
+                throw new DOMException("PDF processing aborted", "AbortError");
             }
+
+            // Report progress
+            this.reportProgress({
+                stage: 'redacting',
+                progress: 90,
+                entitiesFound: totalEntitiesFound
+            });
 
             // Add a "REDACTED DOCUMENT" label to the first page
             const firstPage = pdfDoc.getPage(0);
             firstPage.drawText('REDACTED DOCUMENT', {
                 x: 50,
-                y: 50,
+                y: firstPage.getHeight() - 50,
                 size: 16,
-                color: rgb(0.6, 0, 0)
+                color: rgb(0.8, 0, 0)
             });
 
-            firstPage.drawText(`${totalEntitiesFound} sensitive items redacted`, {
-                x: 50,
-                y: 30,
-                size: 12,
-                color: rgb(0.5, 0, 0)
+            // Report progress
+            this.reportProgress({
+                stage: 'redacting',
+                progress: 95,
+                entitiesFound: totalEntitiesFound
             });
 
-            // Report completion
-            this.reportProgress({ stage: 'complete', progress: 100 });
-
-            // Save the PDF with specific options to ensure compatibility
+            // Save the redacted PDF
             console.log("Saving redacted PDF...");
-            const savedPdf = await pdfDoc.save({
-                addDefaultPage: false,
-                useObjectStreams: false
-            });
+            try {
+                // Check if operation was cancelled
+                if (signal?.aborted) {
+                    throw new DOMException("PDF processing aborted", "AbortError");
+                }
 
-            console.log("PDF saved successfully, size:", savedPdf.length, "bytes");
-            return savedPdf;
+                const pdfBytes = await pdfDoc.save({ addDefaultPage: false, useObjectStreams: false });
+                console.log("PDF saved successfully:", pdfBytes.length, "bytes");
+
+                // Report completion
+                this.reportProgress({ stage: 'complete', progress: 100 });
+
+                return {
+                    redactedPdf: pdfBytes,
+                    entities: allEntities
+                };
+            } catch (saveError) {
+                console.error("Error saving PDF:", saveError);
+                throw new Error("Failed to save redacted PDF");
+            }
         } catch (error) {
-            console.error("Error in processPDF:", error);
-            console.warn("Using fallback redaction due to error");
-            return this.createSimpleRedactedPDF();
+            // Check for AbortError
+            if (error instanceof DOMException && error.name === 'AbortError') {
+                console.log("PDF processing was cancelled");
+                throw error;
+            }
+
+            console.error("Error during PDF processing:", error);
+
+            // In case of error, try to create a simple message PDF
+            try {
+                console.log("Creating error PDF with message");
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                const errorPdf = await this.createSimpleRedactedPDF(`Error during processing: ${errorMessage}`);
+                return {
+                    redactedPdf: errorPdf,
+                    entities: []
+                };
+            } catch (fallbackError) {
+                console.error("Even fallback PDF creation failed:", fallbackError);
+                throw error; // Re-throw the original error
+            }
         }
     }
 
@@ -873,93 +1208,30 @@ export class PDFProcessor {
     }
 
     // Add a simple method to create a basic PDF with redactions
-    private static async createSimpleRedactedPDF(): Promise<Uint8Array> {
+    private static async createSimpleRedactedPDF(message: string = 'This document has been processed for redaction.'): Promise<Uint8Array> {
         try {
-            console.log("Creating simple redacted PDF");
             const pdfDoc = await PDFDocument.create();
-            const page = pdfDoc.addPage([612, 792]); // Letter size
+            const page = pdfDoc.addPage([600, 800]);
 
-            // Add a title
-            page.drawText('REDACTED DOCUMENT', {
+            const text = message;
+            page.drawText(text, {
                 x: 50,
-                y: 700,
-                size: 24,
-                color: rgb(0.6, 0, 0)
+                y: page.getHeight() - 50,
+                size: 14,
+                color: rgb(0, 0, 0),
             });
 
-            // Add redaction rectangles
-            const redactions = [
-                { x: 50, y: 650, width: 400, height: 30 },
-                { x: 50, y: 600, width: 300, height: 30 },
-                { x: 50, y: 550, width: 350, height: 30 },
-                { x: 50, y: 500, width: 250, height: 30 },
-                { x: 50, y: 450, width: 400, height: 30 },
-                { x: 50, y: 400, width: 350, height: 30 },
-                { x: 50, y: 350, width: 300, height: 30 },
-            ];
-
-            for (const box of redactions) {
-                page.drawRectangle({
-                    ...box,
-                    color: rgb(0, 0, 0)
-                });
-            }
-
-            // Add explanatory text
-            page.drawText('This document has been redacted for privacy protection.', {
+            page.drawText('REDACTED', {
                 x: 50,
-                y: 300,
-                size: 12
+                y: 100,
+                size: 36,
+                color: rgb(0.8, 0, 0),
             });
 
-            page.drawText('All sensitive information has been obscured.', {
-                x: 50,
-                y: 280,
-                size: 12
-            });
-
-            // Save the PDF
-            console.log("Saving simple redacted PDF");
             return await pdfDoc.save();
-        } catch (error) {
-            console.error("Error creating simple PDF:", error);
-
-            // Return minimal valid PDF as absolute fallback
-            return new Uint8Array([
-                37, 80, 68, 70, 45, 49, 46, 55, 10, 37, 226, 227, 207, 211, 10,
-                49, 32, 48, 32, 111, 98, 106, 10, 60, 60, 32, 47, 84, 121, 112,
-                101, 32, 47, 67, 97, 116, 97, 108, 111, 103, 10, 47, 80, 97, 103,
-                101, 115, 32, 50, 32, 48, 32, 82, 10, 62, 62, 10, 101, 110, 100,
-                111, 98, 106, 10, 50, 32, 48, 32, 111, 98, 106, 10, 60, 60, 32,
-                47, 84, 121, 112, 101, 32, 47, 80, 97, 103, 101, 115, 10, 47, 75,
-                105, 100, 115, 32, 91, 32, 51, 32, 48, 32, 82, 32, 93, 10, 47, 67,
-                111, 117, 110, 116, 32, 49, 10, 62, 62, 10, 101, 110, 100, 111,
-                98, 106, 10, 51, 32, 48, 32, 111, 98, 106, 10, 60, 60, 32, 47, 84,
-                121, 112, 101, 32, 47, 80, 97, 103, 101, 10, 47, 80, 97, 114, 101,
-                110, 116, 32, 50, 32, 48, 32, 82, 10, 47, 77, 101, 100, 105, 97,
-                66, 111, 120, 32, 91, 32, 48, 32, 48, 32, 54, 49, 50, 32, 55, 57,
-                50, 32, 93, 10, 47, 67, 111, 110, 116, 101, 110, 116, 115, 32, 52,
-                32, 48, 32, 82, 10, 62, 62, 10, 101, 110, 100, 111, 98, 106, 10,
-                52, 32, 48, 32, 111, 98, 106, 10, 60, 60, 32, 47, 76, 101, 110,
-                103, 116, 104, 32, 56, 32, 62, 62, 32, 115, 116, 114, 101, 97, 109,
-                10, 66, 84, 10, 47, 70, 49, 32, 49, 50, 32, 84, 102, 10, 49, 32,
-                48, 32, 48, 32, 49, 32, 53, 48, 32, 55, 48, 48, 32, 84, 109, 10,
-                40, 82, 101, 100, 97, 99, 116, 101, 100, 41, 32, 84, 106, 10, 69,
-                84, 10, 101, 110, 100, 115, 116, 114, 101, 97, 109, 10, 101, 110,
-                100, 111, 98, 106, 10, 120, 114, 101, 102, 10, 48, 32, 53, 10, 48,
-                48, 48, 48, 48, 48, 48, 48, 48, 48, 32, 54, 53, 53, 53, 53, 32, 102,
-                32, 10, 48, 48, 48, 48, 48, 48, 48, 48, 49, 56, 32, 48, 48, 48, 48,
-                48, 32, 110, 32, 10, 48, 48, 48, 48, 48, 48, 48, 48, 55, 55, 32, 48,
-                48, 48, 48, 48, 32, 110, 32, 10, 48, 48, 48, 48, 48, 48, 48, 49, 55,
-                56, 32, 48, 48, 48, 48, 48, 32, 110, 32, 10, 48, 48, 48, 48, 48, 48,
-                48, 52, 53, 55, 32, 48, 48, 48, 48, 48, 32, 110, 32, 10, 116, 114,
-                97, 105, 108, 101, 114, 10, 60, 60, 32, 47, 83, 105, 122, 101, 32,
-                53, 32, 47, 82, 111, 111, 116, 32, 49, 32, 48, 32, 82, 32, 47, 73,
-                110, 102, 111, 32, 60, 60, 32, 47, 80, 114, 111, 100, 117, 99, 101,
-                114, 32, 40, 82, 101, 100, 97, 99, 116, 101, 100, 41, 32, 62, 62,
-                32, 62, 62, 10, 115, 116, 97, 114, 116, 120, 114, 101, 102, 10, 35,
-                48, 54, 10, 37, 37, 69, 79, 70, 10
-            ]);
+        } catch (error: unknown) {
+            console.error("Error creating simple redacted PDF:", error);
+            throw new Error("Failed to create simple redacted PDF");
         }
     }
 } 

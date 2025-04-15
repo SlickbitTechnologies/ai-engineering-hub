@@ -1,17 +1,18 @@
 import { v4 as uuidv4 } from 'uuid';
 
 // Interface for document metadata
-interface DocumentMetadata {
+export interface DocumentMetadata {
     id: string;
     name: string;
     type: string;
     path: string;
     size: number;
-    uploadedAt: string;
+    uploadedAt: number;
     status: 'pending' | 'processing' | 'redacted' | 'error';
     source: string;
     fileUrl: string;
     redactedUrl?: string;
+    entitiesFound?: number;
 }
 
 // Storage keys

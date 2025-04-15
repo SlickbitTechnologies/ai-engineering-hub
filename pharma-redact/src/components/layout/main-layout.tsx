@@ -120,7 +120,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children }) => {
                     }`}
                   >
                     <RulesIcon className="h-5 w-5" />
-                    Redaction Rules
+                    Redaction Settings
                   </Link>
                 </li>
               </ul>
@@ -130,7 +130,7 @@ export const MainLayout: FC<MainLayoutProps> = ({ children }) => {
             {user && (
               <div className="border-t border-gray-200 p-4">
                 <div className="flex items-center space-x-3 mb-3">
-                  <div className="relative w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden">
+                  <div className="relative w-10 h-10 rounded-full bg-primary-200 flex items-center justify-center overflow-hidden">
                     {user.avatar ? (
                       <Image 
                         src={user.avatar} 
