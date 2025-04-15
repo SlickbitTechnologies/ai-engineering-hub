@@ -26,7 +26,7 @@ Follow these steps to set up the project locally.
 4. **Start the development server**
     - npm run dev
 
-**The app should now be running at** http://localhost:3000
+**The app should now be running at** http://localhost:3001
 
 ---
 
@@ -36,7 +36,7 @@ Follow these steps to set up the project locally.
 
 Create a .env file in the root of your project and add below line.
 
-> PORT=3000
+> PORT=3001
 
 🎙️ Voice Command Support:
 This project integrates the Vapi library to enable voice-based interaction.
