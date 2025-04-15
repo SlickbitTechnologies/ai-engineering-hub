@@ -41,7 +41,7 @@ export default function DocumentReportPage({ params }: { params: { documentId: s
       router.push(`/documents/${currentDocument.id}`);
     }
   }, [currentDocument, router]);
-
+  
   // Get document and redaction data from Redux store
   const document = useSelector((state: RootState) => 
     state.documents.documents.find(doc => doc.id === params.documentId)
@@ -259,8 +259,8 @@ export default function DocumentReportPage({ params }: { params: { documentId: s
                 </div>
               </div>
             </div>
-          </div>
-          
+        </div>
+
           <div>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Document Information</h2>
@@ -288,14 +288,14 @@ export default function DocumentReportPage({ params }: { params: { documentId: s
                   <p className="text-gray-900 dark:text-white">
                     {new Date(currentDocument.uploadedAt).toLocaleString()}
                   </p>
-                </div>
+                      </div>
                 
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Last Updated</p>
                   <p className="text-gray-900 dark:text-white">
                     {new Date(currentDocument.updatedAt).toLocaleString()}
                   </p>
-                </div>
+                  </div>
                 
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
@@ -330,7 +330,7 @@ export default function DocumentReportPage({ params }: { params: { documentId: s
                   Download Redacted
                 </a>
                 
-                <button
+                          <button 
                   onClick={() => window.print()}
                   className="block w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg text-center transition-colors"
                 >
