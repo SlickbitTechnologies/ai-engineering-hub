@@ -10,6 +10,7 @@ import { DatabaseConnection } from './db/database';
 import { initializeDatabase } from './db/initialize';
 import './config/firebase'; // Import for side effects only
 import callsRoutes from './routes/calls.routes';
+import router from './routes';
 
 // Initialize environment variables
 dotenv.config();
@@ -59,10 +60,10 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 // Routes
-const router = express.Router();
-router.use('/analyze', audioRoutes);
-router.use('/configuration', configurationRoutes);
-router.use('/calls', callsRoutes);
+// const router = express.Router();
+// router.use('/analyze', audioRoutes);
+// router.use('/configuration', configurationRoutes);
+// router.use('/calls', callsRoutes);
 app.use('/api/v1', router);
 
 // Error handling

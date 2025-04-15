@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { FaRegChartBar, FaExternalLinkAlt } from 'react-icons/fa';
 import { LuFileAudio } from 'react-icons/lu';
 import { CiClock2 } from 'react-icons/ci';
@@ -9,141 +9,127 @@ import BarChart from '../components/dashboard/BarChart';
 import { Link } from 'react-router-dom';
 import { DataTable } from '../components/common';
 import { Column } from '../components/common/DataTable';
-import { useGetCallsQuery } from '../redux/callsApi';
+import {
+  useGetDashboardMetricsQuery,
+  useGetCallVolumeTrendQuery,
+  useGetKpiPerformanceQuery,
+  useGetSentimentTrendQuery,
+  useGetRecentCallsQuery,
+} from '../redux/dashboardApi';
+import { ChartData } from 'chart.js';
 
 const DashboardPage: React.FC = () => {
-  console.log('Rendering Dashboard page');
+  // Fetch data using RTK Query hooks
+  const { data: metricsData, isLoading: isMetricsLoading } = useGetDashboardMetricsQuery();
+  const { data: callVolumeData, isLoading: isCallVolumeLoading } = useGetCallVolumeTrendQuery('week');
+  const { data: kpiData, isLoading: isKpiLoading } = useGetKpiPerformanceQuery('month');
+  const { data: sentimentData, isLoading: isSentimentLoading } = useGetSentimentTrendQuery('month');
+  const { data: recentCalls, isLoading: isRecentCallsLoading } = useGetRecentCallsQuery(5);
 
-  const { data: callsData, isLoading: isCallsLoading } = useGetCallsQuery({
-    page: 1,
-    limit: 5,
-    sortBy: 'date',
-    sortOrder: 'desc'
-  });
-
-  // Metrics data
-  const metricsData = useMemo(() => [
-    {
-      title: 'Total Calls Analyzed',
-      value: '1,287',
-      trend: {
-        value: '+12%',
-        direction: 'up' as const,
-        description: 'Last 30 days'
-      },
-      icon: <LuFileAudio className="text-[#00aff0] text-2xl" />
-    },
-    {
-      title: 'Average Call Duration',
-      value: '8:24',
-      trend: {
-        value: '-8%',
-        direction: 'down' as const,
-        description: '2:12 less than previous period'
-      },
-      icon: <CiClock2 className="text-[#00aff0] text-2xl" />
-    },
-    {
-      title: 'KPI Compliance Rate',
-      value: '87%',
-      trend: {
-        value: '+3%',
-        direction: 'up' as const,
-        description: '3% improvement'
-      },
-      icon: <FaRegChartBar className="text-[#00aff0] text-2xl" />
-    },
-    {
-      title: 'Compliance Issues',
-      value: '42',
-      trend: {
-        value: '-25%',
-        direction: 'down' as const,
-        description: 'Down from 56 last month'
-      },
-      icon: <GoAlert className="text-[#00aff0] text-2xl" />
-    }
-  ], []);
-
-  // Call volume chart data
-  const callVolumeData = useMemo(() => ({
-    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  // Transform API data to chart.js format
+  const callVolumeChartData: ChartData<'line'> = {
+    labels: callVolumeData?.labels || [],
     datasets: [
       {
         label: 'Call Volume',
-        data: [12, 18, 15, 22, 24, 18, 12],
+        data: callVolumeData?.data || [],
         fill: true,
         backgroundColor: 'rgba(52, 152, 219, 0.2)',
         borderColor: 'rgba(52, 152, 219, 1)',
         tension: 0.4,
       },
     ],
-  }), []);
+  };
 
-  // KPI Performance chart data
-  const kpiPerformanceData = useMemo(() => ({
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-    datasets: [
-      {
-        label: 'Compliance',
-        data: [40, 30, 20, 25, 20, 22],
-        backgroundColor: 'rgba(52, 152, 219, 0.8)',
-      },
-      {
-        label: 'Sales',
-        data: [22, 13, 25, 38, 48, 35],
-        backgroundColor: 'rgba(46, 204, 113, 0.8)',
-      },
-      {
-        label: 'Service',
-        data: [55, 70, 50, 45, 60, 75],
-        backgroundColor: 'rgba(243, 156, 18, 0.8)',
-      },
-    ],
-  }), []);
+  const kpiChartData: ChartData<'bar'> = {
+    labels: kpiData?.labels || [],
+    datasets: kpiData?.datasets.map(dataset => ({
+      ...dataset,
+      backgroundColor: dataset.label === 'Compliance' 
+        ? 'rgba(52, 152, 219, 0.8)'
+        : dataset.label === 'Sales'
+        ? 'rgba(46, 204, 113, 0.8)'
+        : 'rgba(243, 156, 18, 0.8)',
+    })) || [],
+  };
 
-  // Customer sentiment chart data
-  const customerSentimentData = useMemo(() => ({
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-    datasets: [
-      {
-        label: 'Positive',
-        data: [65, 55, 70, 65, 60, 75],
-        borderColor: 'rgba(46, 204, 113, 1)',
-        backgroundColor: 'rgba(46, 204, 113, 0.1)',
-        tension: 0.4,
-      },
-      {
-        label: 'Neutral',
-        data: [25, 30, 20, 25, 30, 15],
-        borderColor: 'rgba(243, 156, 18, 1)',
-        backgroundColor: 'rgba(243, 156, 18, 0.1)',
-        tension: 0.4,
-      },
-      {
-        label: 'Negative',
-        data: [10, 15, 10, 10, 10, 10],
-        borderColor: 'rgba(231, 76, 60, 1)',
-        backgroundColor: 'rgba(231, 76, 60, 0.1)',
-        tension: 0.4,
-      },
-    ],
-  }), []);
+  const sentimentChartData: ChartData<'line'> = {
+    labels: sentimentData?.labels || [],
+    datasets: sentimentData?.datasets.map(dataset => ({
+      ...dataset,
+      fill: true,
+      tension: 0.4,
+      backgroundColor: dataset.label === 'Positive'
+        ? 'rgba(46, 204, 113, 0.1)'
+        : dataset.label === 'Neutral'
+        ? 'rgba(243, 156, 18, 0.1)'
+        : 'rgba(231, 76, 60, 0.1)',
+      borderColor: dataset.label === 'Positive'
+        ? 'rgba(46, 204, 113, 1)'
+        : dataset.label === 'Neutral'
+        ? 'rgba(243, 156, 18, 1)'
+        : 'rgba(231, 76, 60, 1)',
+    })) || [],
+  };
+
+  // Metrics cards data
+  const metricCards = [
+    {
+      title: 'Total Calls Analyzed',
+      value: metricsData ? metricsData.totalCalls.toLocaleString() : '-',
+      trend: metricsData ? {
+        value: metricsData.trends.totalCalls,
+        direction: metricsData.trends.totalCalls.startsWith('+') ? 'up' as const : 'down' as const,
+        description: 'Last 30 days'
+      } : undefined,
+      icon: <LuFileAudio className="text-[#00aff0] text-2xl" />
+    },
+    {
+      title: 'Average Call Duration',
+      value: metricsData ? metricsData.averageDuration : '-',
+      trend: metricsData ? {
+        value: metricsData.trends.averageDuration,
+        direction: metricsData.trends.averageDuration.startsWith('+') ? 'up' as const : 'down' as const,
+        description: 'vs previous period'
+      } : undefined,
+      icon: <CiClock2 className="text-[#00aff0] text-2xl" />
+    },
+    {
+      title: 'KPI Compliance Rate',
+      value: metricsData ? `${metricsData.kpiComplianceRate.toFixed(1)}%` : '-',
+      trend: metricsData ? {
+        value: metricsData.trends.kpiComplianceRate,
+        direction: metricsData.trends.kpiComplianceRate.startsWith('+') ? 'up' as const : 'down' as const,
+        description: 'vs previous period'
+      } : undefined,
+      icon: <FaRegChartBar className="text-[#00aff0] text-2xl" />
+    },
+    {
+      title: 'Compliance Issues',
+      value: metricsData ? metricsData.complianceIssues.toString() : '-',
+      trend: metricsData ? {
+        value: metricsData.trends.complianceIssues,
+        direction: metricsData.trends.complianceIssues.startsWith('+') ? 'down' as const : 'up' as const,
+        description: 'vs previous period'
+      } : undefined,
+      icon: <GoAlert className="text-[#00aff0] text-2xl" />
+    }
+  ];
 
   // Recent calls columns
-  const recentCallsColumns: Column[] = useMemo(() => [
+  const recentCallsColumns: Column[] = [
     { 
       key: 'date', 
       label: 'Date',
       sortable: true
     },
     { 
-      key: 'agent', 
+      key: 'agentName', 
       label: 'Agent',
       sortable: true
     },
     { 
-      key: 'customer', 
+      key: 'customerName', 
       label: 'Customer',
       sortable: true
     },
@@ -184,13 +170,13 @@ const DashboardPage: React.FC = () => {
         </Link>
       )
     }
-  ], []);
+  ];
 
   return (
     <>
       {/* Metrics Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {metricsData.map((metric, index) => (
+        {metricCards.map((metric, index) => (
           <MetricCard
             key={index}
             title={metric.title}
@@ -205,21 +191,24 @@ const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <LineChart 
           title="Call Volume Trend" 
-          data={callVolumeData} 
+          data={callVolumeChartData}
           height={250}
+          isLoading={isCallVolumeLoading}
         />
         <BarChart 
           title="KPI Performance" 
-          data={kpiPerformanceData} 
+          data={kpiChartData}
           height={250}
+          isLoading={isKpiLoading}
         />
       </div>
       
       <div className="mb-6">
         <LineChart 
           title="Customer Sentiment Trend" 
-          data={customerSentimentData} 
+          data={sentimentChartData}
           height={250}
+          isLoading={isSentimentLoading}
           options={{
             plugins: {
               legend: {
@@ -246,8 +235,8 @@ const DashboardPage: React.FC = () => {
         </div>
         <DataTable
           columns={recentCallsColumns}
-          data={callsData?.calls || []}
-          emptyMessage={isCallsLoading ? "Loading recent calls..." : "No recent calls found."}
+          data={recentCalls || []}
+          emptyMessage={isRecentCallsLoading ? "Loading recent calls..." : "No recent calls found."}
         />
       </div>
     </>

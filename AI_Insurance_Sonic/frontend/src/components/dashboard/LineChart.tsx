@@ -7,10 +7,9 @@ import {
   LineElement,
   Title,
   Tooltip,
-  Filler,
   Legend,
-  ChartOptions,
   ChartData,
+  ChartOptions
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 
@@ -21,77 +20,50 @@ ChartJS.register(
   LineElement,
   Title,
   Tooltip,
-  Filler,
   Legend
 );
 
-interface LineChartProps {
+export interface LineChartProps {
   title: string;
   data: ChartData<'line'>;
   height?: number;
   options?: ChartOptions<'line'>;
+  isLoading?: boolean;
 }
 
-const LineChart: React.FC<LineChartProps> = ({ title, data, height = 300, options }) => {
-  console.log(`Rendering LineChart: ${title}`);
-  
+const LineChart: React.FC<LineChartProps> = ({ title, data, height = 400, options, isLoading = false }) => {
   const defaultOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        display: false,
+        position: 'top' as const,
       },
       title: {
         display: true,
         text: title,
-        font: {
-          size: 16,
-          weight: 'bold',
-        },
-        padding: {
-          bottom: 20,
-        },
-        align: 'start',
-      },
-      tooltip: {
-        mode: 'index',
-        intersect: false,
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        border: {
-          display: false,
-        },
-        grid: {
-          display: true,
-        },
-      },
-      x: {
-        grid: {
-          display: false,
-        },
-      },
-    },
-    elements: {
-      line: {
-        tension: 0.4,
-      },
-      point: {
-        radius: 2,
       },
     },
   };
-  
-  const mergedOptions = { ...defaultOptions, ...options };
+
+  if (isLoading) {
+    return (
+      <div className="bg-white p-4 rounded-lg shadow" style={{ height }}>
+        <div className="animate-pulse flex flex-col h-full">
+          <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="flex-1 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
-      <div style={{ height: `${height}px` }}>
-        <Line options={mergedOptions} data={data} />
-      </div>
+    <div className="bg-white p-4 rounded-lg shadow">
+      <Line
+        data={data}
+        options={{ ...defaultOptions, ...options }}
+        height={height}
+      />
     </div>
   );
 };

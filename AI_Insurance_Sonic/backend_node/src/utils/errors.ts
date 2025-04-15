@@ -45,4 +45,11 @@ export class CallServiceError extends Error {
     super(message);
     this.name = 'CallServiceError';
   }
+}
+
+export class DashboardServiceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DashboardServiceError';
+  }
 } 

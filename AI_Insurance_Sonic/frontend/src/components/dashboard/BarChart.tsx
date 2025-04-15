@@ -1,4 +1,5 @@
 import React from 'react';
+import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -7,10 +8,9 @@ import {
   Title,
   Tooltip,
   Legend,
-  ChartOptions,
   ChartData,
+  ChartOptions
 } from 'chart.js';
-import { Bar } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
@@ -21,70 +21,47 @@ ChartJS.register(
   Legend
 );
 
-interface BarChartProps {
+export interface BarChartProps {
   title: string;
   data: ChartData<'bar'>;
   height?: number;
   options?: ChartOptions<'bar'>;
+  isLoading?: boolean;
 }
 
-const BarChart: React.FC<BarChartProps> = ({ title, data, height = 300, options }) => {
-  console.log(`Rendering BarChart: ${title}`);
-  
+const BarChart: React.FC<BarChartProps> = ({ title, data, height = 400, options, isLoading = false }) => {
   const defaultOptions: ChartOptions<'bar'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        position: 'bottom' as const,
-        labels: {
-          usePointStyle: true,
-          boxWidth: 10,
-          padding: 20,
-        },
+        position: 'top' as const,
       },
       title: {
         display: true,
         text: title,
-        font: {
-          size: 16,
-          weight: 'bold',
-        },
-        padding: {
-          bottom: 20,
-        },
-        align: 'start',
-      },
-      tooltip: {
-        mode: 'index',
-        intersect: false,
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        border: {
-          display: false,
-        },
-        grid: {
-          display: true,
-        },
-      },
-      x: {
-        grid: {
-          display: false,
-        },
       },
     },
   };
-  
-  const mergedOptions = { ...defaultOptions, ...options };
+
+  if (isLoading) {
+    return (
+      <div className="bg-white p-4 rounded-lg shadow" style={{ height }}>
+        <div className="animate-pulse flex flex-col h-full">
+          <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="flex-1 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
-      <div style={{ height: `${height}px` }}>
-        <Bar options={mergedOptions} data={data} />
-      </div>
+    <div className="bg-white p-4 rounded-lg shadow">
+      <Bar
+        data={data}
+        options={{ ...defaultOptions, ...options }}
+        height={height}
+      />
     </div>
   );
 };
