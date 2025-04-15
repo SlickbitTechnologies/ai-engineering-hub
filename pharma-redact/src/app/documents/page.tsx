@@ -12,7 +12,7 @@ import {
 } from '@/store/slices/documentsSlice';
 import { RootState } from '@/store';
 import { MainLayout } from '@/components/layout/main-layout';
-import { uploadFileToLocalStorage, addDocumentToLocalStorage, deleteDocument as deleteLocalDocument } from '@/utils/localStorage';
+import { uploadDocument, deleteDocument as deleteServerDocument } from '@/utils/fileServices';
 
 type UploadSource = 'local' | 'dms' | 'sharepoint';
 
@@ -98,27 +98,12 @@ export default function DocumentsPage() {
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         
-        // Upload file to local storage instead of Firebase
-        const fileUrl = await uploadFileToLocalStorage(file);
-        
         // Calculate progress
         const currentProgress = Math.round(((i + 1) / selectedFiles.length) * 100);
         setUploadProgress(currentProgress);
         
-        // Create document object
-        const newDocument: Omit<Document, 'id' | 'firestoreId'> = {
-          name: file.name,
-          type: file.name.split('.').pop()?.toLowerCase() || 'unknown',
-          path: `/documents/${file.name}`,
-          size: file.size,
-          uploadedAt: new Date().toISOString(),
-          status: 'pending',
-          source: uploadSource,
-          fileUrl
-        };
-        
-        // Add document to Redux and local storage
-        dispatch(addDocument(newDocument) as any);
+        // Add document to Redux store, which will handle the upload
+        await dispatch(addDocument(file) as any);
       }
       
       // Reset state after successful upload
@@ -134,10 +119,8 @@ export default function DocumentsPage() {
 
   const handleDeleteDocument = async (doc: Document) => {
     try {
-      // Delete document from local storage instead of Firebase
-      if (doc.fileUrl) {
-        await deleteLocalDocument(doc.fileUrl, doc.id);
-      }
+      // Delete document using the SQLite API
+      await deleteServerDocument(doc.id);
       
       // Remove from Redux store
       await dispatch(removeDocument({ 

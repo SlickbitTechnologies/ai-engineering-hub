@@ -16,6 +16,7 @@ interface User {
   email: string;
   avatar?: string | null;
   uid: string;
+  getIdToken: () => Promise<string>;
 }
 
 interface AuthContextType {
@@ -49,7 +50,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       uid: firebaseUser.uid,
       email: firebaseUser.email || 'anonymous@example.com',
       name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Anonymous User',
-      avatar: firebaseUser.photoURL
+      avatar: firebaseUser.photoURL,
+      getIdToken: async () => await firebaseUser.getIdToken()
     };
   };
 
@@ -60,10 +62,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (firebaseUser) {
         const formattedUser = formatUser(firebaseUser);
         setUser(formattedUser);
-        localStorage.setItem("user", JSON.stringify(formattedUser));
       } else {
         setUser(null);
-        localStorage.removeItem("user");
       }
       setIsLoading(false);
     });
@@ -78,7 +78,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const formattedUser = formatUser(userCredential.user);
       setUser(formattedUser);
-      localStorage.setItem("user", JSON.stringify(formattedUser));
       router.push("/documents");
     } catch (error) {
       console.error("Login failed:", error);
@@ -95,7 +94,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const result = await signInWithPopup(auth, googleProvider);
       const formattedUser = formatUser(result.user);
       setUser(formattedUser);
-      localStorage.setItem("user", JSON.stringify(formattedUser));
       router.push("/documents");
     } catch (error) {
       console.error("Google login failed:", error);
@@ -109,7 +107,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     try {
       await signOut(auth);
-      localStorage.removeItem("user");
       setUser(null);
       router.push("/login");
     } catch (error) {

@@ -9,23 +9,46 @@ import { RedactionEntity } from "@/types/redaction";
 import { MainLayout } from "@/components/layout/main-layout";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { getViewableUrl } from "@/utils/localStorage";
+import { getDownloadUrl } from "@/utils/fileServices";
 import { PDFProcessor } from "@/utils/pdf-processor";
+import { useDocuments } from "@/hooks/useDocuments";
+import { useAuth } from "@/context/AuthContext";
 
 type RedactionCategory = "PERSON" | "EMAIL" | "PHONE" | "ADDRESS" | "DATE_OF_BIRTH" | "FINANCIAL" | "MEDICAL" | "LEGAL" | string;
 
-export default function ReportPage() {
-  const params = useParams();
+export default function DocumentReportPage({ params }: { params: { documentId: string } }) {
   const router = useRouter();
-  const documentId = params?.documentId as string;
-  
+  const { isAuthenticated } = useAuth();
+  const { currentDocument, loading, error, fetchDocument } = useDocuments();
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated && !loading) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, loading, router]);
+
+  // Fetch document on mount
+  useEffect(() => {
+    if (isAuthenticated && params.documentId) {
+      fetchDocument(params.documentId);
+    }
+  }, [isAuthenticated, params.documentId, fetchDocument]);
+
+  // Redirect to document page if it's not redacted yet
+  useEffect(() => {
+    if (currentDocument && currentDocument.status !== 'redacted') {
+      router.push(`/documents/${currentDocument.id}`);
+    }
+  }, [currentDocument, router]);
+
   // Get document and redaction data from Redux store
   const document = useSelector((state: RootState) => 
-    state.documents.documents.find(doc => doc.id === documentId)
+    state.documents.documents.find(doc => doc.id === params.documentId)
   );
   
   const redactionReport = useSelector((state: RootState) => 
-    state.redaction.reports[documentId]
+    state.redaction.reports[params.documentId]
   );
   
   const [showPdfModal, setShowPdfModal] = useState(false);
@@ -41,7 +64,7 @@ export default function ReportPage() {
     if (document?.redactedUrl) {
       const loadUrl = async () => {
         try {
-          const url = await getViewableUrl(document.redactedUrl as string);
+          const url = await getDownloadUrl(document.redactedUrl as string);
           setPdfUrl(url);
         } catch (error) {
           console.error('Error getting viewable URL:', error);
@@ -83,7 +106,7 @@ export default function ReportPage() {
     if (!document?.redactedUrl) return;
     
     try {
-      const url = await getViewableUrl(document.redactedUrl);
+      const url = await getDownloadUrl(document.redactedUrl);
       
       // Use the PDFProcessor's download method for better handling
       const response = await fetch(url);
@@ -121,51 +144,29 @@ export default function ReportPage() {
   // Create the categories map for display
   const entityCountByCategory = getEntityCountByCategory();
   
-  // If document or redaction data is not available, show loading
-  if (!document || !redactionReport) {
+  if (loading || !currentDocument) {
     return (
       <MainLayout>
-        <div className="flex flex-col gap-6 p-4">
-          <div className="flex items-center gap-2">
+        <div className="container mx-auto p-6 flex items-center justify-center h-96">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout>
+        <div className="container mx-auto p-6">
+          <div className="bg-red-50 dark:bg-red-900 p-4 rounded-md">
+            <h2 className="text-red-800 dark:text-red-200 font-medium">Error</h2>
+            <p className="text-red-700 dark:text-red-300">{error}</p>
             <button
-              onClick={() => router.back()}
-              className="p-2 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
-              aria-label="Go back"
+              onClick={() => router.push('/documents')}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
+              Go back to documents
             </button>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Redaction Report</h2>
-              <p className="text-gray-600">Loading redaction details...</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-center h-[60vh]">
-            <div className="text-center">
-              <svg 
-                className="animate-spin h-12 w-12 text-primary-600 mx-auto mb-4" 
-                xmlns="http://www.w3.org/2000/svg" 
-                fill="none" 
-                viewBox="0 0 24 24"
-              >
-                <circle 
-                  className="opacity-25" 
-                  cx="12" 
-                  cy="12" 
-                  r="10" 
-                  stroke="currentColor" 
-                  strokeWidth="4"
-                ></circle>
-                <path 
-                  className="opacity-75" 
-                  fill="currentColor" 
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              <h2 className="text-xl font-medium text-gray-700">Loading redaction report...</h2>
-            </div>
           </div>
         </div>
       </MainLayout>
@@ -174,200 +175,167 @@ export default function ReportPage() {
 
   return (
     <MainLayout>
-      <div className="flex flex-col gap-6 p-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.back()}
-            className="p-2 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
-            aria-label="Go back"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
+      <div className="container mx-auto p-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Redaction Report</h2>
-            <p className="text-gray-600">Review redacted content and provide feedback</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              Redaction Report: {currentDocument.fileName}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300 mt-1">
+              Status: <span className="font-medium text-green-600 dark:text-green-400">Redacted</span>
+            </p>
           </div>
+          
+          <button
+            onClick={() => router.push('/documents')}
+            className="mt-4 md:mt-0 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+          >
+            Back to Documents
+          </button>
         </div>
 
-        {/* Quick actions */}
-        <div className="flex flex-wrap gap-3 mb-2">
-          {/* Buttons removed */}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Redaction Summary Panel */}
-          <div className="lg:col-span-1 flex flex-col gap-4">
-            <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Redaction Summary</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Redaction Summary</h2>
               
-              <div className="space-y-5">
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Document Name</p>
-                  <p className="text-gray-900 font-medium">{document.name}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">File Type</p>
-                  <p className="text-gray-900 font-medium">{document.type.toUpperCase()}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Total Redactions</p>
-                  <p className="text-gray-900 font-medium">{redactionReport.totalEntities}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500 mb-2">Redactions by Type</p>
-                  <div className="space-y-2">
-                    {Object.entries(entityCountByCategory).map(([category, count]) => (
-                      <div key={category} className="flex justify-between items-center">
-                        <span className="flex items-center gap-1.5">
-                          <span className={`inline-block w-3 h-3 rounded-full ${
-                            category === 'PERSON' ? 'bg-blue-500' :
-                            category === 'EMAIL' ? 'bg-green-500' :
-                            category === 'PHONE' ? 'bg-yellow-500' :
-                            category === 'ADDRESS' ? 'bg-purple-500' :
-                            category === 'DATE_OF_BIRTH' ? 'bg-pink-500' :
-                            category === 'FINANCIAL' ? 'bg-emerald-500' :
-                            category === 'MEDICAL' ? 'bg-red-500' :
-                            'bg-gray-500'
-                          }`}></span>
-                          <span className="text-sm font-medium text-gray-700">{category}</span>
-                        </span>
-                        <span className="text-sm text-gray-900">{count}</span>
-                      </div>
-                    ))}
+              <div className="prose dark:prose-invert max-w-none">
+                {currentDocument.summary ? (
+                  <div dangerouslySetInnerHTML={{ __html: currentDocument.summary }} />
+                ) : (
+                  <p className="text-gray-500 dark:text-gray-400">No summary available.</p>
+                )}
+              </div>
+            </div>
+            
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Document Preview</h2>
+              
+              {/* This would typically be a PDF preview component */}
+              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-16 flex items-center justify-center">
+                <div className="text-center">
+                  <svg
+                    className="mx-auto h-12 w-12 text-gray-400"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  <p className="mt-4 text-gray-600 dark:text-gray-400">
+                    Document preview would be shown here.
+                  </p>
+                  
+                  <div className="mt-4">
+                    <a
+                      href={`/api/documents/${currentDocument.id}/download`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                    >
+                      <svg
+                        className="h-5 w-5 mr-2"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                        />
+                      </svg>
+                      Download Redacted Document
+                    </a>
                   </div>
                 </div>
               </div>
             </div>
-            
-            <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Actions</h3>
-              
-              <div className="space-y-3">
-                {/* Buttons removed */}
-                
-                <Link
-                  href={`/documents/${documentId}`}
-                  className="w-full block text-center px-4 py-2 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 active:translate-y-0.5"
-                >
-                  Back to Document
-                </Link>
-              </div>
-            </div>
           </div>
-
-          {/* Redacted Content Panel */}
-          <div className="lg:col-span-3">
-            <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Redacted Content</h3>
+          
+          <div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Document Information</h2>
               
-              {redactionReport.totalEntities === 0 ? (
-                <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <h3 className="text-xl font-medium text-gray-700 mb-2">No Redactions Needed</h3>
-                  <p className="text-gray-500 max-w-md mx-auto">
-                    No sensitive information was found in this document. The document has been marked as analyzed but no content was redacted.
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">File Name</p>
+                  <p className="text-gray-900 dark:text-white">{currentDocument.fileName}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">File Type</p>
+                  <p className="text-gray-900 dark:text-white">{currentDocument.fileType}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">File Size</p>
+                  <p className="text-gray-900 dark:text-white">
+                    {(currentDocument.fileSize / (1024 * 1024)).toFixed(2)} MB
                   </p>
                 </div>
-              ) : (
-                <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
-                  {redactionReport.entityList.map((entity) => (
-                    <div 
-                      key={entity.id}
-                      className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${selectedEntity === entity.id ? 'bg-gray-50 border-l-4 border-primary-500 pl-3' : ''}`}
-                      onClick={() => handleItemClick(entity.id)}
-                      role="button"
-                      tabIndex={0}
-                      aria-selected={selectedEntity === entity.id}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          handleItemClick(entity.id);
-                          e.preventDefault();
-                        }
-                      }}
-                    >
-                      <div className="flex items-start justify-between mb-1.5">
-                        <div className="flex-1 pr-3">
-                          <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <h4 className="font-medium text-gray-900">{entity.text}</h4>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              entity.type === 'PERSON' ? 'bg-blue-100 text-blue-800' :
-                              entity.type === 'EMAIL' ? 'bg-green-100 text-green-800' :
-                              entity.type === 'PHONE' ? 'bg-yellow-100 text-yellow-800' :
-                              entity.type === 'ADDRESS' ? 'bg-purple-100 text-purple-800' :
-                              entity.type === 'DATE_OF_BIRTH' ? 'bg-pink-100 text-pink-800' :
-                              entity.type === 'FINANCIAL' ? 'bg-emerald-100 text-emerald-800' :
-                              entity.type === 'MEDICAL' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {entity.type}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600">Type: {entity.type}</p>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-sm font-medium text-gray-700">{Math.round(entity.confidence * 100)}%</span>
-                          <button 
-                            className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-full p-1"
-                            aria-label={`View details for ${entity.text}`}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                              <circle cx="12" cy="12" r="3" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Page {entity.page + 1} {entity.coordinates && `• Position (${Math.round(entity.coordinates.x)}, ${Math.round(entity.coordinates.y)})`}
-                      </div>
-                    </div>
-                  ))}
+                
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Uploaded At</p>
+                  <p className="text-gray-900 dark:text-white">
+                    {new Date(currentDocument.uploadedAt).toLocaleString()}
+                  </p>
                 </div>
-              )}
+                
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Last Updated</p>
+                  <p className="text-gray-900 dark:text-white">
+                    {new Date(currentDocument.updatedAt).toLocaleString()}
+                  </p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
+                  <p className="text-gray-900 dark:text-white">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                      Redacted
+                    </span>
+                  </p>
+                </div>
+              </div>
             </div>
             
-            <div className="mt-4 bg-white rounded-md shadow-sm border border-gray-200 p-5">
-              <textarea
-                ref={feedbackRef}
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                placeholder="Select a redacted item to provide specific feedback, or enter general feedback here..."
-                className="w-full h-24 text-sm border border-gray-300 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                aria-label="Feedback"
-              ></textarea>
-              <div className="flex justify-between items-center mt-3">
-                <button 
-                  onClick={handleClearFeedback}
-                  className="text-gray-500 hover:text-gray-700 p-1 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  title="Clear feedback"
-                  aria-label="Clear feedback"
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Actions</h2>
+              
+              <div className="space-y-3">
+                <a
+                  href={`/api/documents/${currentDocument.id}/download-original`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg text-center transition-colors"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm3.5 14l-7-7m0 7l7-7" />
-                  </svg>
+                  Download Original
+                </a>
+                
+                <a
+                  href={`/api/documents/${currentDocument.id}/download`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-center transition-colors"
+                >
+                  Download Redacted
+                </a>
+                
+                <button
+                  onClick={() => window.print()}
+                  className="block w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg text-center transition-colors"
+                >
+                  Print Report
                 </button>
-                <div className="flex items-center gap-3">
-                  <div className="text-sm text-gray-500">{feedback.length} characters</div>
-                  <button 
-                    onClick={handleSubmitFeedback}
-                    className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md text-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-                    disabled={!feedback.trim()}
-                    aria-label="Submit feedback"
-                  >
-                    <span>Submit</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                      <line x1="22" y1="2" x2="11" y2="13" />
-                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                    </svg>
-                  </button>
-                </div>
               </div>
             </div>
           </div>
@@ -388,7 +356,7 @@ export default function ReportPage() {
               {/* PDF Modal Header */}
               <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 p-4">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                  Redacted Document: {document.name}
+                  Redacted Document: {document?.name || currentDocument.fileName}
                 </h3>
                 <div className="flex items-center gap-3">
                   <button

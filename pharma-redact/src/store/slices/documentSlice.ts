@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
-import { getDocumentsFromLocalStorage, syncDocumentsToLocalStorage, DocumentMetadata } from '@/utils/localStorage';
+import { getDocuments, uploadDocument, deleteDocument as deleteServerDocument } from '@/utils/fileServices';
+import { Document as DocumentType } from '@/types/document';
 
 export interface Document {
     id: string;
@@ -16,6 +17,22 @@ export interface Document {
     entitiesFound?: number;
 }
 
+// Mapper to convert SQLite Document to Redux Document format
+const mapDbDocToStoreDoc = (dbDoc: DocumentType): Document => {
+    return {
+        id: dbDoc.id,
+        name: dbDoc.fileName,
+        type: dbDoc.fileType.split('/').pop() || 'unknown',
+        path: `/documents/${dbDoc.id}`,
+        size: dbDoc.fileSize,
+        uploadedAt: new Date(dbDoc.uploadedAt).toISOString(),
+        status: dbDoc.status,
+        source: 'upload',
+        fileUrl: dbDoc.originalFilePath,
+        redactedUrl: dbDoc.redactedFilePath || undefined
+    };
+};
+
 interface DocumentState {
     documents: Document[];
     selectedDocument: Document | null;
@@ -30,17 +47,17 @@ const initialState: DocumentState = {
     error: null
 };
 
-// Async thunk to load documents from local storage
+// Async thunk to load documents from SQLite database
 export const loadDocuments = createAsyncThunk(
     'documents/loadDocuments',
-    async () => {
+    async (_, { rejectWithValue }) => {
         try {
-            // Load documents from local storage
-            const documents = getDocumentsFromLocalStorage();
-            return documents;
-        } catch (error) {
-            console.error('Error loading documents from local storage:', error);
-            throw error;
+            // Load documents from SQLite API
+            const documents = await getDocuments();
+            return documents.map(mapDbDocToStoreDoc);
+        } catch (error: any) {
+            console.error('Error loading documents:', error);
+            return rejectWithValue(error.message);
         }
     }
 );
@@ -51,8 +68,6 @@ const documentSlice = createSlice({
     reducers: {
         addDocument: (state, action: PayloadAction<Document>) => {
             state.documents.push(action.payload);
-            // Sync to local storage after adding
-            syncDocumentsToLocalStorage(state.documents as unknown as DocumentMetadata[]);
         },
         selectDocument: (state, action: PayloadAction<string>) => {
             state.selectedDocument = state.documents.find(doc => doc.id === action.payload) || null;
@@ -64,8 +79,6 @@ const documentSlice = createSlice({
                 if (state.selectedDocument?.id === action.payload.id) {
                     state.selectedDocument = { ...state.selectedDocument, ...action.payload.updates };
                 }
-                // Sync to local storage after updating
-                syncDocumentsToLocalStorage(state.documents as unknown as DocumentMetadata[]);
             }
         },
         removeDocument: (state, action: PayloadAction<{ id: string }>) => {
@@ -73,8 +86,6 @@ const documentSlice = createSlice({
             if (state.selectedDocument?.id === action.payload.id) {
                 state.selectedDocument = null;
             }
-            // Sync to local storage after removing
-            syncDocumentsToLocalStorage(state.documents as unknown as DocumentMetadata[]);
         },
     },
     extraReducers: (builder) => {
@@ -89,7 +100,7 @@ const documentSlice = createSlice({
             })
             .addCase(loadDocuments.rejected, (state, action) => {
                 state.isLoading = false;
-                state.error = action.error.message || 'Failed to load documents';
+                state.error = action.payload as string || 'Failed to load documents';
             });
     },
 });
