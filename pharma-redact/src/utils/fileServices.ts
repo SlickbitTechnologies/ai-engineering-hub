@@ -13,25 +13,35 @@ import { Document } from '@/types/document';
  * @returns The document object created
  */
 export const uploadDocument = async (file: File): Promise<Document> => {
-    const formData = new FormData();
-    formData.append('file', file);
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
 
-    const token = await getAuthToken();
+        const { token, headers } = await getAuthTokenAndHeaders();
 
-    const response = await fetch('/api/documents', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
-        body: formData
-    });
+        console.log('Uploading document:', file.name, file.size, 'bytes');
+        const response = await fetch('/api/documents', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                ...headers
+            },
+            body: formData
+        });
 
-    if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to upload document');
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: `HTTP error ${response.status}` }));
+            console.error('Upload failed:', errorData);
+            throw new Error(errorData.error || `Failed to upload document: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log('Upload successful, document ID:', result.id);
+        return result;
+    } catch (error) {
+        console.error('Error in uploadDocument:', error);
+        throw error;
     }
-
-    return await response.json();
 };
 
 /**
@@ -39,12 +49,13 @@ export const uploadDocument = async (file: File): Promise<Document> => {
  * @returns List of document objects
  */
 export const getDocuments = async (): Promise<Document[]> => {
-    const token = await getAuthToken();
+    const { token, headers } = await getAuthTokenAndHeaders();
 
     const response = await fetch('/api/documents', {
         method: 'GET',
         headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            ...headers
         }
     });
 
@@ -62,12 +73,17 @@ export const getDocuments = async (): Promise<Document[]> => {
  * @returns The document object
  */
 export const getDocumentById = async (documentId: string): Promise<Document> => {
-    const token = await getAuthToken();
+    const { token, headers } = await getAuthTokenAndHeaders();
 
-    const response = await fetch(`/api/documents/${documentId}`, {
+    // Sanitize document ID
+    const sanitizedId = String(documentId).trim();
+    console.log(`API Service: Getting document by ID ${sanitizedId} (length: ${sanitizedId.length})`);
+
+    const response = await fetch(`/api/documents/${sanitizedId}`, {
         method: 'GET',
         headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            ...headers
         }
     });
 
@@ -81,26 +97,31 @@ export const getDocumentById = async (documentId: string): Promise<Document> => 
 
 /**
  * Save a redacted document
- * @param documentId The document ID
- * @param redactedFile The redacted file 
- * @param summary A summary of redactions
- * @returns The updated document
+ * @param documentId The original document ID
+ * @param redactedFile The redacted file
+ * @param summary The redaction summary
+ * @returns The updated document object
  */
 export const saveRedactedDocument = async (
     documentId: string,
     redactedFile: File,
     summary: string
 ): Promise<Document> => {
-    const token = await getAuthToken();
+    const { token, headers } = await getAuthTokenAndHeaders();
+
+    // Sanitize document ID
+    const sanitizedId = String(documentId).trim();
+    console.log(`API Service: Saving redacted document for ID ${sanitizedId} (length: ${sanitizedId.length})`);
 
     const formData = new FormData();
     formData.append('redactedFile', redactedFile);
     formData.append('summary', summary);
 
-    const response = await fetch(`/api/documents/${documentId}/redact`, {
+    const response = await fetch(`/api/documents/${sanitizedId}/redact`, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            ...headers
         },
         body: formData
     });
@@ -119,12 +140,17 @@ export const saveRedactedDocument = async (
  * @returns True if successful
  */
 export const deleteDocument = async (documentId: string): Promise<boolean> => {
-    const token = await getAuthToken();
+    const { token, headers } = await getAuthTokenAndHeaders();
 
-    const response = await fetch(`/api/documents/${documentId}`, {
+    // Sanitize document ID
+    const sanitizedId = String(documentId).trim();
+    console.log(`API Service: Deleting document with ID ${sanitizedId} (length: ${sanitizedId.length})`);
+
+    const response = await fetch(`/api/documents/${sanitizedId}`, {
         method: 'DELETE',
         headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            ...headers
         }
     });
 
@@ -149,15 +175,68 @@ export const getDownloadUrl = (documentId: string, original: boolean = false): s
 };
 
 /**
- * Helper method to get the authentication token
+ * Helper method to get the authentication token and any extra headers
  */
-const getAuthToken = async (): Promise<string> => {
-    // Get the current Firebase user
-    const user = (window as any).firebase?.auth()?.currentUser;
-    if (!user) {
-        throw new Error('User not authenticated');
-    }
+const getAuthTokenAndHeaders = async (): Promise<{ token: string; headers: Record<string, string> }> => {
+    try {
+        // Initialize headers
+        const headers: Record<string, string> = {};
 
-    // Get the user token
-    return await user.getIdToken();
+        // Get the current Firebase user
+        const user = (window as any).firebase?.auth()?.currentUser;
+
+        if (user) {
+            console.log('User authenticated, getting token');
+            // Store the user ID in localStorage for development mode fallback
+            if (process.env.NODE_ENV === 'development') {
+                localStorage.setItem('firebase-user-id', user.uid);
+                console.log(`Development mode: Stored user ID ${user.uid} in localStorage`);
+            }
+            return { token: await user.getIdToken(), headers };
+        }
+
+        // Fallback for development mode
+        if (process.env.NODE_ENV === 'development') {
+            console.warn('Using development fallback authentication');
+
+            // Get the user ID from localStorage if available
+            const storedUserId = localStorage.getItem('firebase-user-id');
+            if (storedUserId) {
+                console.log(`Development mode: Using stored user ID ${storedUserId}`);
+                // Add the user ID as a header
+                headers['x-user-id'] = storedUserId;
+            }
+
+            return { token: 'dev-auth-token', headers };
+        }
+
+        console.error('Authentication failed: No user found');
+        throw new Error('User not authenticated');
+    } catch (error) {
+        console.error('Error getting auth token:', error);
+
+        // Fallback for development mode
+        if (process.env.NODE_ENV === 'development') {
+            console.warn('Using development fallback authentication after error');
+            const headers: Record<string, string> = {};
+
+            // Get the user ID from localStorage if available
+            const storedUserId = localStorage.getItem('firebase-user-id');
+            if (storedUserId) {
+                console.log(`Development mode: Using stored user ID ${storedUserId} after error`);
+                // Add the user ID as a header
+                headers['x-user-id'] = storedUserId;
+            }
+
+            return { token: 'dev-auth-token', headers };
+        }
+
+        throw error;
+    }
+};
+
+// Keep the original function for backward compatibility
+const getAuthToken = async (): Promise<string> => {
+    const { token } = await getAuthTokenAndHeaders();
+    return token;
 }; 

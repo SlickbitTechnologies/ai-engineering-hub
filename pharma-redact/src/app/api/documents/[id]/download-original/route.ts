@@ -32,15 +32,67 @@ export async function GET(
         }
 
         // Check if file exists
-        if (!fs.existsSync(document.originalFilePath)) {
+        if (!document.originalFilePath) {
+            console.error('API: Document has no originalFilePath set');
             return NextResponse.json(
-                { error: 'Original file not found' },
+                { error: 'Original file path not found in document record' },
                 { status: 404 }
             );
         }
 
-        // Read the file
-        const fileBuffer = fs.readFileSync(document.originalFilePath);
+        // Validate the file exists
+        if (!fs.existsSync(document.originalFilePath)) {
+            console.error(`API: File not found at path: ${document.originalFilePath}`);
+
+            // Try alternative paths if the file doesn't exist
+            const fileName = path.basename(document.originalFilePath);
+            const possiblePaths = [
+                // Check in user-specific uploads directory
+                path.join(process.cwd(), 'uploads', userId, fileName),
+                // Check in dev-user-123 directory (for development)
+                path.join(process.cwd(), 'uploads', 'dev-user-123', fileName),
+                // Check in the root uploads directory
+                path.join(process.cwd(), 'uploads', fileName)
+            ];
+
+            console.log('API: Trying alternative paths for download:', possiblePaths);
+
+            let fileFound = false;
+            let filePath = '';
+
+            // Check each possible path
+            for (const altPath of possiblePaths) {
+                if (fs.existsSync(altPath)) {
+                    console.log(`API: Found file at alternative path for download: ${altPath}`);
+                    fileFound = true;
+                    filePath = altPath;
+                    break;
+                }
+            }
+
+            if (!fileFound) {
+                return NextResponse.json(
+                    { error: 'Original file not found on disk' },
+                    { status: 404 }
+                );
+            }
+
+            // Continue with the found file
+            document.originalFilePath = filePath;
+        }
+
+        // Read the file with error handling
+        let fileBuffer;
+        try {
+            fileBuffer = fs.readFileSync(document.originalFilePath);
+            console.log(`API: Successfully read file: ${document.originalFilePath}, size: ${fileBuffer.length} bytes`);
+        } catch (readError) {
+            console.error('API: Error reading file:', readError);
+            return NextResponse.json(
+                { error: 'Failed to read file from disk', details: (readError as Error).message },
+                { status: 500 }
+            );
+        }
 
         // Prepare the response
         const response = new NextResponse(fileBuffer);

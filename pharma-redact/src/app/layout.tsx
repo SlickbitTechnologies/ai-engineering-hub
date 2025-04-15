@@ -5,7 +5,7 @@ import { Providers } from "@/store/providers";
 import { AuthProvider } from "@/context/AuthContext";
 import { useEffect } from "react";
 import { useDispatch } from "react-redux";
-import { loadDocuments } from "@/store/slices/documentSlice";
+import { fetchDocuments } from "@/store/slices/documentsSlice";
 import { Toaster } from "@/components/ui/toaster";
 
 export default function RootLayout({
@@ -42,7 +42,7 @@ function AppInitializer() {
   
   useEffect(() => {
     // Load documents from local storage on app initialization
-    dispatch(loadDocuments() as any);
+    dispatch(fetchDocuments() as any);
   }, [dispatch]);
   
   return null;

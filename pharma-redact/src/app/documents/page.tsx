@@ -95,6 +95,8 @@ export default function DocumentsPage() {
     setUploadProgress(0);
     
     try {
+      console.log(`Starting upload of ${selectedFiles.length} files`);
+      
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         
@@ -102,8 +104,17 @@ export default function DocumentsPage() {
         const currentProgress = Math.round(((i + 1) / selectedFiles.length) * 100);
         setUploadProgress(currentProgress);
         
-        // Add document to Redux store, which will handle the upload
-        await dispatch(addDocument(file) as any);
+        console.log(`Uploading file ${i + 1}/${selectedFiles.length}: ${file.name} (${file.size} bytes)`);
+        
+        try {
+          // Add document to Redux store, which will handle the upload
+          await dispatch(addDocument(file) as any);
+          console.log(`Successfully uploaded: ${file.name}`);
+        } catch (uploadError: any) {
+          console.error(`Error uploading ${file.name}:`, uploadError);
+          // Continue with other files even if one fails
+          alert(`Failed to upload ${file.name}: ${uploadError.message || 'Unknown error'}`);
+        }
       }
       
       // Reset state after successful upload
@@ -111,8 +122,12 @@ export default function DocumentsPage() {
       setIsUploadModalOpen(false);
       setIsUploading(false);
       
-    } catch (error) {
-      console.error('Error uploading files:', error);
+      // Refresh the document list
+      dispatch(fetchDocuments() as any);
+      
+    } catch (error: any) {
+      console.error('Error in upload process:', error);
+      alert(`Upload failed: ${error.message || 'Unknown error'}`);
       setIsUploading(false);
     }
   };

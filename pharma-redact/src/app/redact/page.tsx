@@ -6,7 +6,7 @@ import { PDFProcessor } from '@/utils/pdf-processor';
 import { redactionTemplates, RedactionTemplate } from '@/config/redactionTemplates';
 import Link from 'next/link';
 import { useDispatch } from 'react-redux';
-import { addDocument } from '@/store/slices/documentSlice';
+import { addDocument } from '@/store/slices/documentsSlice';
 
 export default function RedactPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -150,17 +150,15 @@ export default function RedactPage() {
       
       // Update Redux store with the processed document
       if (file) {
-        dispatch(addDocument({
-          id: Math.random().toString(36).substring(2, 15),
-          name: file.name,
-          type: 'pdf',
-          path: URL.createObjectURL(file),
-          size: file.size,
-          uploadedAt: new Date().toISOString(),
-          status: 'redacted',
-          source: 'local',
-          entitiesFound: result.entities.length,
-        }));
+        // Create a new File object with the redacted PDF data
+        const redactedFile = new File(
+          [result.redactedPdf], 
+          `redacted-${file.name}`, 
+          { type: 'application/pdf' }
+        );
+        
+        // Upload the redacted file
+        await dispatch(addDocument(redactedFile) as any);
         
         // Set the processed PDF bytes
         setRedactedPdfBytes(result.redactedPdf);
