@@ -175,9 +175,60 @@ export const getDownloadUrl = (documentId: string, original: boolean = false): s
 };
 
 /**
+ * Download a document with proper authentication
+ * @param documentId The document ID
+ * @param original Whether to download the original file (true) or redacted file (false)
+ */
+export const downloadDocument = async (documentId: string, original: boolean = false): Promise<void> => {
+    const { token } = await getAuthTokenAndHeaders();
+    const endpoint = original
+        ? `/api/documents/${documentId}/download-original`
+        : `/api/documents/${documentId}/download`;
+
+    // Create a fetch request with authentication headers
+    const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to download document');
+    }
+
+    // Get the file blob and create a download link
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    // Create a hidden anchor element and trigger download
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+
+    // Set filename from Content-Disposition header if available
+    const contentDisposition = response.headers.get('Content-Disposition');
+    if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch && filenameMatch[1]) {
+            a.download = filenameMatch[1];
+        }
+    } else {
+        // Fallback filename
+        a.download = original ? 'original-document' : 'redacted-document';
+    }
+
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+};
+
+/**
  * Helper method to get the authentication token and any extra headers
  */
-const getAuthTokenAndHeaders = async (): Promise<{ token: string; headers: Record<string, string> }> => {
+export const getAuthTokenAndHeaders = async (): Promise<{ token: string; headers: Record<string, string> }> => {
     try {
         // Initialize headers
         const headers: Record<string, string> = {};
