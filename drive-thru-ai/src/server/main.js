@@ -43,10 +43,10 @@ app.post("/api/menu-items", (req, res) => {
 });
 
 app.put("/api/menu-items/:id", (req, res) => {
-  const { name, price, description, category } = req.body;
+  const { name, price, description, category, available } = req.body;
   db.run(
-    "UPDATE menu_items SET name = ?, price = ?, description = ?, category = ? WHERE id = ?",
-    [name, price, description, category, req.params.id],
+    "UPDATE menu_items SET name = ?, price = ?, description = ?, category = ?, available = ? WHERE id = ?",
+    [name, price, description, category, available, req.params.id],
     (err) => {
       if (err) {
         res.status(500).json({ error: err.message });

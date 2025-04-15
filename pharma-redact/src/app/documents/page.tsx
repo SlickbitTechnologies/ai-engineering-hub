@@ -12,7 +12,7 @@ import {
 } from '@/store/slices/documentsSlice';
 import { RootState } from '@/store';
 import { MainLayout } from '@/components/layout/main-layout';
-import { uploadFileToStorage } from '@/utils/firebase';
+import { uploadFileToLocalStorage, addDocumentToLocalStorage, deleteDocument as deleteLocalDocument } from '@/utils/localStorage';
 
 type UploadSource = 'local' | 'dms' | 'sharepoint';
 
@@ -98,8 +98,8 @@ export default function DocumentsPage() {
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         
-        // Upload file to Firebase Storage
-        const fileUrl = await uploadFileToStorage(file);
+        // Upload file to local storage instead of Firebase
+        const fileUrl = await uploadFileToLocalStorage(file);
         
         // Calculate progress
         const currentProgress = Math.round(((i + 1) / selectedFiles.length) * 100);
@@ -117,7 +117,7 @@ export default function DocumentsPage() {
           fileUrl
         };
         
-        // Add to Firestore and Redux
+        // Add document to Redux and local storage
         dispatch(addDocument(newDocument) as any);
       }
       
@@ -134,11 +134,16 @@ export default function DocumentsPage() {
 
   const handleDeleteDocument = async (doc: Document) => {
     try {
+      // Delete document from local storage instead of Firebase
+      if (doc.fileUrl) {
+        await deleteLocalDocument(doc.fileUrl, doc.id);
+      }
+      
+      // Remove from Redux store
       await dispatch(removeDocument({ 
-        id: doc.id, 
-        fileUrl: doc.fileUrl, 
-        firestoreId: doc.firestoreId || doc.id 
+        id: doc.id
       }) as any);
+      
       setShowDeleteConfirm(null);
     } catch (error) {
       console.error('Error deleting document:', error);
@@ -165,7 +170,7 @@ export default function DocumentsPage() {
           </div>
           <button
             onClick={handleUploadClick}
-            className="mt-4 md:mt-0 px-4 py-2 bg-chateau-green-600 text-white rounded-lg hover:bg-chateau-green-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2"
+            className="mt-4 md:mt-0 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
           >
             Upload Document
           </button>
@@ -176,7 +181,7 @@ export default function DocumentsPage() {
             <button
               className={`py-2 px-4 ${
                 activeTab === 'all'
-                  ? 'text-chateau-green-600 border-b-2 border-chateau-green-600 font-medium'
+                  ? 'text-primary-600 border-b-2 border-primary-600 font-medium'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => handleTabChange('all')}
@@ -186,7 +191,7 @@ export default function DocumentsPage() {
             <button
               className={`py-2 px-4 ${
                 activeTab === 'pending'
-                  ? 'text-chateau-green-600 border-b-2 border-chateau-green-600 font-medium'
+                  ? 'text-primary-600 border-b-2 border-primary-600 font-medium'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => handleTabChange('pending')}
@@ -196,7 +201,7 @@ export default function DocumentsPage() {
             <button
               className={`py-2 px-4 ${
                 activeTab === 'redacted'
-                  ? 'text-chateau-green-600 border-b-2 border-chateau-green-600 font-medium'
+                  ? 'text-primary-600 border-b-2 border-primary-600 font-medium'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => handleTabChange('redacted')}
@@ -209,7 +214,7 @@ export default function DocumentsPage() {
         <div className="h-[calc(100vh-280px)] overflow-y-auto pr-2 -mr-2">
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-chateau-green-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
             </div>
           ) : filteredDocuments.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
@@ -238,7 +243,7 @@ export default function DocumentsPage() {
               <div className="mt-6">
                 <button
                   onClick={handleUploadClick}
-                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-chateau-green-600 hover:bg-chateau-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500"
+                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                 >
                   <svg
                     className="-ml-1 mr-2 h-5 w-5"
@@ -299,7 +304,7 @@ export default function DocumentsPage() {
                                 : doc.status === 'processing'
                                 ? 'bg-blue-100 text-blue-800'
                                 : doc.status === 'redacted'
-                                ? 'bg-green-100 text-green-800'
+                                ? 'bg-primary-100 text-primary-800'
                                 : 'bg-red-100 text-red-800'
                             }`}
                           >
@@ -315,46 +320,7 @@ export default function DocumentsPage() {
                   </div>
                   <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 flex justify-between items-center">
                     <span className="text-sm text-gray-500 dark:text-gray-300 capitalize">{doc.source}</span>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowDeleteConfirm(doc.id);
-                      }}
-                      className="text-gray-400 hover:text-red-500 focus:outline-none"
-                      aria-label="Delete document"
-                    >
-                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
                   </div>
-
-                  {/* Delete confirmation dialog */}
-                  {showDeleteConfirm === doc.id && (
-                    <div className="absolute inset-0 bg-white dark:bg-gray-800 flex flex-col justify-center items-center p-4 z-10 rounded-lg shadow-lg">
-                      <svg className="h-12 w-12 text-red-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Delete Document?</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
-                        Are you sure you want to delete this document? This action cannot be undone.
-                      </p>
-                      <div className="flex space-x-4">
-                        <button
-                          onClick={() => handleDeleteDocument(doc)}
-                          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                        >
-                          Delete
-                        </button>
-                        <button
-                          onClick={() => setShowDeleteConfirm(null)}
-                          className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -387,7 +353,7 @@ export default function DocumentsPage() {
                     type="button"
                     className={`py-2 px-4 rounded-md ${
                       uploadSource === 'local'
-                        ? 'bg-chateau-green-600 text-white'
+                        ? 'bg-primary-600 text-white'
                         : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                     onClick={() => setUploadSource('local')}
@@ -398,7 +364,7 @@ export default function DocumentsPage() {
                     type="button"
                     className={`py-2 px-4 rounded-md ${
                       uploadSource === 'dms'
-                        ? 'bg-chateau-green-600 text-white'
+                        ? 'bg-primary-600 text-white'
                         : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                     onClick={() => setUploadSource('dms')}
@@ -409,7 +375,7 @@ export default function DocumentsPage() {
                     type="button"
                     className={`py-2 px-4 rounded-md ${
                       uploadSource === 'sharepoint'
-                        ? 'bg-chateau-green-600 text-white'
+                        ? 'bg-primary-600 text-white'
                         : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                     onClick={() => setUploadSource('sharepoint')}
@@ -423,7 +389,7 @@ export default function DocumentsPage() {
                 <>
                   <div 
                     className={`border-2 border-dashed rounded-lg p-8 mb-6 text-center ${
-                      selectedFiles.length > 0 ? 'border-chateau-green-300 bg-chateau-green-50' : 'border-gray-300 hover:border-chateau-green-300'
+                      selectedFiles.length > 0 ? 'border-primary-300 bg-primary-50' : 'border-gray-300 hover:border-primary-300'
                     }`}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
@@ -456,7 +422,7 @@ export default function DocumentsPage() {
                           <button 
                             type="button" 
                             onClick={handleFileSelect}
-                            className="text-chateau-green-600 hover:text-chateau-green-500 font-medium"
+                            className="text-primary-600 hover:text-primary-500 font-medium"
                           >
                             Click to upload
                           </button> or drag and drop
@@ -468,7 +434,7 @@ export default function DocumentsPage() {
                     ) : (
                       <div className="text-center">
                         <svg 
-                          className="mx-auto h-12 w-12 text-chateau-green-500" 
+                          className="mx-auto h-12 w-12 text-primary-500" 
                           fill="none" 
                           stroke="currentColor" 
                           viewBox="0 0 24 24" 
@@ -481,13 +447,13 @@ export default function DocumentsPage() {
                             d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                           />
                         </svg>
-                        <p className="mt-2 text-sm font-medium text-chateau-green-600">
+                        <p className="mt-2 text-sm font-medium text-primary-600">
                           {selectedFiles.length} {selectedFiles.length === 1 ? 'file' : 'files'} selected
                         </p>
                         <button 
                           type="button" 
                           onClick={handleFileSelect}
-                          className="mt-1 text-xs text-chateau-green-600 hover:text-chateau-green-500 font-medium underline"
+                          className="mt-1 text-xs text-primary-600 hover:text-primary-500 font-medium underline"
                         >
                           Add more files
                         </button>
@@ -568,7 +534,7 @@ export default function DocumentsPage() {
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2.5">
                     <div 
-                      className="bg-chateau-green-600 h-2.5 rounded-full transition-all duration-300" 
+                      className="bg-primary-600 h-2.5 rounded-full transition-all duration-300" 
                       style={{ width: `${uploadProgress}%` }}
                     ></div>
                   </div>
@@ -579,7 +545,7 @@ export default function DocumentsPage() {
                 <button
                   type="button"
                   onClick={() => setIsUploadModalOpen(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500"
+                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                 >
                   Cancel
                 </button>
@@ -587,10 +553,10 @@ export default function DocumentsPage() {
                   type="button"
                   onClick={handleUpload}
                   disabled={selectedFiles.length === 0 || isUploading || uploadSource !== 'local'}
-                  className={`px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500 ${
+                  className={`px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
                     selectedFiles.length === 0 || isUploading || uploadSource !== 'local'
                       ? 'bg-gray-300 cursor-not-allowed'
-                      : 'bg-chateau-green-600 hover:bg-chateau-green-700'
+                      : 'bg-primary-600 hover:bg-primary-700'
                   }`}
                 >
                   {isUploading ? 'Uploading...' : 'Upload'}

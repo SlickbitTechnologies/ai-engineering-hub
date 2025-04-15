@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query, where } from 'firebase/firestore';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
 // Firebase configuration from environment variables
 const firebaseConfig = {
@@ -16,33 +17,92 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+
+console.log("Firebase initialized with config:", {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.substring(0, 5) + "...",
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+});
+
+// Workaround for CORS issues - use this for development only
+const developmentCorsWorkaround = process.env.NODE_ENV === 'development';
 
 // Upload file to Firebase Storage
 export const uploadFileToStorage = async (file: File, path: string = 'documents'): Promise<string> => {
     try {
-        const storageRef = ref(storage, `${path}/${file.name}-${Date.now()}`);
-        const uploadTask = uploadBytesResumable(storageRef, file);
+        console.log(`Starting upload for file: ${file.name} to path: ${path}`);
 
-        return new Promise((resolve, reject) => {
-            uploadTask.on(
-                'state_changed',
-                (snapshot) => {
-                    // You can use this to track upload progress if needed
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    console.log('Upload is ' + progress + '% done');
-                },
-                (error) => {
-                    // Handle unsuccessful uploads
-                    console.error('Error uploading file:', error);
-                    reject(error);
-                },
-                async () => {
-                    // Handle successful uploads
-                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                    resolve(downloadURL);
+        // Create a unique file name to avoid collisions
+        const timestamp = Date.now();
+        const uniqueFileName = `${path}/${file.name.replace(/\s+/g, '_')}-${timestamp}`;
+        const storageRef = ref(storage, uniqueFileName);
+
+        console.log(`Created storage reference: ${uniqueFileName}`);
+
+        // Start the upload with custom fetch implementation
+        const metadata = {
+            contentType: file.type,
+            customMetadata: {
+                'uploaded-from': window.location.origin,
+                'upload-time': new Date().toISOString()
+            }
+        };
+
+        // Retry logic with exponential backoff
+        const maxRetries = 3;
+        let retryCount = 0;
+        let lastError: any = null;
+
+        while (retryCount < maxRetries) {
+            try {
+                const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+
+                return await new Promise((resolve, reject) => {
+                    uploadTask.on(
+                        'state_changed',
+                        (snapshot) => {
+                            // Track upload progress
+                            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                            console.log('Upload is ' + progress + '% done');
+                        },
+                        (error) => {
+                            // Handle unsuccessful uploads
+                            console.error('Error uploading file (attempt ' + (retryCount + 1) + '):', error);
+                            console.error('Error details:', error.code, error.message, error.serverResponse);
+                            reject(error);
+                        },
+                        async () => {
+                            try {
+                                // Handle successful uploads
+                                console.log('Upload completed successfully');
+                                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                                console.log('File available at', downloadURL);
+                                resolve(downloadURL);
+                            } catch (error) {
+                                console.error('Error getting download URL:', error);
+                                reject(error);
+                            }
+                        }
+                    );
+                });
+            } catch (error) {
+                console.error(`Upload attempt ${retryCount + 1} failed:`, error);
+                lastError = error;
+                retryCount++;
+
+                if (retryCount < maxRetries) {
+                    // Wait with exponential backoff
+                    const delayMs = Math.pow(2, retryCount) * 1000;
+                    console.log(`Retrying in ${delayMs}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
                 }
-            );
-        });
+            }
+        }
+
+        // If we've exhausted all retries
+        throw lastError || new Error('Upload failed after multiple attempts');
     } catch (error) {
         console.error('Error in uploadFileToStorage:', error);
         throw error;
@@ -52,7 +112,9 @@ export const uploadFileToStorage = async (file: File, path: string = 'documents'
 // Add document metadata to Firestore
 export const addDocumentToFirestore = async (documentData: any): Promise<string> => {
     try {
+        console.log('Adding document to Firestore:', documentData);
         const docRef = await addDoc(collection(db, 'documents'), documentData);
+        console.log('Document added with ID:', docRef.id);
         return docRef.id;
     } catch (error) {
         console.error('Error adding document to Firestore:', error);
@@ -63,6 +125,7 @@ export const addDocumentToFirestore = async (documentData: any): Promise<string>
 // Get all documents from Firestore
 export const getDocumentsFromFirestore = async () => {
     try {
+        console.log('Fetching documents from Firestore');
         const querySnapshot = await getDocs(collection(db, 'documents'));
         const documents: any[] = [];
 
@@ -70,6 +133,7 @@ export const getDocumentsFromFirestore = async () => {
             documents.push({ id: doc.id, ...doc.data() });
         });
 
+        console.log(`Found ${documents.length} documents`);
         return documents;
     } catch (error) {
         console.error('Error getting documents from Firestore:', error);
@@ -80,12 +144,30 @@ export const getDocumentsFromFirestore = async () => {
 // Delete document from Firebase Storage and Firestore
 export const deleteDocument = async (fileUrl: string, firestoreId: string) => {
     try {
-        // Delete from Storage
-        const fileRef = ref(storage, fileUrl);
-        await deleteObject(fileRef);
+        console.log(`Deleting document: ${firestoreId}, file URL: ${fileUrl}`);
+
+        // Delete from Storage if URL exists
+        if (fileUrl) {
+            try {
+                // Extract storage path from URL
+                const url = new URL(fileUrl);
+                const pathWithToken = url.pathname.split('/o/')[1];
+                if (pathWithToken) {
+                    const storagePath = decodeURIComponent(pathWithToken.split('?')[0]);
+                    console.log(`Deleting file from storage path: ${storagePath}`);
+                    const fileRef = ref(storage, storagePath);
+                    await deleteObject(fileRef);
+                    console.log('File deleted from storage');
+                }
+            } catch (storageError) {
+                console.error('Error deleting from storage:', storageError);
+                // Continue to delete from Firestore even if storage deletion fails
+            }
+        }
 
         // Delete from Firestore
         await deleteDoc(doc(db, 'documents', firestoreId));
+        console.log('Document deleted from Firestore');
 
         return true;
     } catch (error) {
@@ -94,4 +176,4 @@ export const deleteDocument = async (fileUrl: string, firestoreId: string) => {
     }
 };
 
-export { storage, db }; 
+export { storage, db, auth, googleProvider }; 

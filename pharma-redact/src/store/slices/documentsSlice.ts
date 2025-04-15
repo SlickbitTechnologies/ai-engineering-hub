@@ -12,6 +12,8 @@ export interface Document {
     source: string;
     fileUrl?: string; // URL to Firebase Storage file
     firestoreId?: string; // Firestore document ID
+    redactedUrl?: string; // URL to redacted version of the document
+    entitiesFound?: number;
 }
 
 interface DocumentsState {
@@ -92,6 +94,18 @@ const documentsSlice = createSlice({
                 }
             }
         },
+        updateDocumentProperties: (state, action: PayloadAction<{ id: string, properties: Partial<Document> }>) => {
+            const { id, properties } = action.payload;
+            const documentIndex = state.documents.findIndex(doc => doc.id === id);
+
+            if (documentIndex !== -1) {
+                state.documents[documentIndex] = { ...state.documents[documentIndex], ...properties };
+
+                if (state.selectedDocument && state.selectedDocument.id === id) {
+                    state.selectedDocument = { ...state.selectedDocument, ...properties };
+                }
+            }
+        },
         addLocalDocument: (state, action: PayloadAction<Document>) => {
             state.documents.push(action.payload);
         },
@@ -145,6 +159,6 @@ const documentsSlice = createSlice({
     },
 });
 
-export const { selectDocument, clearSelectedDocument, updateDocumentStatus, addLocalDocument } = documentsSlice.actions;
+export const { selectDocument, clearSelectedDocument, updateDocumentStatus, updateDocumentProperties, addLocalDocument } = documentsSlice.actions;
 
 export default documentsSlice.reducer; 

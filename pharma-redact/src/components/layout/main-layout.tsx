@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { FC, useState, useEffect } from "react";
 import { Header } from "./header";
 import { Footer } from "./footer";
 import Link from "next/link";
@@ -8,16 +8,19 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ProtectedRoute from "../auth/ProtectedRoute";
 import Image from "next/image";
+import { classNames } from "@/utils/classNames";
+import { cn } from "@/utils/cn";
+import { RulesIcon } from "@/components/icons/RulesIcon";
 
 interface MainLayoutProps {
   children: React.ReactNode;
 }
 
-export function MainLayout({ children }: MainLayoutProps) {
+export const MainLayout: FC<MainLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const status = searchParams.get('status');
+  const status = searchParams?.get('status');
   const { user, logout } = useAuth();
 
   const toggleSidebar = () => {
@@ -59,9 +62,9 @@ export function MainLayout({ children }: MainLayoutProps) {
                 <li>
                   <Link 
                     href="/" 
-                    className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 ${
+                    className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 ${
                       pathname === "/" 
-                        ? "bg-chateau-green-50 text-chateau-green-600" 
+                        ? "bg-primary-50 text-primary-600" 
                         : "text-gray-700 hover:bg-gray-100"
                     }`}
                   >
@@ -76,43 +79,48 @@ export function MainLayout({ children }: MainLayoutProps) {
                 </li>
                 
                 <li>
-                  <Link 
-                    href="/documents" 
-                    className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 ${
-                      pathname.startsWith("/documents")
-                        ? "bg-chateau-green-50 text-chateau-green-600" 
+                  <Link
+                    href="/documents"
+                    className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                      pathname === "/documents" 
+                        ? "bg-primary-50 text-primary-600" 
                         : "text-gray-700 hover:bg-gray-100"
                     }`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                      <polyline points="10 9 9 9 8 9" />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     Documents
                   </Link>
                 </li>
                 
                 <li>
-                  <Link 
-                    href="/redaction-rules" 
-                    className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500 ${
-                      pathname.startsWith("/redaction-rules") 
-                        ? "bg-chateau-green-50 text-chateau-green-600" 
+                  <Link
+                    href="/redact"
+                    className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                      pathname === "/redact" 
+                        ? "bg-primary-50 text-primary-600" 
                         : "text-gray-700 hover:bg-gray-100"
                     }`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                      <line x1="8" y1="6" x2="21" y2="6" />
-                      <line x1="8" y1="12" x2="21" y2="12" />
-                      <line x1="8" y1="18" x2="21" y2="18" />
-                      <line x1="3" y1="6" x2="3.01" y2="6" />
-                      <line x1="3" y1="12" x2="3.01" y2="12" />
-                      <line x1="3" y1="18" x2="3.01" y2="18" />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                     </svg>
-                    Redaction Rules
+                    Redact Document
+                  </Link>
+                </li>
+                
+                <li>
+                  <Link
+                    href="/redaction-rules"
+                    className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                      pathname === "/redaction-rules" 
+                        ? "bg-primary-50 text-primary-600" 
+                        : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <RulesIcon className="h-5 w-5" />
+                    Redaction Settings
                   </Link>
                 </li>
               </ul>
@@ -122,7 +130,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             {user && (
               <div className="border-t border-gray-200 p-4">
                 <div className="flex items-center space-x-3 mb-3">
-                  <div className="relative w-10 h-10 rounded-full bg-chateau-green-100 flex items-center justify-center overflow-hidden">
+                  <div className="relative w-10 h-10 rounded-full bg-primary-200 flex items-center justify-center overflow-hidden">
                     {user.avatar ? (
                       <Image 
                         src={user.avatar} 
@@ -132,7 +140,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                         className="object-cover"
                       />
                     ) : (
-                      <span className="text-chateau-green-600 font-medium text-lg">
+                      <span className="text-primary-600 font-medium text-lg">
                         {user.name.charAt(0).toUpperCase()}
                       </span>
                     )}
@@ -144,7 +152,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                 </div>
                 <button
                   onClick={logout}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-chateau-green-500"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -178,4 +186,4 @@ export function MainLayout({ children }: MainLayoutProps) {
       </div>
     </ProtectedRoute>
   );
-} 
+}; 
