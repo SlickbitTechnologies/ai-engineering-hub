@@ -27,6 +27,7 @@ import LocalDiningIcon from '@mui/icons-material/LocalDining';
 import DriveEtaIcon from '@mui/icons-material/DriveEta';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import Fuse from 'fuse.js';
+import { useNavigate } from 'react-router-dom';
 
 const pulseAnimation = keyframes`
   0% { transform: scale(1); opacity: 1; }
@@ -122,6 +123,7 @@ const OrderingSimulation = () => {
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const messagesContainerRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchMenuItems();
@@ -141,6 +143,7 @@ const OrderingSimulation = () => {
     if(isSubmitted){
       window.alert('Order placed successfully!')
       submitOrderList()
+      // navigate('/orders')
     }
   }, [isSubmitted])
 
@@ -176,6 +179,19 @@ const OrderingSimulation = () => {
     const filterItems = menuItems.map(e => e.name)
     try {
       setIsListening(true);
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: "assistant",
+          text: "Initializing voice assistant, please wait...",
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+          }),
+        },
+      ]);
       const assistantId = '8a6c6580-b2c2-462e-859d-af0f51152d8c';
       await vapiClient.current.start(assistantId, {variableValues: {menu: JSON.stringify(filterItems)}});
 
@@ -189,6 +205,18 @@ const OrderingSimulation = () => {
           setMessages(prev => [...prev, {
             type: 'assistant',
             text: message.transcript,
+            timestamp: new Date().toLocaleTimeString([], { 
+              hour: '2-digit', 
+              minute: '2-digit', 
+              second: '2-digit', 
+              hour12: false 
+            })
+          }]);          
+        }
+        if(orderItems.length > 0) {
+          setMessages(prev => [...prev, {
+            type: 'assistant',
+            text: `Say 'That's it' to finish and submit your order.`,
             timestamp: new Date().toLocaleTimeString([], { 
               hour: '2-digit', 
               minute: '2-digit', 
@@ -244,7 +272,7 @@ const OrderingSimulation = () => {
       // Check if the menu item's name is present in the text
       const regex = new RegExp(`(\\d+)?\\s*${menuItem.name.toLowerCase()}`, 'i'); // Match quantity and item name
       const match = text.toLowerCase().match(regex);
-      console.log(match, 'matchmatchl');
+      console.log(match, 'Match for menu item');
       if (match) {
         const quantity = match[1] ? parseInt(match[1], 10) : 1; // Default quantity is 1 if not specified
         items.push({
@@ -270,12 +298,17 @@ const OrderingSimulation = () => {
   
         if (existingItemIndex !== -1) {
           // If the item exists, update its quantity and total price
-          updatedOrderItems[existingItemIndex].quantity += newItem.quantity;
+          const existingItem = updatedOrderItems[existingItemIndex];
           const customizationTotal =
             newItem.customization?.reduce((sum, option) => sum + parseFloat(option.price), 0) || 0;
-          updatedOrderItems[existingItemIndex].totalPrice =
-            (updatedOrderItems[existingItemIndex].price + customizationTotal) *
-            updatedOrderItems[existingItemIndex].quantity;
+  
+          updatedOrderItems[existingItemIndex] = {
+            ...existingItem,
+            quantity: existingItem.quantity + newItem.quantity, // Add the new quantity to the existing quantity
+            totalPrice:
+              (existingItem.price + customizationTotal) *
+              (existingItem.quantity + newItem.quantity), // Update the total price
+          };
         } else {
           // If the item does not exist, calculate its total price and add it
           const customizationTotal =
@@ -289,7 +322,7 @@ const OrderingSimulation = () => {
         }
       });
   
-      // Return the updated order items
+      console.log(updatedOrderItems, 'Updated order items');
       return updatedOrderItems;
     });
   
@@ -317,13 +350,11 @@ const OrderingSimulation = () => {
 
   // Perform fuzzy search
   const results = fuse.search(text);
-    console.log(results, 'resultslskdjlkdsj')
   if(results.length > 0){
     return results[0].item.name;
   }
   return text;
   }
-
   const removeMenuItems = async (text) => {
     const regex = /remove\s+(\d+)?\s*(.+)/i; // Match "remove [quantity] [item name]"
     const match = text.match(regex);
@@ -337,21 +368,21 @@ const OrderingSimulation = () => {
       itemName = itemName.replace(/[^\w\s]/g, '');
       console.log(itemName, 'Cleaned item name');
   
-      // Use fuzzy matching to find the closest match in the orderItems array
-      const fuse = new Fuse(orderItems, {
-        keys: ['name'], // Search by the 'name' field in orderItems
-        threshold: 0.4, // Adjust the threshold for matching accuracy (lower is stricter)
-      });
+      // Use a functional update to access the latest state
+      setOrderItems((prevOrderItems) => {
+        const fuse = new Fuse(prevOrderItems, {
+          keys: ['name'], // Search by the 'name' field in orderItems
+          threshold: 0.6, // Adjust the threshold for matching accuracy (lower is stricter)
+        });
   
-      const results = fuse.search(itemName);
-      console.log(results, 'Fuzzy search results');
-      const itemToRemove = results.length > 0 ? results[0].item : null;
-  
-      if (itemToRemove) {
-        console.log(itemToRemove, 'Item to remove');
-  
-        // Remove the item or reduce its quantity
-        setOrderItems((prevOrderItems) => {
+        const results = fuse.search(itemName);
+        console.log(results, 'Fuzzy search results');
+        const itemToRemove = results.length > 0 ? results[0].item : null;
+        
+        if (itemToRemove) {
+          console.log(itemToRemove, 'Item to remove');
+
+          // Remove the item or reduce its quantity
           const updatedOrderItems = prevOrderItems.map((item) => {
             if (item.id === itemToRemove.id) {
               const newQuantity = item.quantity - quantityToRemove;
@@ -362,51 +393,39 @@ const OrderingSimulation = () => {
             }
             return item;
           }).filter(Boolean); // Remove null items
+
           console.log(updatedOrderItems, 'Updated order items');
+
+          // Update the total price
+          setOrderTotal((prevTotal) =>
+            updatedOrderItems.reduce((sum, item) => {
+              const customizationTotal =
+                item.customization?.reduce((sum, option) => sum + parseFloat(option.price), 0) || 0;
+              const totalPrice = (item.price + customizationTotal) * item.quantity;
+              return sum + totalPrice;
+            }, 0)
+          );
+
           return updatedOrderItems;
-        });
+        } else {
+          console.log('No matching items found');
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: 'assistant',
+              text: `I couldn't find ${itemName} in your order.`,
+              timestamp: new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
+              }),
+            },
+          ]);
+          return prevOrderItems; // Return the previous state if no match is found
+        }
+      });
   
-        // Update the total price
-        const customizationTotal =
-          itemToRemove.customization?.reduce(
-            (sum, option) => sum + parseFloat(option.price),
-            0
-          ) || 0;
-        const totalPriceToRemove =
-          (itemToRemove.price + customizationTotal) * quantityToRemove;
-  
-        setOrderTotal((prevTotal) => prevTotal - totalPriceToRemove);
-  
-        // Add assistant confirmation message
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: 'assistant',
-            text: `Removed ${quantityToRemove} ${itemToRemove.name}(s) from your order.`,
-            timestamp: new Date().toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: false,
-            }),
-          },
-        ]);
-      } else {
-        // Item not found in the order
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: 'assistant',
-            text: `I couldn't find ${itemName} in your order.`,
-            timestamp: new Date().toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: false,
-            }),
-          },
-        ]);
-      }
     } else {
       // Invalid command format
       setMessages((prev) => [
@@ -426,7 +445,7 @@ const OrderingSimulation = () => {
   };
 
   const handleUserMessage = async (text, from = 'voice') => {
-    console.log(text, 'text_text');
+    console.log(text, 'User message received');
     setIsProcessingOrder(true);
   
     const newMessage = {
@@ -442,55 +461,57 @@ const OrderingSimulation = () => {
     setMessages((prev) => [...prev, newMessage]);
   
     try {
-
       if (text.toLowerCase().startsWith('remove')) {
-        removeMenuItems(text)
-      }
-  
-      // Handle adding items to the order
-      const finalText = findMatchedItems(text);
-      console.log(finalText, 'finalTextfinalText');
-      const identifiedItems = processOrderText(finalText);
-  
-      if (identifiedItems.length > 0) {
-        console.log(identifiedItems, 'identifiedItems');
-        addItemsToOrder(identifiedItems);
-  
-        const itemsList = identifiedItems
-          .map((item) => `${item.quantity || 1} ${item.name}`)
-          .join(', ');
-  
-        const confirmationMessage = `I've added ${itemsList} to your order. Would you like anything else?`;
-  
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: 'assistant',
-            text: confirmationMessage,
-            timestamp: new Date().toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: false,
-            }),
-          },
-        ]);
+        removeMenuItems(text);
       } else {
-        const noItemsMessage =
-          "I couldn't identify any menu items in your order. Could you please try again?";
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: 'assistant',
-            text: noItemsMessage,
-            timestamp: new Date().toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: false,
-            }),
-          },
-        ]);
+        const finalText = findMatchedItems(text)
+        // Handle adding items to the order
+        const identifiedItems = processOrderText(finalText);
+        console.log(identifiedItems, 'Identified items');
+        if (identifiedItems.length > 0) {
+          addItemsToOrder(identifiedItems);
+  
+          const itemsList = identifiedItems
+            .map((item) => `${item.quantity || 1} ${item.name}`)
+            .join(', ');
+  
+          const confirmationMessage = `I've added ${itemsList} to your order. Would you like anything else?`;
+  
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: 'assistant',
+              text: confirmationMessage,
+              timestamp: new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
+              }),
+            },
+          ]);
+        } 
+        // else {
+        //   const noItemsMessage =
+        //     "I couldn't identify any menu items in your order. Could you please try again?";
+        //   setMessages((prev) => [
+        //     ...prev,
+        //     {
+        //       type: 'assistant',
+        //       text: noItemsMessage,
+        //       timestamp: new Date().toLocaleTimeString([], {
+        //         hour: '2-digit',
+        //         minute: '2-digit',
+        //         second: '2-digit',
+        //         hour12: false,
+        //       }),
+        //     },
+        //   ]);
+        // }
+        if(text == `That's it.`){
+          console.log('Sumbmiting_your_order!')
+          setIsSubmitted(true)
+        }
       }
     } catch (error) {
       console.error('Error processing order:', error);
@@ -833,11 +854,11 @@ const OrderingSimulation = () => {
                 <ShoppingCartIcon sx={{ color: '#ff5722' }} />
                 <Typography variant="h6" sx={{ fontWeight: 500 }}>Selected Items</Typography>
                 <Typography variant="body2" sx={{ ml: 'auto', color: 'text.secondary' }}>
-                  {orderItems.length} items
+                  {orderItems?.length} items
                 </Typography>
               </Box>
 
-              {orderItems.length === 0 ? (
+              {orderItems?.length === 0 ? (
                 <Box sx={{
                   flexGrow: 1,
                   display: 'flex',
@@ -878,7 +899,7 @@ const OrderingSimulation = () => {
                   },
                 }}>
                   <AnimatePresence>
-                    {orderItems.map((item, index) => (
+                    {orderItems?.map((item, index) => (
                       <motion.div
                         key={index}
                         variants={itemVariants}
@@ -942,7 +963,7 @@ const OrderingSimulation = () => {
                 </Box>
               )}
 
-              {orderItems.length > 0 && (
+              {orderItems?.length > 0 && (
                 <Box sx={{ 
                   p: 2, 
                   borderTop: '1px solid', 

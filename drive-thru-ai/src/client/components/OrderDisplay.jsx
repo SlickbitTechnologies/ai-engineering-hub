@@ -264,13 +264,13 @@ const OrderDisplay = () => {
                         </motion.div>
 
                         {/* Vehicle Info */}
-                        <Zoom in timeout={500}>
+                        {/* <Zoom in timeout={500}>
                           <Box sx={{ px: 2, py: 1, bgcolor: '#FFF' }}>
-                            {/* <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" color="text.secondary">
                               Vehicle: {order.vehicle}
-                            </Typography> */}
+                            </Typography>
                           </Box>
-                        </Zoom>
+                        </Zoom> */}
 
                         {/* Order Items */}
                         <Box sx={{ p: 2, bgcolor: '#FFF' }}>

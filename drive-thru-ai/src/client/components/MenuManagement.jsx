@@ -122,7 +122,6 @@ const MenuManagement = () => {
       ]
     }
   ]);
-    console.log(menuItems, 'menuItemsmenuItems')
   const [open, setOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('');
