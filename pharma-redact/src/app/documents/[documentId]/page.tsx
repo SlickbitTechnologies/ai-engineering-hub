@@ -8,7 +8,7 @@ import { Document, updateDocumentStatus, updateDocumentProperties, removeDocumen
 import { MainLayout } from "@/components/layout/main-layout";
 import Link from "next/link";
 import { PDFProcessor } from '@/utils/pdf-processor';
-import { saveRedactedDocument, getDownloadUrl, deleteDocument as deleteServerDocument, downloadDocument, getAuthTokenAndHeaders } from '@/utils/fileServices';
+import { saveRedactedDocument as saveRedactedDoc, getDownloadUrl, deleteDocument as deleteServerDocument, downloadDocument, getAuthTokenAndHeaders } from '@/utils/fileServices';
 import { redactionTemplates } from "@/config/redactionTemplates";
 import { motion, AnimatePresence } from "framer-motion";
 import { RedactionTemplate, RedactionReport } from "@/types/redaction";
@@ -52,7 +52,7 @@ export default function DocumentPage() {
     saveRedactedDocument 
   } = useDocuments();
   
-  const [isRedacting, setIsRedacting] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isSelectingTemplate, setIsSelectingTemplate] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<RedactionTemplate | null>(null);
   
@@ -68,7 +68,6 @@ export default function DocumentPage() {
   // New states for template modal and progress tracking
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [redactionProgress, setRedactionProgress] = useState(0);
-  const [isProcessing, setIsProcessing] = useState(false);
   
   const { toast } = useToast();
 
@@ -149,7 +148,7 @@ export default function DocumentPage() {
       setFilteredTemplates(redactionTemplates);
       return;
     }
-    
+
     const lowercaseQuery = searchQuery.toLowerCase();
     const filtered = redactionTemplates.filter(template => 
       template.name.toLowerCase().includes(lowercaseQuery) || 
@@ -193,45 +192,180 @@ export default function DocumentPage() {
       return;
     }
     
-    // Close the modal and start the redaction process with the first selected template
-    // For simplicity, we're using the first template as the primary one, but capturing all selections
+    // Close the modal and start the real redaction process with the first selected template
     setIsTemplateModalOpen(false);
     setSelectedTemplate(selectedTemplates[0]);
-    startRedactionProcess(selectedTemplates[0], selectedTemplates);
+    
+    // Perform real redaction immediately instead of showing the intermediate screen
+    performRealRedaction(selectedTemplates[0], selectedTemplates);
   };
   
-  const startRedactionProcess = async (primaryTemplate: RedactionTemplate, allTemplates: RedactionTemplate[]) => {
+  const performRealRedaction = async (primaryTemplate: RedactionTemplate, allTemplates: RedactionTemplate[]) => {
     if (!currentDocument || !primaryTemplate) return;
     
     try {
       setIsProcessing(true);
       setRedactionProgress(0);
       
-      // Simulate redaction process with more realistic progress updates
-      const steps = 20; // Number of progress steps
-      for (let i = 0; i <= steps; i++) {
-        const progress = Math.floor((i / steps) * 100);
-        setRedactionProgress(progress);
+      // Improved file fetching with retries and fallback
+      let pdfBuffer: ArrayBuffer | null = null;
+      let fetchAttempts = 0;
+      const maxAttempts = 3;
+      
+      while (fetchAttempts < maxAttempts && !pdfBuffer) {
+        fetchAttempts++;
         
-        // Use requestAnimationFrame to ensure UI updates
-        await new Promise(resolve => {
-          requestAnimationFrame(() => {
-            setTimeout(resolve, 150); // Smaller timeout for smoother animation
+        try {
+          // First attempt - standard API fetch
+          console.log(`Fetching original PDF (attempt ${fetchAttempts}/${maxAttempts})...`);
+          
+          const { token } = await getAuthTokenAndHeaders();
+          const originalPdfResponse = await fetch(getDownloadUrl(currentDocument.id, true), {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
           });
-        });
+          
+          if (originalPdfResponse.ok) {
+            // Verify the content type is PDF
+            const contentType = originalPdfResponse.headers.get('content-type');
+            if (contentType && (contentType.includes('application/pdf') || contentType.includes('octet-stream'))) {
+              pdfBuffer = await originalPdfResponse.arrayBuffer();
+              console.log(`Successfully fetched original PDF (${pdfBuffer.byteLength} bytes)`);
+            } else {
+              console.error(`Response is not a PDF file: content-type=${contentType}`);
+              // Continue to next attempt
+            }
+          } else {
+            const errorText = await originalPdfResponse.text().catch(() => "No error details available");
+            console.error(`Failed to fetch original PDF: HTTP ${originalPdfResponse.status}`, errorText);
+            
+            // Wait before retry - increasing backoff
+            if (fetchAttempts < maxAttempts) {
+              const delay = fetchAttempts * 1000; // Increasing delay between retries
+              console.log(`Retrying in ${delay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
+        } catch (fetchError) {
+          console.error(`Error during fetch attempt ${fetchAttempts}:`, fetchError);
+          
+          // Wait before retry if not the last attempt
+          if (fetchAttempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, fetchAttempts * 1000));
+          }
+        }
       }
       
-      // When complete, show the redaction form
-      setIsProcessing(false);
-      setIsRedacting(true);
+      // If still no PDF, try alternative method as fallback
+      if (!pdfBuffer && currentDocument.originalFilePath) {
+        console.log("Attempting fallback method to fetch PDF...");
+        
+        try {
+          // Alternative method using the download-original endpoint directly
+          const alternativeUrl = `/api/documents/${currentDocument.id}/download-original`;
+          const { token } = await getAuthTokenAndHeaders();
+          
+          // Create a form-based request as a fallback approach
+          const formData = new FormData();
+          formData.append('token', token);
+          
+          // Add user ID as fallback for development environments
+          if (process.env.NODE_ENV === 'development') {
+            const userId = localStorage.getItem('firebase-user-id');
+            if (userId) {
+              formData.append('user_id', userId);
+            }
+          }
+          
+          const fallbackResponse = await fetch(alternativeUrl, {
+            method: 'POST',
+            body: formData,
+          });
+          
+          if (fallbackResponse.ok) {
+            if (fallbackResponse.headers.get('content-type')?.includes('application/pdf')) {
+              pdfBuffer = await fallbackResponse.arrayBuffer();
+              console.log(`Successfully fetched PDF via fallback (${pdfBuffer.byteLength} bytes)`);
+            } else {
+              console.error('Fallback response is not a PDF', 
+                fallbackResponse.headers.get('content-type'));
+            }
+          } else {
+            console.error(`Fallback method also failed: HTTP ${fallbackResponse.status}`);
+            // Try to get more detailed error info
+            const errorInfo = await fallbackResponse.text().catch(() => "No error details");
+            console.error("Fallback error details:", errorInfo);
+          }
+        } catch (fallbackError) {
+          console.error("Error during fallback fetch:", fallbackError);
+        }
+      }
       
+      // If we still don't have the PDF, show a user-friendly error
+      if (!pdfBuffer) {
+        // Add detailed debugging information to help troubleshoot
+        const docInfo = {
+          id: currentDocument.id,
+          fileName: currentDocument.fileName,
+          filePath: currentDocument.originalFilePath,
+          fileStatus: currentDocument.fileStatus,
+          fileSize: currentDocument.fileSize,
+        };
+        console.error("PDF fetch failed after all attempts. Document info:", docInfo);
+        
+        throw new Error(
+          `Unable to access the original document. The server returned an error. ` +
+          `Please try again later or contact support if the problem persists.`
+        );
+      }
+      
+      // Add summary log with document info before processing
+      console.log("Successfully retrieved document, starting redaction process", {
+        documentId: currentDocument.id,
+        fileName: currentDocument.fileName,
+        templateName: primaryTemplate.name,
+        totalTemplates: allTemplates.length,
+        pdfSize: pdfBuffer.byteLength
+      });
+      
+      // Initialize progress reporting
+      PDFProcessor.setProgressCallback((progress) => {
+        console.log(`Redaction progress: ${progress.stage} - ${progress.progress}%`);
+        setRedactionProgress(progress.progress);
+      });
+      
+      // Process the PDF with real redaction using the PDFProcessor
+      const { redactedPdf, entities } = await PDFProcessor.processPDF(
+        new Uint8Array(pdfBuffer),
+        primaryTemplate
+      );
+      
+      // Create a summary of the redaction
+      const summary = `Redacted ${entities.length} items of sensitive information using ${allTemplates.length} template(s): ${allTemplates.map(t => t.name).join(', ')}`;
+      
+      // Create a File object from the redacted PDF
+      const redactedFileName = currentDocument.fileName.replace('.pdf', '-redacted.pdf');
+      const redactedFile = new File([redactedPdf], redactedFileName, { type: 'application/pdf' });
+      
+      // Save the redacted document
+      await saveRedactedDocument(currentDocument.id, redactedFile, summary);
+      
+      // Navigate to report page
+      router.push(`/documents/${currentDocument.id}/report`);
     } catch (error) {
       console.error("Error during redaction process:", error);
       setIsProcessing(false);
       toast({
         title: "Redaction failed",
-        description: "There was an error processing your document",
-        variant: "destructive"
+        description: error instanceof Error ? error.message : "There was an error processing your document",
+        variant: "destructive",
+        action: (
+          <ToastAction altText="Try Again" onClick={handleStartRedaction}>
+            Try Again
+          </ToastAction>
+        )
       });
     }
   };
@@ -242,43 +376,6 @@ export default function DocumentPage() {
     setSearchQuery("");
   };
   
-  const handleRedactionComplete = async (redactedFile: File, summary: string) => {
-    if (!currentDocument) return;
-    
-    try {
-      setIsProcessing(true);
-      setRedactionProgress(0);
-      
-      // Improved progress visualization
-      const totalSteps = 10;
-      for (let i = 0; i <= totalSteps; i++) {
-        const progress = Math.floor((i / totalSteps) * 100);
-        setRedactionProgress(progress);
-        
-        // Use requestAnimationFrame for smoother UI updates
-        await new Promise(resolve => {
-          requestAnimationFrame(() => {
-            setTimeout(resolve, 100);
-          });
-        });
-      }
-      
-      // Actually save the redacted document
-      await saveRedactedDocument(currentDocument.id, redactedFile, summary);
-      
-      // Navigate to report page
-      router.push(`/documents/${currentDocument.id}/report`);
-    } catch (error) {
-      console.error("Error saving redacted document:", error);
-      setIsProcessing(false);
-      toast({
-        title: "Save failed",
-        description: "Failed to save the redacted document",
-        variant: "destructive"
-      });
-    }
-  };
-
   const handleViewOriginal = async () => {
     try {
       // Get authentication token
@@ -318,7 +415,7 @@ export default function DocumentPage() {
       
     } catch (error) {
       console.error("Error viewing original document:", error);
-        toast({
+      toast({
         title: "View failed",
         description: "Failed to view the original document. Please try again later.",
         variant: "destructive"
@@ -363,8 +460,8 @@ export default function DocumentPage() {
   }
 
   if (error || fetchError) {
-    return (
-      <MainLayout>
+  return (
+    <MainLayout>
         <div className="container mx-auto p-6">
           <div className="bg-red-50 dark:bg-red-900 p-4 rounded-md">
             <h2 className="text-red-800 dark:text-red-200 font-medium">Error</h2>
@@ -373,14 +470,14 @@ export default function DocumentPage() {
               <p className="font-mono">Document ID: {documentId}</p>
               <p>This error might occur if the document doesn't exist or if you don't have permission to access it.</p>
             </div>
-            <button
+                <button
               onClick={() => router.push('/documents')}
               className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-            >
+                >
               Go back to documents
-            </button>
-          </div>
-        </div>
+                </button>
+              </div>
+            </div>
       </MainLayout>
     );
   }
@@ -393,7 +490,7 @@ export default function DocumentPage() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               {currentDocument.fileName}
             </h1>      
-          </div>
+                    </div>
 
           <div className="mt-4 md:mt-0 flex space-x-3">
                 <button
@@ -403,12 +500,12 @@ export default function DocumentPage() {
               Back to Documents
                 </button>
             
-            {currentDocument.status === 'pending' && !isRedacting && !isSelectingTemplate && (
+            {currentDocument.status === 'pending' && !isProcessing && !isSelectingTemplate && (
               <button
                 onClick={handleStartRedaction}
-                className="px-4 py-2 bg-chateau-green-600 text-white rounded-lg hover:bg-chateau-green-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2"
+                className="px-4 py-2 bg-chateau-green-600 hover:bg-chateau-green-700 transition-colors text-white rounded-lg shadow-sm flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2"
               >
-                Start Redaction
+                <span>Start Redaction</span>
               </button>
             )}
                     </div>
@@ -453,15 +550,15 @@ export default function DocumentPage() {
                   </svg>
                 </button>
               )}
-            </div>
+                      </div>
             
             {/* Templates List */}
             <div className="max-h-80 overflow-y-auto grid gap-4 pb-4">
               {filteredTemplates.length === 0 ? (
                 <div className="text-center text-gray-500 dark:text-gray-400 p-4">
                   No templates match your search. Try a different term.
-                </div>
-              ) : (
+                  </div>
+                ) : (
                 filteredTemplates.map((template) => (
                   <button
                     key={template.id}
@@ -481,7 +578,7 @@ export default function DocumentPage() {
                       {isTemplateSelected(template.id) ? (
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
+                      </svg>
                       ) : (
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -499,20 +596,20 @@ export default function DocumentPage() {
                             className="text-xs inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
                           >
                             {type}
-                          </span>
+                                  </span>
                         ))}
                         {getRedactionTypes(template).length > 3 && (
                           <span className="text-xs inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
                             +{getRedactionTypes(template).length - 3} more
-                          </span>
-                        )}
-                      </div>
+                            </span>
+                          )}
+                        </div>
                     </div>
                   </button>
                 ))
               )}
-            </div>
-            
+                      </div>
+                      
             <DialogFooter className="sm:justify-end space-x-2">
               <button
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
@@ -553,19 +650,19 @@ export default function DocumentPage() {
                     className="h-full bg-chateau-green-600 rounded-full transition-all duration-200 ease-in-out"
                     style={{ width: `${redactionProgress}%` }}
                   ></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+                    </div>
+                  </div>
+                    </div>
+                  </div>
+                )}
                 
-        {isRedacting ? (
+        {isSelectingTemplate ? (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
               <svg className="w-5 h-5 mr-2 text-chateau-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
               </svg>
-              Redaction Process
+              Template Selection
             </h2>
             
             {selectedTemplates.length > 0 && (
@@ -588,37 +685,13 @@ export default function DocumentPage() {
             )}
                 
             <p className="text-gray-500 dark:text-gray-400 mb-6">
-              Upload the redacted version of this document and provide a summary of what was redacted.
+              Click the button below to begin the automatic redaction process.
             </p>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Upload Redacted File
-              </label>
-              <input
-                type="file"
-                onChange={(e) => e.target.files && setRedactedFile(e.target.files[0])}
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-chateau-green-500 focus:border-chateau-green-500 sm:text-sm"
-              />
-                  </div>
-                  
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Redaction Summary
-              </label>
-              <textarea
-                rows={6}
-                value={summary}
-                onChange={(e) => setSummary(e.target.value)}
-                placeholder="Describe what was redacted from the document..."
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-chateau-green-500 focus:border-chateau-green-500 sm:text-sm"
-              />
-                  </div>
-                  
+
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => {
-                  setIsRedacting(false);
+                  setIsSelectingTemplate(false);
                   setSelectedTemplates([]);
                 }}
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
@@ -627,18 +700,18 @@ export default function DocumentPage() {
               </button>
               
               <button
-                onClick={() => redactedFile && summary && handleRedactionComplete(redactedFile, summary)}
-                disabled={!redactedFile || !summary}
+                onClick={() => selectedTemplates.length > 0 && handleProceedWithTemplate()}
+                disabled={selectedTemplates.length === 0}
                 className={`px-4 py-2 rounded-md text-sm font-medium text-white ${
-                  !redactedFile || !summary
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-chateau-green-600 hover:bg-chateau-green-700'
+                  selectedTemplates.length === 0 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-chateau-green-600 hover:bg-chateau-green-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2'
                 }`}
               >
-                Complete Redaction
+                Proceed with Redaction
               </button>
-                    </div>
-                </div>
+            </div>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Document Preview - 2/3 width on desktop */}
@@ -651,9 +724,10 @@ export default function DocumentPage() {
               </h2>
               
               <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-8 border border-gray-200 dark:border-gray-700 min-h-[400px] flex items-center justify-center">
-                {isRedacting ? (
+                {isProcessing ? (
                   <div className="flex flex-col items-center justify-center">
                     <div className="relative h-32 w-32 mb-4">
+                      <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-chateau-green-500"></div>
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-full w-full text-gray-400">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>

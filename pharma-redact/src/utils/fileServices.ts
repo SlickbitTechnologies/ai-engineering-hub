@@ -180,50 +180,156 @@ export const getDownloadUrl = (documentId: string, original: boolean = false): s
  * @param original Whether to download the original file (true) or redacted file (false)
  */
 export const downloadDocument = async (documentId: string, original: boolean = false): Promise<void> => {
-    const { token } = await getAuthTokenAndHeaders();
+    const { token, headers } = await getAuthTokenAndHeaders();
     const endpoint = original
         ? `/api/documents/${documentId}/download-original`
         : `/api/documents/${documentId}/download`;
 
-    // Create a fetch request with authentication headers
-    const response = await fetch(endpoint, {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${token}`
+    // Track attempts for retries
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+        attempts++;
+        console.log(`Download attempt ${attempts}/${maxAttempts} for document ${documentId}`);
+
+        try {
+            // Create fetch request with authentication headers
+            const response = await fetch(endpoint, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    ...headers
+                },
+                cache: 'no-cache'
+            });
+
+            if (!response.ok) {
+                // Try to get detailed error information
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const errorData = await response.json();
+                    console.error('Download error details:', errorData);
+
+                    // If we're getting a 401/403 auth error, try token refresh
+                    if (response.status === 401 || response.status === 403) {
+                        if (attempts < maxAttempts) {
+                            console.log('Auth error, refreshing token and retrying...');
+                            // Force token refresh in development mode
+                            if (process.env.NODE_ENV === 'development') {
+                                localStorage.removeItem('firebase-auth-token');
+                            }
+
+                            // Wait before retry
+                            await new Promise(r => setTimeout(r, attempts * 1000));
+                            continue;
+                        }
+                    }
+
+                    throw new Error(errorData.error || `Failed to download document: ${response.status}`);
+                } else {
+                    const errorText = await response.text();
+                    console.error('Error response body:', errorText);
+                    throw new Error(`Failed to download document: ${response.status} - ${errorText.slice(0, 100)}`);
+                }
+            }
+
+            // Try POST method with form data as a fallback in development mode
+            if (process.env.NODE_ENV === 'development' && attempts === maxAttempts && !response.ok) {
+                console.log('Attempting form-based download as fallback...');
+                return await downloadWithFormData(documentId, original);
+            }
+
+            // Get the file blob and create a download link
+            const blob = await response.blob();
+
+            // Check if we got a valid file (not an HTML error page)
+            if (blob.type.includes('text/html')) {
+                console.error('Received HTML instead of file, likely an error page');
+                const htmlText = await blob.text();
+                console.error('HTML content preview:', htmlText.slice(0, 200));
+                throw new Error('Received HTML error page instead of file');
+            }
+
+            const url = window.URL.createObjectURL(blob);
+
+            // Create a hidden anchor element and trigger download
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+
+            // Set filename from Content-Disposition header if available
+            const contentDisposition = response.headers.get('Content-Disposition');
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+                if (filenameMatch && filenameMatch[1]) {
+                    a.download = filenameMatch[1];
+                }
+            } else {
+                // Fallback filename
+                a.download = original ? 'original-document' : 'redacted-document';
+            }
+
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            // If we got here, download succeeded
+            return;
+
+        } catch (error) {
+            console.error(`Error in download attempt ${attempts}:`, error);
+
+            // If we've reached max attempts, throw the error
+            if (attempts >= maxAttempts) {
+                throw error;
+            }
+
+            // Wait before retry (increasing delay)
+            await new Promise(r => setTimeout(r, attempts * 1000));
         }
-    });
-
-    if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to download document');
     }
-
-    // Get the file blob and create a download link
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-
-    // Create a hidden anchor element and trigger download
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-
-    // Set filename from Content-Disposition header if available
-    const contentDisposition = response.headers.get('Content-Disposition');
-    if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
-        if (filenameMatch && filenameMatch[1]) {
-            a.download = filenameMatch[1];
-        }
-    } else {
-        // Fallback filename
-        a.download = original ? 'original-document' : 'redacted-document';
-    }
-
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
 };
+
+/**
+ * Fallback download method using form-based authentication
+ * Used in development mode when regular download fails
+ */
+async function downloadWithFormData(documentId: string, original: boolean = false): Promise<void> {
+    try {
+        console.log('Attempting form-based download method...');
+        const endpoint = original
+            ? `/api/documents/${documentId}/download-original`
+            : `/api/documents/${documentId}/download`;
+
+        // Create a form to submit
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = endpoint;
+        form.target = '_blank'; // Open in new tab to avoid page navigation
+
+        // Add user ID from localStorage if available (for development)
+        const userId = localStorage.getItem('firebase-user-id');
+        if (userId) {
+            const userIdInput = document.createElement('input');
+            userIdInput.type = 'hidden';
+            userIdInput.name = 'user_id';
+            userIdInput.value = userId;
+            form.appendChild(userIdInput);
+        }
+
+        // Submit the form
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+
+        console.log('Form-based download initiated');
+    } catch (error) {
+        console.error('Error in form-based download:', error);
+        throw error;
+    }
+}
 
 /**
  * Helper method to get the authentication token and any extra headers
