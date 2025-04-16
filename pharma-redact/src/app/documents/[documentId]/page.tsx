@@ -33,7 +33,6 @@ import { useDocuments } from "@/hooks/useDocuments";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { fetchUserTemplates } from "@/store/slices/redactionSlice";
 
 // Helper to get redaction types from template categories
 const getRedactionTypes = (template: RedactionTemplate): string[] => {
@@ -42,16 +41,16 @@ const getRedactionTypes = (template: RedactionTemplate): string[] => {
 
 export default function DocumentPage() {
   const router = useRouter();
-  const dispatch = useDispatch();
-  const { documentId } = useParams() as { documentId: string };
+  const params = useParams();
+  const documentId = params?.documentId as string;
   const { isAuthenticated } = useAuth();
-  const { currentDocument, loading, error, fetchDocument, saveRedactedDocument } = useDocuments();
-  
-  // Get templates from Redux
-  const { templates, isLoadingTemplates } = useSelector((state: RootState) => ({
-    templates: state.redaction.templates,
-    isLoadingTemplates: state.redaction.isLoadingTemplates
-  }));
+  const { 
+    currentDocument, 
+    loading, 
+    error, 
+    fetchDocument, 
+    saveRedactedDocument 
+  } = useDocuments();
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSelectingTemplate, setIsSelectingTemplate] = useState(false);
@@ -143,29 +142,22 @@ export default function DocumentPage() {
     }
   }, [currentDocument, router]);
 
-  // Fetch templates when component mounts
-  useEffect(() => {
-    if (isAuthenticated) {
-      dispatch(fetchUserTemplates() as any);
-    }
-  }, [dispatch, isAuthenticated]);
-
   // Filter templates when search query changes
   useEffect(() => {
-    if (searchQuery.trim() === "" || !templates) {
-      setFilteredTemplates(templates || []);
+    if (searchQuery.trim() === "") {
+      setFilteredTemplates(redactionTemplates);
       return;
     }
 
     const lowercaseQuery = searchQuery.toLowerCase();
-    const filtered = templates.filter(template => 
+    const filtered = redactionTemplates.filter(template => 
       template.name.toLowerCase().includes(lowercaseQuery) || 
       template.description.toLowerCase().includes(lowercaseQuery) ||
       getRedactionTypes(template).some(type => type.toLowerCase().includes(lowercaseQuery))
     );
     
     setFilteredTemplates(filtered);
-  }, [searchQuery, templates]);
+  }, [searchQuery]);
 
   const handleStartRedaction = () => {
     // Open modal instead of changing the page layout
@@ -220,18 +212,73 @@ export default function DocumentPage() {
       let fetchAttempts = 0;
       const maxAttempts = 3;
       
-      while (fetchAttempts < maxAttempts && !pdfBuffer) {
+      const storedUserId = localStorage.getItem('firebase-user-id');
+      console.log('Current authentication state:', { 
+        storedUserId,
+        isAuthenticated,
+        documentId: currentDocument.id
+      });
+      
+      // First try using the POST method which is more reliable for authentication
+      console.log('Attempting POST method first for better auth handling');
+      try {
+        const { token, headers } = await getAuthTokenAndHeaders();
+        
+        // Create a FormData object
+        const formData = new FormData();
+        if (storedUserId) {
+          formData.append('user_id', storedUserId);
+        }
+        
+        if (token) {
+          formData.append('token', token);
+        }
+        
+        // Send POST request
+        const postResponse = await fetch(`/api/documents/${currentDocument.id}/download-original`, {
+          method: 'POST',
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            ...headers
+          },
+          body: formData
+        });
+        
+        if (postResponse.ok) {
+          const contentType = postResponse.headers.get('content-type');
+          if (contentType && contentType.includes('application/pdf')) {
+            pdfBuffer = await postResponse.arrayBuffer();
+            console.log(`Successfully fetched PDF via POST method (${pdfBuffer.byteLength} bytes)`);
+          }
+        } else {
+          console.error(`POST method failed: ${postResponse.status} ${postResponse.statusText}`);
+          const errorText = await postResponse.text().catch(() => 'No error details');
+          console.error('Error details:', errorText);
+        }
+      } catch (postError) {
+        console.error('Error during POST attempt:', postError);
+      }
+      
+      // If POST method failed, try standard GET with retries
+      while (!pdfBuffer && fetchAttempts < maxAttempts) {
         fetchAttempts++;
         
         try {
-          // First attempt - standard API fetch
-          console.log(`Fetching original PDF (attempt ${fetchAttempts}/${maxAttempts})...`);
+          console.log(`Fetching original PDF via GET (attempt ${fetchAttempts}/${maxAttempts})...`);
           
-          const { token } = await getAuthTokenAndHeaders();
+          const { token, headers } = await getAuthTokenAndHeaders();
+          
+          // Add debug headers in development mode
+          const debugHeaders = { ...headers };
+          if (process.env.NODE_ENV === 'development' && storedUserId) {
+            debugHeaders['x-user-id'] = storedUserId;
+          }
+          
           const originalPdfResponse = await fetch(getDownloadUrl(currentDocument.id, true), {
             method: 'GET',
             headers: {
-              'Authorization': `Bearer ${token}`
+              'Authorization': token ? `Bearer ${token}` : '',
+              ...debugHeaders
             }
           });
           
@@ -266,51 +313,91 @@ export default function DocumentPage() {
         }
       }
       
-      // If still no PDF, try alternative method as fallback
-      if (!pdfBuffer && currentDocument.originalFilePath) {
-        console.log("Attempting fallback method to fetch PDF...");
+      // If still no PDF, try the form-based method as a fallback
+      if (!pdfBuffer) {
+        console.log("Attempting fallback form-based method to fetch PDF...");
         
         try {
-          // Alternative method using the download-original endpoint directly
-          const alternativeUrl = `/api/documents/${currentDocument.id}/download-original`;
-          const { token } = await getAuthTokenAndHeaders();
+          // Create and submit a form
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = `/api/documents/${currentDocument.id}/download-original`;
           
-          // Create a form-based request as a fallback approach
-          const formData = new FormData();
-          formData.append('token', token);
-          
-          // Add user ID as fallback for development environments
-          if (process.env.NODE_ENV === 'development') {
-            const userId = localStorage.getItem('firebase-user-id');
-            if (userId) {
-              formData.append('user_id', userId);
-            }
+          // Add user ID field if available
+          if (storedUserId) {
+            const userIdInput = document.createElement('input');
+            userIdInput.type = 'hidden';
+            userIdInput.name = 'user_id';
+            userIdInput.value = storedUserId;
+            form.appendChild(userIdInput);
           }
           
-          const fallbackResponse = await fetch(alternativeUrl, {
-            method: 'POST',
-            body: formData,
+          // Create an iframe to receive the response
+          const iframe = document.createElement('iframe');
+          iframe.name = 'pdf-receiver';
+          iframe.style.display = 'none';
+          document.body.appendChild(iframe);
+          
+          // Set the target of the form to the iframe
+          form.target = 'pdf-receiver';
+          
+          // Add the form to the DOM
+          document.body.appendChild(form);
+          
+          // Create a promise that resolves when the iframe loads
+          const iframeLoadPromise = new Promise<ArrayBuffer>((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+              reject(new Error('Iframe load timeout'));
+            }, 5000);
+            
+            iframe.onload = async () => {
+              clearTimeout(timeoutId);
+              try {
+                // Try to access the iframe content
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                if (!iframeDoc) {
+                  reject(new Error('Could not access iframe document'));
+                  return;
+                }
+                
+                // If we got a PDF, convert it to ArrayBuffer
+                const contentType = iframeDoc.contentType || '';
+                if (contentType.includes('application/pdf')) {
+                  // Extract PDF data from the iframe
+                  const response = await fetch(iframe.src);
+                  pdfBuffer = await response.arrayBuffer();
+                  resolve(pdfBuffer);
+                } else {
+                  reject(new Error(`Iframe did not receive a PDF: ${contentType}`));
+                }
+              } catch (error) {
+                reject(error);
+              } finally {
+                // Clean up
+                document.body.removeChild(iframe);
+                document.body.removeChild(form);
+              }
+            };
           });
           
-          if (fallbackResponse.ok) {
-            if (fallbackResponse.headers.get('content-type')?.includes('application/pdf')) {
-              pdfBuffer = await fallbackResponse.arrayBuffer();
-              console.log(`Successfully fetched PDF via fallback (${pdfBuffer.byteLength} bytes)`);
-            } else {
-              console.error('Fallback response is not a PDF', 
-                fallbackResponse.headers.get('content-type'));
-            }
-          } else {
-            console.error(`Fallback method also failed: HTTP ${fallbackResponse.status}`);
-            // Try to get more detailed error info
-            const errorInfo = await fallbackResponse.text().catch(() => "No error details");
-            console.error("Fallback error details:", errorInfo);
+          // Submit the form
+          form.submit();
+          
+          // Wait for the iframe to load
+          try {
+            pdfBuffer = await iframeLoadPromise;
+            console.log(`Successfully fetched PDF via iframe method (${pdfBuffer.byteLength} bytes)`);
+          } catch (iframeError) {
+            console.error('Iframe method failed:', iframeError);
+            // Clean up anyway
+            if (document.body.contains(iframe)) document.body.removeChild(iframe);
+            if (document.body.contains(form)) document.body.removeChild(form);
           }
-        } catch (fallbackError) {
-          console.error("Error during fallback fetch:", fallbackError);
+        } catch (formError) {
+          console.error('Error during form-based fetch:', formError);
         }
       }
-      
+            
       // If we still don't have the PDF, show a user-friendly error
       if (!pdfBuffer) {
         // Add detailed debugging information to help troubleshoot
@@ -365,7 +452,7 @@ export default function DocumentPage() {
     } catch (error) {
       console.error("Error during redaction process:", error);
       setIsProcessing(false);
-      toast({
+        toast({
         title: "Redaction failed",
         description: error instanceof Error ? error.message : "There was an error processing your document",
         variant: "destructive",
@@ -383,7 +470,7 @@ export default function DocumentPage() {
     setSelectedTemplates([]);
     setSearchQuery("");
   };
-  
+
   const handleViewOriginal = async () => {
     try {
       // Get authentication token
@@ -536,73 +623,88 @@ export default function DocumentPage() {
             
             {/* Search Bar */}
             <div className="relative mb-4">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
               <input
-                type="text"
+                type="search"
+                className="block w-full p-2 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-chateau-green-500 focus:border-chateau-green-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
                 placeholder="Search templates..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-chateau-green-500 focus:border-chateau-green-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
               />
-              <svg className="w-5 h-5 absolute right-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-              </svg>
-            </div>
+              {searchQuery && (
+                <button 
+                  className="absolute inset-y-0 right-0 flex items-center pr-3"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <svg className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+                      </div>
             
-            {/* Template Grid */}
-            <div className="overflow-y-auto max-h-[300px] pr-2 space-y-3">
-              {isLoadingTemplates ? (
-                <div className="flex justify-center items-center py-6">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-chateau-green-600"></div>
-                </div>
-              ) : filteredTemplates.length > 0 ? (
+            {/* Templates List */}
+            <div className="max-h-80 overflow-y-auto grid gap-4 pb-4">
+              {filteredTemplates.length === 0 ? (
+                <div className="text-center text-gray-500 dark:text-gray-400 p-4">
+                  No templates match your search. Try a different term.
+                  </div>
+                ) : (
                 filteredTemplates.map((template) => (
-                  <div
+                  <button
                     key={template.id}
                     onClick={() => handleTemplateSelected(template)}
-                    className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                      selectedTemplates.some(t => t.id === template.id)
-                        ? 'bg-chateau-green-50 border-chateau-green-200 dark:bg-chateau-green-900/20 dark:border-chateau-green-800'
-                        : 'bg-white border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700'
-                    }`}
+                    className={`flex items-start p-4 rounded-lg border transition-all hover:shadow-md text-left
+                      ${isTemplateSelected(template.id)
+                        ? 'border-chateau-green-500 bg-chateau-green-50 dark:bg-chateau-green-900/30' 
+                        : 'border-gray-200 dark:border-gray-700 hover:border-chateau-green-300 dark:hover:border-chateau-green-700'
+                      }`}
                   >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-900 dark:text-white">{template.name}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{template.description}</p>
-                      </div>
-                      {selectedTemplates.some(t => t.id === template.id) && (
-                        <div className="text-chateau-green-600 dark:text-chateau-green-500">
-                          <CheckCircle className="h-5 w-5" />
-                        </div>
+                    <div className={`rounded-full p-2 mr-3 
+                      ${isTemplateSelected(template.id)
+                        ? 'bg-chateau-green-100 text-chateau-green-700 dark:bg-chateau-green-800 dark:text-chateau-green-200' 
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      {isTemplateSelected(template.id) ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
                       )}
                     </div>
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-700 dark:text-gray-300">
-                        Redacts: {getRedactionTypes(template).join(', ')}
-                      </p>
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">{template.name}</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{template.description}</p>
+                      
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {getRedactionTypes(template).slice(0, 3).map((type, idx) => (
+                          <span 
+                            key={idx} 
+                            className="text-xs inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                          >
+                            {type}
+                                  </span>
+                        ))}
+                        {getRedactionTypes(template).length > 3 && (
+                          <span className="text-xs inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                            +{getRedactionTypes(template).length - 3} more
+                            </span>
+                          )}
+                        </div>
                     </div>
-                  </div>
+                  </button>
                 ))
-              ) : (
-                <div className="text-center py-6 text-gray-500 dark:text-gray-400">
-                  {templates.length === 0 ? (
-                    <>
-                      <p>No templates available.</p>
-                      <p className="text-sm mt-1">
-                        You can create templates in the{' '}
-                        <Link href="/redaction-rules" className="text-chateau-green-600 hover:underline">
-                          Redaction Rules
-                        </Link>{' '}
-                        section.
-                      </p>
-                    </>
-                  ) : (
-                    <p>No templates match your search.</p>
-                  )}
-                </div>
               )}
-            </div>
-            
+                      </div>
+                      
             <DialogFooter className="sm:justify-end space-x-2">
               <button
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
@@ -673,8 +775,8 @@ export default function DocumentPage() {
                       </p>
                     </div>
                   ))}
-                </div>
-              </div>
+                  </div>
+                  </div>
             )}
                 
             <p className="text-gray-500 dark:text-gray-400 mb-6">
@@ -697,14 +799,14 @@ export default function DocumentPage() {
                 disabled={selectedTemplates.length === 0}
                 className={`px-4 py-2 rounded-md text-sm font-medium text-white ${
                   selectedTemplates.length === 0 
-                    ? 'bg-gray-400 cursor-not-allowed' 
+                    ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-chateau-green-600 hover:bg-chateau-green-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2'
                 }`}
               >
                 Proceed with Redaction
               </button>
-            </div>
-          </div>
+                    </div>
+                </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Document Preview - 2/3 width on desktop */}
