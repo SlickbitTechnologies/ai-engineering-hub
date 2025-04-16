@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// Initialize Gemini AI with the 2.0 Flash model
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
+import genAI, { getGeminiModel } from '@/utils/gemini';
 
 // Helper function to detect entities using regex
 async function detectEntitiesWithRegex(text: string, pageNumber: number): Promise<any[]> {
@@ -96,7 +93,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get the model - use gemini-2.0-flash as requested
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const model = getGeminiModel('gemini-2.0-flash');
 
         // Improved prompt with template-specific rules
         const prompt = `

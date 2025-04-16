@@ -1,24 +1,23 @@
 import * as admin from 'firebase-admin';
+import { firebaseAdminConfig } from './firebase-admin-config';
 
 // Check if Firebase Admin is already initialized
 if (!admin.apps.length) {
     try {
-        // Initialize with credentials or environment variables
-        // For development, we can use a service account credential JSON
-        if (process.env.FIREBASE_ADMIN_CREDENTIAL) {
-            const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_CREDENTIAL);
+        // Initialize with credentials from environment variables
+        if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
             admin.initializeApp({
-                credential: admin.credential.cert(serviceAccount),
+                credential: admin.credential.cert(firebaseAdminConfig as admin.ServiceAccount),
             });
+            console.log('Firebase Admin initialized with environment variables');
         } else {
             // Fall back to using application default credentials
             // This will work in production environments like Vercel
             admin.initializeApp({
                 credential: admin.credential.applicationDefault(),
             });
+            console.log('Firebase Admin initialized with application default credentials');
         }
-
-        console.log('Firebase Admin initialized successfully');
     } catch (error) {
         console.error('Error initializing Firebase Admin:', error);
 
@@ -27,7 +26,7 @@ if (!admin.apps.length) {
             console.warn('Initializing Firebase Admin with development fallback');
             // Using an empty object as a placeholder for credential in development
             admin.initializeApp({
-                projectId: 'dev-project',
+                projectId: process.env.FIREBASE_PROJECT_ID || 'dev-project',
             });
         }
     }

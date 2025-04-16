@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { firebaseAdminConfig } from '../utils/firebase-admin-config';
 
 // Check if Firebase Admin SDK is already initialized
 if (!admin.apps.length) {
@@ -6,16 +7,9 @@ if (!admin.apps.length) {
         // Log environment variables for debugging
         console.log('Firebase Admin initialization with explicit project credentials');
 
-        // Create service account with explicit project credentials
-        const serviceAccount = {
-            projectId: process.env.FIREBASE_PROJECT_ID,
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
-        };
-
-        // Initialize with explicit credentials
+        // Initialize with explicit credentials from the config
         admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
+            credential: admin.credential.cert(firebaseAdminConfig as admin.ServiceAccount)
         });
 
         console.log('Firebase Admin SDK initialized successfully with explicit project credentials');
