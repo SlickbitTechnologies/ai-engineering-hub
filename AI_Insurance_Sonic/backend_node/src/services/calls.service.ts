@@ -14,8 +14,9 @@ interface GetCallsParams {
   startDate?: string;
   endDate?: string;
   agent?: string;
-  category?: string;
-  sentiment?: string;
+  categories?: string[];
+  sentiments?: string[];
+  kpiScore?: string;
 }
 
 interface Topic {
@@ -62,25 +63,36 @@ export class CallsService {
           { category: { [Op.like]: searchTerm } }
         ];
       }
+      const audioFileFilter: any = {};
+      // Add date range filtering
+      if (params.startDate && params.endDate) {
+        // Create start of day for start date and end of day for end date
+        const startDate = new Date(params.startDate);
+        startDate.setHours(0, 0, 0, 0);
 
-    //   if (params.startDate) {
-    //     transcriptionWhere.createdAt = { ...transcriptionWhere.createdAt, [Op.gte]: new Date(params.startDate) };
-    //   }
+        const endDate = new Date(params.endDate);
+        endDate.setHours(23, 59, 59, 999);
 
-    //   if (params.endDate) {
-    //     transcriptionWhere.createdAt = { ...transcriptionWhere.createdAt, [Op.lte]: new Date(params.endDate) };
-    //   }
-
+        audioFileFilter.createdAt = {
+          [Op.between]: [startDate, endDate]
+        };
+      }
+      console.log("audioFileFilter",audioFileFilter);
       if (params.agent) {
         transcriptionWhere.agentName = params.agent;
       }
 
-      if (params.category) {
-        transcriptionWhere.category = params.category;
+      if (params.categories && params.categories.length > 0) {
+        transcriptionWhere.category = { [Op.in]: params.categories };
       }
 
-      if (params.sentiment) {
-        analysisWhere.sentiment = params.sentiment;
+      if (params.sentiments && params.sentiments.length > 0) {
+        analysisWhere.sentiment = { [Op.in]: params.sentiments };
+      }
+      if (params.kpiScore) {
+        console.log("params.kpiScore", params.kpiScore);
+        const [min] = params.kpiScore.split('-').map(Number);
+        analysisWhere.kpiScore = { [Op.gte]: min };
       }
 
       // Build order conditions
@@ -95,6 +107,7 @@ export class CallsService {
       // Get total count and data
       const { count, rows } = await AudioFile.findAndCountAll({
         attributes: ['id', 'duration', 'url', 'createdAt'],
+        where: audioFileFilter,
         include: [
           {
             model: Transcription,
@@ -233,6 +246,7 @@ export class CallsService {
       console.log("turns",turns );
     const matrics = {
         id: audioFile.id,
+        url: audioFile.url,
         date: new Date(audioFile.createdAt).toISOString().split('T')[0],
         time: new Date(audioFile.createdAt).toLocaleTimeString('en-US', { 
           hour: 'numeric', 
@@ -248,6 +262,7 @@ export class CallsService {
         emotional: analysis.emotional,
         kpiMetrics: analysis.kpiMetrics,
         kpiScore: analysis.kpiScore,
+        kpiAnalysis: analysis.kpiAnalysis,
         isCompliant: analysis.kpiScore >= 80,
         transcript: turns.map((turn: ConversationTurn) => ({
           
@@ -268,7 +283,9 @@ export class CallsService {
         },
         keyPhrases: (analysis.sentimentScores as SentimentScores).topicsDiscussed?.map((topic: Topic) => topic.topic) || [],
         sentimentAnalysis: {
-          positive: analysis.sentimentScores.positive
+          positive: analysis.sentimentScores.positive,
+          neutral: analysis.sentimentScores.neutral,
+          negative: analysis.sentimentScores.negative
         },
         topicsDiscussed: (analysis.sentimentScores as SentimentScores).topicsDiscussed?.map((topic: Topic) => ({
           topic: topic.topic,

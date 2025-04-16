@@ -5,7 +5,7 @@ import callsRoutes from './calls.routes';
 import dashboardRoutes from './dashboard.routes';
 const router = Router();
 
-router.use('/audio', audioRoutes);
+router.use('/analyze', audioRoutes);
 router.use('/configuration', configurationRoutes);
 router.use('/calls', callsRoutes);
 router.use('/dashboard', dashboardRoutes);

@@ -13,7 +13,7 @@ const CallDetailsPage: React.FC = () => {
   const navigate = useNavigate();
 
   const { data: callData, isLoading, error } = useGetCallByIdQuery(id || '');
-console.log("callData",callData);
+console.log("callData",callData?.kpiScore);
   const handleBackToList = () => {
     navigate('/calls');
   };
@@ -33,12 +33,14 @@ console.log("callData",callData);
       </div>
     );
   }
-
+  console.log("callData kpiAnalysis",callData.kpiAnalysis);
   return (
     <div className="space-y-6 p-4 text-gray-800 bg-gray-50">
       <CallDetailHeader 
         date={`Thursday, ${callData.date}`} 
         onBack={handleBackToList} 
+        audioFileId={callData.id}
+        callData={callData}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-16rem)]">
@@ -54,6 +56,7 @@ console.log("callData",callData);
                 customer={callData.customer}
                 category={callData.category}
                 transcript={callData.transcript}
+                audioUrl={callData.url}
               />
             </div>
           </div>
@@ -72,11 +75,12 @@ console.log("callData",callData);
       
       <div className="mt-6">
         <CallInsights 
-          sentimentAnalysis={callData.sentimentAnalysis} 
+          sentiment={callData.sentimentAnalysis} 
           topicsDiscussed={callData.topicsDiscussed} 
-          kpiScore={callData.kpiScore}
+          kpiScore={Number(callData.kpiScore.replace('%', ''))}
           kpiMetrics={callData.kpiMetrics}
           emotional={callData.emotional}
+          kpiAnalysis={callData.kpiAnalysis}
         />
       </div>
     </div>

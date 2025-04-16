@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaSortUp, FaSortDown, FaSort } from 'react-icons/fa';
+import { FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
 import Pagination from './Pagination';
 
 export interface Column {
@@ -13,9 +13,9 @@ export interface Column {
 interface DataTableProps {
   columns: Column[];
   data: any[];
-  sortColumn?: string;
-  sortDirection?: 'asc' | 'desc';
-  onSort?: (column: string) => void;
+  sortColumn: string;
+  sortDirection: 'asc' | 'desc';
+  onSort: (column: string) => void;
   emptyMessage?: string;
   pagination?: {
     currentPage: number;
@@ -35,14 +35,22 @@ const DataTable: React.FC<DataTableProps> = ({
 }) => {
   console.log('Rendering DataTable component');
 
-  const renderSortIndicator = (column: string) => {
-    if (!sortColumn || column !== sortColumn) {
-      return <FaSort className="ml-1 text-gray-400" />;
-    }
-    
-    return sortDirection === 'asc' 
-      ? <FaSortUp className="ml-1 text-gray-600" /> 
-      : <FaSortDown className="ml-1 text-gray-600" />;
+  // Function to format date
+  const formatDate = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getSortIcon = (column: Column) => {
+    if (!column.sortable) return null;
+    if (sortColumn !== column.key) return <FaSort className="ml-1" />;
+    return sortDirection === 'asc' ? <FaSortUp className="ml-1" /> : <FaSortDown className="ml-1" />;
   };
 
   const getColumnAlignment = (align?: 'left' | 'center' | 'right') => {
@@ -63,14 +71,16 @@ const DataTable: React.FC<DataTableProps> = ({
           <thead className="bg-gray-50">
             <tr>
               {columns.map((column) => (
-                <th 
+                <th
                   key={column.key}
-                  scope="col" 
-                  className={`px-6 py-3 ${getColumnAlignment(column.align)} text-xs font-medium text-gray-500 uppercase tracking-wider ${column.sortable ? 'cursor-pointer' : ''}`}
-                  onClick={() => column.sortable && onSort && onSort(column.key)}
+                  onClick={() => column.sortable && onSort(column.key)}
+                  className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                    column.sortable ? 'cursor-pointer hover:bg-gray-100' : ''
+                  }`}
                 >
                   <div className="flex items-center">
-                    {column.label} {column.sortable && renderSortIndicator(column.key)}
+                    {column.label}
+                    {getSortIcon(column)}
                   </div>
                 </th>
               ))}
@@ -83,10 +93,12 @@ const DataTable: React.FC<DataTableProps> = ({
                   {columns.map((column) => (
                     <td 
                       key={`${index}-${column.key}`}
-                      className={`px-6 py-4 whitespace-nowrap ${getColumnAlignment(column.align)}`}
+                      className={`px-6 py-4 whitespace-nowrap text-gray-900 ${getColumnAlignment(column.align)}`}
                     >
                       {column.render 
                         ? column.render(item[column.key], item)
+                        : column.key === 'date'
+                        ? formatDate(item[column.key])
                         : <div className="text-sm text-gray-900">{item[column.key]}</div>
                       }
                     </td>

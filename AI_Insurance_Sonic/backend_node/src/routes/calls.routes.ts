@@ -29,10 +29,11 @@ const getCalls = async (req: Request, res: Response): Promise<void> => {
       startDate,
       endDate,
       agent,
-      category,
-      sentiment
+      categories,
+      sentiments,
+      kpiScore
     } = req.query;
-
+    console.log("req.query",req.query);
     const result = await callsService.getCalls({
       page: parseInt(page as string),
       limit: parseInt(limit as string),
@@ -42,8 +43,9 @@ const getCalls = async (req: Request, res: Response): Promise<void> => {
       startDate: startDate as string,
       endDate: endDate as string,
       agent: agent as string,
-      category: category as string,
-      sentiment: sentiment as string
+      categories: categories ? (categories as string).split(',') : [],
+      sentiments: sentiments ? (sentiments as string).split(',') : [],
+      kpiScore: kpiScore as string
     });
 
     res.json(result);

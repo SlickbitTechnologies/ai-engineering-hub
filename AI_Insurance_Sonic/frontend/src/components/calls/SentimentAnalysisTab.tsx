@@ -32,7 +32,7 @@ const SentimentAnalysisTab: React.FC<SentimentAnalysisTabProps> = ({
   console.log('Rendering SentimentAnalysisTab component');
 
   return (
-    <div className="space-y-8 gap-6">
+    <div className="space-y-8 gap-6 py-6">
       {/* Card 1: Sentiment Overview */}
       <div className="p-4 rounded-lg bg-white">
         <h3 className="text-lg font-medium mb-4">Sentiment Overview</h3>

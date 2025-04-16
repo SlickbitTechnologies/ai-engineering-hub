@@ -152,6 +152,16 @@ const deleteAudioFile = async (req: Request, res: Response) => {
   }
 };
 
+// Download audio file
+
+const downloadAudioFile = async (req: Request, res: Response) => {
+  try {
+    const downloadUrl = await audioService.getDownloadUrl(req.params.fileId);
+    res.json({ url: downloadUrl });
+  } catch (error) {
+    handleError(error as Error, res);
+  }
+};
 // Route definitions
 router.get('/batches', getBatches);
 router.post('/batches', createBatch);
@@ -160,5 +170,6 @@ router.delete('/batches/:batchId', deleteBatch);
 router.post('/batches/:batchId/upload', upload.array('files'), uploadAudioFiles);
 router.get('/batches/:batchId/files', getAudioFiles);
 router.delete('/files/:fileId', deleteAudioFile);
+router.get('/files/:fileId/download', downloadAudioFile);
 
-export default router; 
+export default router

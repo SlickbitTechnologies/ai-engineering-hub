@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import SentimentAnalysisTab from './SentimentAnalysisTab';
 import KPIAnalysisTab from './KPIAnalysisTab';
+import { useGetKPIMetricsQuery } from '../../redux/configurationApi';
 
 interface TopicData {
   topic: string;
@@ -10,27 +11,25 @@ interface TopicData {
 type KPIStatus = 'success' | 'warning' | 'danger';
 
 interface CallInsightsProps {
-  sentimentAnalysis: {
+  sentiment: {
     positive: number;
-    negative?: number;
-    neutral?: number;
+    neutral: number;
+    negative: number;
   };
   topicsDiscussed: TopicData[];
-  kpiScore: string;
-  kpiMetrics?: {
-    greeting: number;
-    identityVerification: number;
-    problemUnderstanding: number;
-    solutionOffering: number;
-    empathy: number;
-    requiredDisclosures: number;
-    closing: number;
+  kpiScore: number;
+  kpiMetrics: {
+    [key: string]: number;
   };
   emotional: {
     satisfaction: number;
     frustration: number;
     confidence: number;
     confusion: number;
+  };
+  kpiAnalysis: {
+    strengths: Array<{ title: string; description: string }>;
+    improvements: Array<{ title: string; description: string }>;
   };
 }
 
@@ -41,35 +40,37 @@ const getStatusFromScore = (score: number): KPIStatus => {
 };
 
 const CallInsights: React.FC<CallInsightsProps> = ({ 
-  sentimentAnalysis, 
-  topicsDiscussed,
-  kpiScore,
+  sentiment, 
+  emotional,
   kpiMetrics,
-  emotional
+  kpiScore,
+  topicsDiscussed,
+  kpiAnalysis
 }) => {
-  console.log('Rendering CallInsights component');
+  console.log('Rendering CallInsights component kpiAnalysis',kpiAnalysis);
   
   const [activeTab, setActiveTab] = useState('insights');
   
-  // Convert kpiMetrics to the format expected by KPIAnalysisTab
-  const formattedKPIMetrics = kpiMetrics ? [
-    { name: 'Greeting', score: kpiMetrics.greeting, status: getStatusFromScore(kpiMetrics.greeting) },
-    { name: 'Identity Verification', score: kpiMetrics.identityVerification, status: getStatusFromScore(kpiMetrics.identityVerification) },
-    { name: 'Problem Understanding', score: kpiMetrics.problemUnderstanding, status: getStatusFromScore(kpiMetrics.problemUnderstanding) },
-    { name: 'Solution Offering', score: kpiMetrics.solutionOffering, status: getStatusFromScore(kpiMetrics.solutionOffering) },
-    { name: 'Empathy', score: kpiMetrics.empathy, status: getStatusFromScore(kpiMetrics.empathy) },
-    { name: 'Required Disclosures', score: kpiMetrics.requiredDisclosures, status: getStatusFromScore(kpiMetrics.requiredDisclosures) },
-    { name: 'Closing', score: kpiMetrics.closing, status: getStatusFromScore(kpiMetrics.closing) }
-  ] : [];
+  const { data: kpiDefinitions = [] } = useGetKPIMetricsQuery();
+  
+  const formattedKPIMetrics = kpiMetrics ? 
+    kpiDefinitions
+      .filter(def => def.enabled)
+      .map(def => ({
+        name: def.name,
+        score: kpiMetrics[def.key] || 0,
+        status: getStatusFromScore(kpiMetrics[def.key] || 0)
+      }))
+    : [];
   
   return (
     <div>
       <div className="bg-gray-50">
-        <div className="flex">
+        <div className="flex p-1.5 w-fit bg-gray-100 rounded-md">
           <button 
-            className={`px-6 py-4 text-sm font-medium border-b-2 ${
+            className={`px-6 py-1 text-sm font-medium border-b-2 rounded-sm  ${
               activeTab === 'insights' 
-                ? 'border-[#00aff0] text-[#00aff0]' 
+                ? 'border-transparent text-[#00aff0] bg-white' 
                 : 'border-transparent text-gray-600 hover:text-gray-800'
             }`}
             onClick={() => setActiveTab('insights')}
@@ -77,9 +78,9 @@ const CallInsights: React.FC<CallInsightsProps> = ({
             Call Insights
           </button>
           <button 
-            className={`px-6 py-4 text-sm font-medium border-b-2 ${
+            className={`px-6 py-1 text-sm font-medium border-b-2 rounded-sm  ${
               activeTab === 'kpi' 
-                ? 'border-[#00aff0] text-[#00aff0]' 
+                ? 'border-transparent text-[#00aff0] bg-white' 
                 : 'border-transparent text-gray-600 hover:text-gray-800'
             }`}
             onClick={() => setActiveTab('kpi')}
@@ -91,9 +92,9 @@ const CallInsights: React.FC<CallInsightsProps> = ({
 
       {activeTab === 'insights' && (
         <SentimentAnalysisTab 
-          positive={sentimentAnalysis.positive} 
-          neutral={sentimentAnalysis.neutral || 0} 
-          negative={sentimentAnalysis.negative || 0}
+          positive={sentiment.positive}
+          neutral={sentiment.neutral}
+          negative={sentiment.negative}
           topicsDiscussed={topicsDiscussed}
           emotional={emotional}
         />
@@ -101,8 +102,14 @@ const CallInsights: React.FC<CallInsightsProps> = ({
 
       {activeTab === 'kpi' && (
         <KPIAnalysisTab 
-          overallScore={kpiScore}
-          metrics={formattedKPIMetrics}
+          callData={{
+            analysis: {
+              kpiAnalysis: kpiAnalysis
+            },
+            kpiMetrics: kpiMetrics,
+            kpiScore: kpiScore,
+            kpiDefinitions: kpiDefinitions
+          }}
         />
       )}
     </div>

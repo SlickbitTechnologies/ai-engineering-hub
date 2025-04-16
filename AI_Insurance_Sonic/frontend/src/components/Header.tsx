@@ -64,7 +64,7 @@ const Header: React.FC<HeaderProps> = ({ title, date }) => {
           </div>
         </div>
         
-        <div className="h-8 w-8 bg-[#00aff0] bg-opacity-20 rounded-full cursor-pointer flex items-center justify-center text-[#00aff0] hover:bg-opacity-30">
+        <div className="h-8 w-8  bg-opacity-20 rounded-full cursor-pointer flex items-center justify-center text-[#00aff0] hover:bg-opacity-30">
           <FaUser size={14} />
         </div>
       </div>
