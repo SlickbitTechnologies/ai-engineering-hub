@@ -82,40 +82,70 @@ async function handleRequest(req: NextRequest, params: { id: string }) {
 
         console.log(`[download-original] Found document: ${document.fileName}`);
 
-        // Check if original file exists
+        // Check if original file path is available
         if (!document.originalFilePath) {
             console.log(`[download-original] No original file path for document: ${params.id}`);
-            return new NextResponse('Original file not available', { status: 404 });
+            return new NextResponse('Original file path not available', { status: 404 });
         }
 
         const filePath = document.originalFilePath;
         console.log(`[download-original] File path: ${filePath}`);
 
+        let fileBuffer: Buffer;
+        let stats: fs.Stats;
+
         // Check if file exists
-        if (!fs.existsSync(filePath)) {
-            console.log(`[download-original] File does not exist at path: ${filePath}`);
-            return new NextResponse('File not found on server', { status: 404 });
+        try {
+            if (!fs.existsSync(filePath)) {
+                console.log(`[download-original] File does not exist at path: ${filePath}`);
+                return new NextResponse('File not found on server', { status: 404 });
+            }
+
+            // Get file stats for size
+            stats = fs.statSync(filePath);
+            console.log(`[download-original] File size: ${stats.size} bytes`);
+
+            // Validate file size
+            if (stats.size === 0) {
+                console.log(`[download-original] File exists but has zero size: ${filePath}`);
+                return new NextResponse('File exists but is empty', { status: 404 });
+            }
+
+            // Read file and return as response
+            fileBuffer = fs.readFileSync(filePath);
+            console.log(`[download-original] Successfully read file`);
+        } catch (error) {
+            console.error(`[download-original] Error accessing file: ${error}`);
+            return new NextResponse('Error accessing file', { status: 500 });
         }
 
-        // Get file stats for size
-        const stats = fs.statSync(filePath);
-        console.log(`[download-original] File size: ${stats.size} bytes`);
+        // Determine if this is a direct download request or an inline view request
+        const isDownload = req.headers.get('x-download') === 'true' ||
+            req.nextUrl.searchParams.get('download') === 'true';
 
-        // Read file and return as response
-        const fileBuffer = fs.readFileSync(filePath);
-        console.log(`[download-original] Successfully read file`);
+        // Set the content type, ensuring PDF files are properly identified
+        const contentType = document.fileType ||
+            (document.fileName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream');
+
+        // Set content disposition based on whether this is a download or inline view
+        const contentDisposition = isDownload
+            ? `attachment; filename="${document.fileName}"`
+            : `inline; filename="${document.fileName}"`;
+
+        console.log(`[download-original] Serving file with disposition: ${contentDisposition}`);
 
         // Prepare response with proper headers
         const response = new NextResponse(fileBuffer, {
             status: 200,
             headers: {
-                'Content-Type': document.fileType || 'application/pdf',
-                'Content-Disposition': `attachment; filename="${document.fileName}"`,
-                'Content-Length': String(stats.size)
+                'Content-Type': contentType,
+                'Content-Disposition': contentDisposition,
+                'Content-Length': String(stats.size),
+                'Cache-Control': 'private, max-age=300'
             }
         });
 
-        console.log(`[download-original] Sending response with Content-Type: ${document.fileType || 'application/pdf'}`);
+        console.log(`[download-original] Sending response with Content-Type: ${contentType}`);
         return response;
     } catch (error) {
         console.error('[download-original] Error:', error);

@@ -1,7 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
-import { CREATE_DOCUMENTS_TABLE, CREATE_USER_INDEX } from './schema';
+import {
+    CREATE_DOCUMENTS_TABLE,
+    CREATE_USER_INDEX,
+    CREATE_TEMPLATES_TABLE,
+    CREATE_TEMPLATES_USER_INDEX
+} from './schema';
+import { TemplateRepository } from './templateRepository';
 
 let db: ReturnType<typeof Database> | null = null;
 let dbPath: string; // Declare dbPath at module level
@@ -45,6 +51,10 @@ export function getDbConnection(): ReturnType<typeof Database> {
             db.exec(CREATE_DOCUMENTS_TABLE);
             db.exec(CREATE_USER_INDEX);
 
+            // Initialize templates table
+            db.exec(CREATE_TEMPLATES_TABLE);
+            db.exec(CREATE_TEMPLATES_USER_INDEX);
+
             console.log('Database connection established and schema initialized');
             return db;
         } catch (err: any) {
@@ -60,6 +70,8 @@ export function getDbConnection(): ReturnType<typeof Database> {
                         db = new Database(':memory:', { verbose: console.log });
                         db.exec(CREATE_DOCUMENTS_TABLE);
                         db.exec(CREATE_USER_INDEX);
+                        db.exec(CREATE_TEMPLATES_TABLE);
+                        db.exec(CREATE_TEMPLATES_USER_INDEX);
                         console.log('In-memory database initialized');
                         return db;
                     } catch (memErr: any) {
@@ -108,4 +120,17 @@ export function resetDatabase() {
     } catch (error) {
         console.error('Error resetting database:', error);
     }
+}
+
+// Initialize database schema
+function initializeDatabase(db: any) {
+    console.log('DB: Initializing database schema');
+    db.exec(CREATE_DOCUMENTS_TABLE);
+    db.exec(CREATE_USER_INDEX);
+
+    // Initialize templates table
+    db.exec(CREATE_TEMPLATES_TABLE);
+    db.exec(CREATE_TEMPLATES_USER_INDEX);
+
+    console.log('DB: Database schema initialized');
 } 

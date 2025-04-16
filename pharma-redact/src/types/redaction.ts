@@ -27,6 +27,7 @@ export interface RedactionTemplate {
     id: string;
     name: string;
     description: string;
+    userId?: string; // The user who created the template
     rules?: {
         redactTypes: string[];
         excludeContexts: string[];

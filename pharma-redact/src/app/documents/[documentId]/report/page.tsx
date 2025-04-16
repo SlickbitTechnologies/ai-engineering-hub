@@ -15,6 +15,7 @@ import { useDocuments } from "@/hooks/useDocuments";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { EyeIcon } from "lucide-react";
+import PdfViewer from '@/components/PdfViewer';
 
 type RedactionCategory = "PERSON" | "EMAIL" | "PHONE" | "ADDRESS" | "DATE_OF_BIRTH" | "FINANCIAL" | "MEDICAL" | "LEGAL" | string;
 
@@ -227,8 +228,8 @@ export default function DocumentReportPage() {
   });
   
   const feedbackRef = useRef<HTMLTextAreaElement>(null);
-  const originalPdfRef = useRef<HTMLIFrameElement>(null);
-  const redactedPdfRef = useRef<HTMLIFrameElement>(null);
+  const originalPdfRef = useRef<HTMLObjectElement>(null);
+  const redactedPdfRef = useRef<HTMLObjectElement>(null);
 
   // Create temporary blob URLs with auth tokens for viewing documents in iframes
   const createSecureDocumentUrl = async (endpoint: string): Promise<{ url: string | null, error: string | null }> => {
@@ -256,20 +257,20 @@ export default function DocumentReportPage() {
           const errorData = await response.json();
           errorMessage = errorData.error || errorMessage;
         } catch (e) {
-          const text = await response.text();
-          errorMessage = text || errorMessage;
+          const textContent = await response.text();
+          errorMessage = textContent || errorMessage;
         }
         
         return { url: null, error: errorMessage };
       }
       
       // Get the document as a blob
-      const blob = await response.blob();
+      const fileBlob = await response.blob();
       
-      // Create a blob URL for the document
-      const url = URL.createObjectURL(blob);
+      // Create a blob URL for the document - use PDF type to ensure viewer loads with controls
+      const url = URL.createObjectURL(new Blob([fileBlob], { type: 'application/pdf' }));
       return { url, error: null };
-    } catch (error) {
+        } catch (error) {
       console.error('Error creating secure document URL:', error);
       return { 
         url: null, 
@@ -336,7 +337,7 @@ export default function DocumentReportPage() {
       setSelectedEntity(null);
     }
   };
-
+  
   // Calculate category counts from redacted items (in a real app, this would come from redactionReport)
   useEffect(() => {
     if (redactedItems.length > 0) {
@@ -353,7 +354,7 @@ export default function DocumentReportPage() {
       });
     }
   }, [redactedItems]);
-
+  
   if (loading || !currentDocument) {
     return (
       <MainLayout>
@@ -393,37 +394,35 @@ export default function DocumentReportPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Redaction Report</h1>
           <p className="text-gray-600 dark:text-gray-400">Review redacted content and provide feedback</p>
-        </div>
-
+          </div>
+          
         {/* Main content grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Original Document */}
-          <div className="lg:col-span-5 flex flex-col">
-            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Original Document</h2>
-            <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800 flex flex-col overflow-hidden min-h-[600px]">
+          <div className="lg:col-span-4 flex flex-col">
+            <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Original Document</h2>
+            
+            <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800 flex flex-col overflow-hidden min-h-[400px] max-h-[450px]">
               {originalPdfError ? (
                 <div className="flex flex-col items-center justify-center h-full p-6 text-center">
                   <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 mb-4 max-w-md">
                     <p className="text-red-800 dark:text-red-300 font-medium">Error loading original document</p>
                     <p className="text-red-600 dark:text-red-400 text-sm mt-1">{originalPdfError}</p>
                   </div>
-                  <button
+          <button
                     onClick={() => downloadAuthenticatedDocument(documentId, true)}
                     className="mt-2 bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded font-medium text-sm flex items-center"
-                  >
+          >
                     <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
                     Download instead
-                  </button>
-                </div>
+          </button>
+        </div>
               ) : originalPdfUrl ? (
-                <iframe
-                  ref={originalPdfRef}
-                  src={originalPdfUrl}
-                  className="w-full h-full"
-                  title="Original Document"
-                />
+                <div className="w-full h-full">
+                  <PdfViewer url={originalPdfUrl} title="Original Document" />
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-full">
                   <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
@@ -436,26 +435,27 @@ export default function DocumentReportPage() {
             >
               <svg
                 className="h-5 w-5 mr-2"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
                   d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                />
-              </svg>
+                    />
+                  </svg>
               Download Original Document
             </button> */}
           </div>
 
           {/* Redacted Document */}
-          <div className="lg:col-span-5 flex flex-col">
-            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Redacted Document</h2>
-            <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800 flex flex-col overflow-hidden min-h-[600px]">
+          <div className="lg:col-span-4 flex flex-col">
+            <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Redacted Document</h2>
+            
+            <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800 flex flex-col overflow-hidden min-h-[400px] max-h-[450px]">
               {redactedPdfError ? (
                 <div className="flex flex-col items-center justify-center h-full p-6 text-center">
                   <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 mb-4 max-w-md">
@@ -475,12 +475,9 @@ export default function DocumentReportPage() {
                   )}
                 </div>
               ) : redactedPdfUrl ? (
-                <iframe
-                  ref={redactedPdfRef}
-                  src={redactedPdfUrl}
-                  className="w-full h-full"
-                  title="Redacted Document"
-                />
+                <div className="w-full h-full">
+                  <PdfViewer url={redactedPdfUrl} title="Redacted Document" />
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-full">
                   <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
@@ -492,50 +489,50 @@ export default function DocumentReportPage() {
               <button
                 onClick={() => downloadAuthenticatedDocument(documentId, false)}
                 className="mt-4 bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded-lg font-medium flex items-center justify-center"
-              >
-                <svg
-                  className="h-5 w-5 mr-2"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                  />
-                </svg>
-                Download Redacted Document
+                    >
+                      <svg
+                        className="h-5 w-5 mr-2"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                        />
+                      </svg>
+                      Download Redacted Document
               </button>
             )} */}
-          </div>
+                  </div>
 
           {/* Redacted Content */}
-          <div className="lg:col-span-2 flex flex-col">
-            <div className="flex items-center justify-between mb-4">
+          <div className="lg:col-span-4 flex flex-col">
+            <div className="flex items-center justify-between mb-2">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Redacted Content ({redactedItems.length})</h2>
-            </div>
-            
+        </div>
+
             {/* Category counts */}
             <div className="flex flex-wrap gap-2 mb-4">
               <div className="text-sm rounded-md px-2 py-1 bg-blue-100 text-blue-800">
                 Personal: {categoryCounts.Personal}
-              </div>
+                </div>
               <div className="text-sm rounded-md px-2 py-1 bg-green-100 text-green-800">
                 Financial: {categoryCounts.Financial}
-              </div>
+                </div>
               <div className="text-sm rounded-md px-2 py-1 bg-purple-100 text-purple-800">
                 Medical: {categoryCounts.Medical}
-              </div>
+                </div>
               <div className="text-sm rounded-md px-2 py-1 bg-yellow-100 text-yellow-800">
                 Legal: {categoryCounts.Legal}
               </div>
             </div>
             
             {/* Redacted items list */}
-            <div className="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 min-h-[500px] max-h-[600px]">
+            <div className="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 min-h-[350px] max-h-[450px]">
               {redactedItems.map((item) => (
                 <div
                   key={item.id}
@@ -565,18 +562,18 @@ export default function DocumentReportPage() {
                     }`}>
                       {item.category}
                     </span>
-                  </div>
+              </div>
                   <div className="flex items-center justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
                     <span>Page {item.page}, Para {item.paragraph}</span>
                     <div className="flex items-center">
                       <span className="mr-1">{item.confidence}%</span>
                       <EyeIcon className="h-4 w-4" />
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
-
+          </div>
+        </div>
+              ))}
+      </div>
+      
             {/* Selected redaction feedback */}
             {selectedItem && (
               <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
@@ -625,8 +622,8 @@ export default function DocumentReportPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                       Submit
-                    </button>
-                  </div>
+                      </button>
+                    </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
                     Press Ctrl+Enter to submit
                   </div>

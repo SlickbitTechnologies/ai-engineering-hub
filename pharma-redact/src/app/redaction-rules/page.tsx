@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { motion, AnimatePresence } from "framer-motion";
 import { MainLayout } from "@/components/layout/main-layout";
@@ -13,10 +13,14 @@ import {
   toggleRuleActive,
   deleteRule,
   selectRule,
-  addTemplate,
-  updateTemplate,
-  deleteTemplate,
+  addTemplate as addLocalTemplate,
+  updateTemplate as updateLocalTemplate,
+  deleteTemplate as deleteLocalTemplate,
   selectTemplate,
+  createTemplate,
+  updateTemplateAsync,
+  deleteTemplateAsync,
+  fetchUserTemplates
 } from "@/store/slices/redactionSlice";
 import { RedactionTemplate, RedactionCategory } from "@/types/redaction";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,10 +31,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/utils/cn";
+import { AppDispatch } from "@/store";
 
 export default function RedactionRulesPage() {
-  const dispatch = useDispatch();
-  const { rules, templates } = useSelector((state: RootState) => state.redaction as {
+  const dispatch = useDispatch<AppDispatch>();
+  const { rules, templates, isLoadingTemplates } = useSelector((state: RootState) => state.redaction as {
     rules: RedactionRule[];
     templates: RedactionTemplate[];
     items: any[];
@@ -39,6 +44,7 @@ export default function RedactionRulesPage() {
     error: string | null;
     selectedRuleId: string | null;
     selectedTemplateId: string | null;
+    isLoadingTemplates: boolean;
   });
   const [activeTab, setActiveTab] = useState<string>("rules");
   
@@ -71,6 +77,11 @@ export default function RedactionRulesPage() {
     visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
     exit: { opacity: 0, y: -20, transition: { duration: 0.2 } }
   };
+
+  // Fetch templates on component mount
+  useEffect(() => {
+    dispatch(fetchUserTemplates());
+  }, [dispatch]);
 
   // Rules functions
   const handleCreateRule = () => {
@@ -136,8 +147,10 @@ export default function RedactionRulesPage() {
       };
     }).filter(Boolean) as RedactionCategory[];
     
-    dispatch(addTemplate({
-      ...newTemplate,
+    // Create template using API thunk
+    dispatch(createTemplate({
+      name: newTemplate.name,
+      description: newTemplate.description,
       categories
     }));
     
@@ -164,7 +177,8 @@ export default function RedactionRulesPage() {
         };
       }).filter(Boolean) as RedactionCategory[];
       
-      dispatch(updateTemplate({
+      // Update template using API thunk
+      dispatch(updateTemplateAsync({
         id: currentTemplate.id,
         name: newTemplate.name,
         description: newTemplate.description,
@@ -184,7 +198,8 @@ export default function RedactionRulesPage() {
 
   const handleDeleteTemplate = (templateId: string) => {
     if (window.confirm('Are you sure you want to delete this template?')) {
-      dispatch(deleteTemplate(templateId));
+      // Delete template using API thunk
+      dispatch(deleteTemplateAsync(templateId));
     }
   };
 
