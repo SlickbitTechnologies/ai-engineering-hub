@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { Readable } from 'stream';
 import { File } from 'buffer';
 import dotenv from 'dotenv';
+import KPIMetric from '../db/models/KPIMetric';
 
 dotenv.config();
 
@@ -42,13 +43,7 @@ interface ConversationAnalysis {
     confusion: number;
   };
   kpiMetrics: {
-    greeting: number;
-    identityVerification: number;
-    problemUnderstanding: number;
-    solutionOffering: number;
-    empathy: number;
-    requiredDisclosures: number;
-    closing: number;
+    [key: string]: number;
   };
   kpiScore: number;
   agentPerformance: {
@@ -56,9 +51,27 @@ interface ConversationAnalysis {
     helpfulness: number;
     clarity: number;
   };
+  kpiAnalysis: {
+    strengths: Array<{ title: string; description: string }>;
+    improvements: Array<{ title: string; description: string }>;
+  };
 }
 
-const ANALYSIS_PROMPT = `You are a conversation analyzer. 
+async function getAnalysisPrompt(): Promise<string> {
+  try {
+    // Fetch enabled KPI metrics from the database
+    const metrics = await KPIMetric.findAll({
+      where: { enabled: true },
+      attributes: ['key', 'name', 'description'],
+      order: [['createdAt', 'ASC']]
+    });
+
+    // Generate the KPI metrics section of the prompt
+    const kpiMetricsPrompt = metrics.map(metric => 
+      `${metric.key} (${metric.name}): ${metric.description}`
+    ).join('\n');
+
+    return `You are a conversation analyzer. 
 Please rewrite it as a structured conversation between two speakers (Agent and Customer), using natural dialogue formatting.
 Analyze the provided conversation and return ONLY a JSON object with the following structure, no additional text:
 {
@@ -91,13 +104,7 @@ Analyze the provided conversation and return ONLY a JSON object with the followi
     "confusion": number(0-100)
   },
   "kpiMetrics": {
-    "greeting": number(0-100),
-    "identityVerification": number(0-100),
-    "problemUnderstanding": number(0-100),
-    "solutionOffering": number(0-100),
-    "empathy": number(0-100),
-    "requiredDisclosures": number(0-100),
-    "closing": number(0-100)
+    ${metrics.map(m => `"${m.key}": number(0-100)`).join(',\n    ')}
   },
   "kpiScore": number(0-100),
   "keyPoints": ["point1", "point2", ...],
@@ -107,8 +114,37 @@ Analyze the provided conversation and return ONLY a JSON object with the followi
     "professionalism": number(0-100),
     "helpfulness": number(0-100),
     "clarity": number(0-100)
+  },
+  "kpiAnalysis": {
+    "strengths": [
+      {
+        "title": "string",
+        "description": "string"
+      }
+    ],
+    "improvements": [
+      {
+        "title": "string",
+        "description": "string"
+      }
+    ]
   }
-}`;
+}
+sentimentAnalysis total score of positive,negative,neutral should be 100
+For KPI metrics evaluation, consider the following criteria:
+${kpiMetricsPrompt}
+
+For KPI strengths and improvements analysis:
+1. Identify 3 key strengths based on high-scoring metrics and positive interactions
+2. Identify 2 areas for improvement based on low-scoring metrics and opportunities for enhancement
+3. Each strength and improvement should have a clear title and detailed description
+4. Focus on actionable insights that can help improve future performance
+`;
+  } catch (error) {
+    console.error('Error generating analysis prompt:', error);
+    throw error;
+  }
+}
 
 export const transcribeAndAnalyze = async (
   audioBuffer: Buffer,
@@ -124,14 +160,17 @@ export const transcribeAndAnalyze = async (
       language: "en",
       response_format: "text"
     });
-    console.log("TRANSCRIPTION_PROMPT", transcriptionResponse);
+    
+    // Get the dynamic analysis prompt
+    const analysisPrompt = await getAnalysisPrompt();
+
     // Then, analyze the transcription using GPT-4
     const analysisResponse = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
         {
           role: "system",
-          content: ANALYSIS_PROMPT
+          content: analysisPrompt
         },
         {
           role: "user",
@@ -158,7 +197,8 @@ export const transcribeAndAnalyze = async (
       emotional: analysis.emotional,
       kpiMetrics: analysis.kpiMetrics,
       kpiScore: analysis.kpiScore,
-      agentPerformance: analysis.agentPerformance
+      agentPerformance: analysis.agentPerformance,
+      kpiAnalysis: analysis.kpiAnalysis
     };
     console.log("DATA", data);
     return data;

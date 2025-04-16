@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { AIModelCard, AnalysisSettingsCard, UserManagementCard } from '../components/configuration';
+import { AIModelCard, AnalysisSettingsCard, UserManagementCard, KPIMetricsCard } from '../components/configuration';
+import { KPIMetric } from '../types/kpi';
 import { 
   useGetConfigurationQuery, 
   useUpdateModelConfigurationMutation, 
@@ -10,6 +11,7 @@ import {
   useDeleteUserMutation
 } from '../redux/configurationApi';
 import { parseApiError } from '../services/errorHandler';
+import { toast, Toaster } from 'react-hot-toast';
 
 // Define the model configuration interface
 interface ModelConfiguration {
@@ -90,6 +92,9 @@ const ConfigurationPage: React.FC = () => {
     { id: 1, name: 'John Doe', email: 'john.doe@example.com', role: 'Admin' },
     { id: 2, name: 'Jane Smith', email: 'jane.smith@example.com', role: 'Agent' }
   ]);
+
+  // KPI Metrics state
+  const [kpiMetrics, setKpiMetrics] = useState<KPIMetric[]>([]);
 
   // Update local state when API data is received
   useEffect(() => {
@@ -236,8 +241,9 @@ const ConfigurationPage: React.FC = () => {
         keyword_extraction_enabled: keywordExtraction.enabled,
         topic_detection_enabled: topicDetection.enabled
       });
-      console.log('All analysis settings saved successfully');
+      toast.success('Analysis settings saved successfully');
     } catch (err) {
+      toast.error('Failed to save analysis settings');
       console.error('Error saving analysis settings:', err);
     }
   };
@@ -288,6 +294,38 @@ const ConfigurationPage: React.FC = () => {
     topicDetection
   };
 
+  const handleAddMetric = (metric: Omit<KPIMetric, 'id'>) => {
+    const newMetric = {
+      ...metric,
+      id: Date.now().toString() // Generate a temporary ID
+    };
+    setKpiMetrics(prev => [...prev, newMetric]);
+    toast.success('New KPI metric added');
+  };
+
+  const handleUpdateMetric = (updatedMetric: KPIMetric) => {
+    setKpiMetrics(prevMetrics =>
+      prevMetrics.map(metric =>
+        metric.id === updatedMetric.id ? updatedMetric : metric
+      )
+    );
+  };
+
+  const handleDeleteMetric = (id: string) => {
+    setKpiMetrics(prev => prev.filter(metric => metric.id !== id));
+    toast.success('KPI metric deleted');
+  };
+
+  const handleSaveKPIMetrics = async () => {
+    try {
+      // TODO: Add API call to save KPI metrics
+      toast.success('KPI metrics saved successfully');
+    } catch (err) {
+      toast.error('Failed to save KPI metrics');
+      console.error('Error saving KPI metrics:', err);
+    }
+  };
+
   // Loading state
   if (isLoading) {
     return <div className="p-4">Loading configuration data...</div>;
@@ -312,30 +350,36 @@ const ConfigurationPage: React.FC = () => {
   // }
 
   return (
-    <div className="space-y-8">
-      {/* AI Model Configuration */}
-      <AIModelCard
-        modelConfig={modelConfig}
-        onModelConfigChange={handleModelConfigChange}
-        onProviderChange={handleProviderChange}
-        onSliderChange={handleSliderChange}
-        onSave={handleSaveModelConfig}
-      />
-      
-      {/* Call Analysis Settings */}
-      <AnalysisSettingsCard
-        settings={analysisSettings}
-        onToggleChange={handleToggleChange}
-        saveSettings={saveAnalysisSettings}
-      />
+    <div className="container mx-auto px-4 py-8">
+      <Toaster position="bottom-center" />
+      <div className="space-y-8">
+        {/* AI Model Configuration */}
+        {/* <AIModelCard
+          modelConfig={modelConfig}
+          onModelConfigChange={handleModelConfigChange}
+          onProviderChange={handleProviderChange}
+          onSliderChange={handleSliderChange}
+          onSave={handleSaveModelConfig}
+        /> */}
+        
+        {/* Call Analysis Settings */}
+        {/* <AnalysisSettingsCard
+          settings={analysisSettings}
+          onToggleChange={handleToggleChange}
+          saveSettings={saveAnalysisSettings}
+        /> */}
 
-      {/* User Management */}
-      <UserManagementCard 
-        users={users} 
-        onCreateUser={handleCreateUser}
-        onUpdateUser={handleUpdateUser}
-        onDeleteUser={handleDeleteUser}
-      />
+        {/* KPI Metrics Configuration */}
+        <KPIMetricsCard />
+
+        {/* User Management */}
+        {/* <UserManagementCard 
+          users={users} 
+          onCreateUser={handleCreateUser}
+          onUpdateUser={handleUpdateUser}
+          onDeleteUser={handleDeleteUser}
+        /> */}
+      </div>
     </div>
   );
 };

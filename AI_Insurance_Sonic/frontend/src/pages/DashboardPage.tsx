@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FaRegChartBar, FaExternalLinkAlt } from 'react-icons/fa';
 import { LuFileAudio } from 'react-icons/lu';
 import { CiClock2 } from 'react-icons/ci';
@@ -25,6 +25,18 @@ const DashboardPage: React.FC = () => {
   const { data: kpiData, isLoading: isKpiLoading } = useGetKpiPerformanceQuery('month');
   const { data: sentimentData, isLoading: isSentimentLoading } = useGetSentimentTrendQuery('month');
   const { data: recentCalls, isLoading: isRecentCallsLoading } = useGetRecentCallsQuery(5);
+
+  const [sortColumn, setSortColumn] = useState<string>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
 
   // Transform API data to chart.js format
   const callVolumeChartData: ChartData<'line'> = {
@@ -237,6 +249,9 @@ const DashboardPage: React.FC = () => {
           columns={recentCallsColumns}
           data={recentCalls || []}
           emptyMessage={isRecentCallsLoading ? "Loading recent calls..." : "No recent calls found."}
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSort={handleSort}
         />
       </div>
     </>

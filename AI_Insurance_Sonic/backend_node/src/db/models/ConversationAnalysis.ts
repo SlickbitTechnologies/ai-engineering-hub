@@ -18,19 +18,17 @@ class ConversationAnalysis extends Model<InferAttributes<ConversationAnalysis>, 
     confusion: number;
   };
   declare kpiMetrics: {
-    greeting: number;
-    identityVerification: number;
-    problemUnderstanding: number;
-    solutionOffering: number;
-    empathy: number;
-    requiredDisclosures: number;
-    closing: number;
+    [key: string]: number;
   };
   declare kpiScore: number;
   declare agentPerformance: {
     professionalism: number;
     helpfulness: number;
     clarity: number;
+  };
+  declare kpiAnalysis: {
+    strengths: Array<{ title: string; description: string }>;
+    improvements: Array<{ title: string; description: string }>;
   };
   declare createdAt: Date;
   declare updatedAt: Date;
@@ -77,6 +75,11 @@ ConversationAnalysis.init(
     agentPerformance: {
       type: DataTypes.JSON,
       allowNull: false,
+    },
+    kpiAnalysis: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: { strengths: [], improvements: [] }
     },
     createdAt: {
       type: DataTypes.DATE,

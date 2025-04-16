@@ -1,7 +1,12 @@
 import AudioFile from './AudioFile';
-import Transcription from './Transcription';
+import Batch from './Batch';
 import ConversationAnalysis from './ConversationAnalysis';
 import ConversationTurn from './ConversationTurn';
+import Transcription from './Transcription';
+import ModelConfiguration from './ModelConfiguration';
+import AnalysisSettings from './AnalysisSettings';
+import User from './User';
+import KPIMetric from './KPIMetric';
 
 export const setupAssociations = () => {
   // AudioFile - Transcription
@@ -33,4 +38,16 @@ export const setupAssociations = () => {
     foreignKey: 'transcriptionId',
     as: 'Transcription'
   });
+};
+
+export {
+  AudioFile,
+  Batch,
+  ConversationAnalysis,
+  ConversationTurn,
+  Transcription,
+  ModelConfiguration,
+  AnalysisSettings,
+  User,
+  KPIMetric
 }; 

@@ -32,14 +32,16 @@ export interface GetCallsRequest {
   startDate?: string;
   endDate?: string;
   agent?: string;
-  category?: string;
-  sentiment?: string;
+  categories?: string[];
+  sentiments?: string[];
+  kpiScore?: string;
 }
 
 export interface CallDetails {
   id: string;
   date: string;
   time: string;
+  url: string;
   agent: string;
   customer: string;
   duration: string;
@@ -47,6 +49,7 @@ export interface CallDetails {
   sentiment: 'Positive' | 'Neutral' | 'Negative';
   kpiScore: string;
   isCompliant: boolean;
+  audioUrl: string;
   transcript: {
     time: string;
     speaker: 'Agent' | 'Customer';
@@ -71,9 +74,9 @@ export interface CallDetails {
   };
   keyPhrases: string[];
   sentimentAnalysis: {
-    positive: number;
-    negative?: number;
-    neutral?: number;
+    positive: number ;
+    negative: number;
+    neutral: number;
   };
   topicsDiscussed: {
     topic: string;
@@ -84,6 +87,10 @@ export interface CallDetails {
     frustration: number;
     confidence: number;
     confusion: number;
+  };
+  kpiAnalysis: {
+    strengths: Array<{ title: string; description: string }>;
+    improvements: Array<{ title: string; description: string }>;
   };
 }
 
@@ -103,9 +110,9 @@ export const callsApi = createApi({
           sortOrder: params.sortOrder,
           startDate: params.startDate,
           endDate: params.endDate,
-          agent: params.agent,
-          category: params.category,
-          sentiment: params.sentiment
+          categories: params.categories,
+          sentiments: params.sentiments,
+          kpiScore: params.kpiScore
         }
       }),
       transformResponse: (response: GetCallsResponse) => ({

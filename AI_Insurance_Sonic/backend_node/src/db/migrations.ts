@@ -201,6 +201,11 @@ export async function createTables() {
         type: DataTypes.JSON,
         allowNull: false,
       },
+      kpiAnalysis: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: { strengths: [], improvements: [] }
+      },
       createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
@@ -240,6 +245,41 @@ export async function createTables() {
       sentiment: {
         type: DataTypes.STRING,
         allowNull: true,
+      },
+      createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+      },
+      updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+      }
+    });
+
+    // Create kpi_metrics table
+    await queryInterface.createTable('kpi_metrics', {
+      id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        primaryKey: true,
+      },
+      key: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+      },
+      name: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      description: {
+        type: DataTypes.TEXT,
+        allowNull: false,
+      },
+      enabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
       },
       createdAt: {
         type: DataTypes.DATE,

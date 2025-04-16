@@ -38,7 +38,7 @@ const AnalysisSettingsCard: React.FC<AnalysisSettingsCardProps> = ({
 
   return (
     <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-xl font-semibold mb-4">Call Analysis Settings</h2>
+      <h2 className="text-xl font-semibold mb-4 text-black">Call Analysis Settings</h2>
       <p className="text-gray-600 mb-6">Configure which features are enabled for call analysis.</p>
       
       <div className="space-y-4">

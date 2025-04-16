@@ -78,3 +78,15 @@ model User {
 
   @@map("users")
 }
+
+model KPIMetric {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("kpi_metrics")
+}

@@ -1,6 +1,7 @@
 import ModelConfiguration from '../db/models/ModelConfiguration';
 import AnalysisSettings from '../db/models/AnalysisSettings';
 import User from '../db/models/User';
+import KPIMetric from '../db/models/KPIMetric';
 import { ConfigurationServiceError } from '../utils/errors';
 
 export class ConfigurationService {
@@ -97,6 +98,60 @@ export class ConfigurationService {
     } catch (error) {
       console.error('Error deleting user:', error);
       throw new ConfigurationServiceError('Failed to delete user');
+    }
+  }
+
+  async createKPIMetric(metricData: Omit<KPIMetric, 'id'>) {
+    try {
+      console.log('Creating KPI metric');
+      const metric = await KPIMetric.create(metricData);
+      return metric;
+    } catch (error) {
+      console.error('Error creating KPI metric:', error);
+      throw new ConfigurationServiceError('Failed to create KPI metric');
+    }
+  }
+
+  async updateKPIMetric(id: string, metricData: Partial<Omit<KPIMetric, 'id'>>) {
+    try {
+      console.log('Updating KPI metric:', id);
+      const metric = await KPIMetric.findByPk(id);
+      if (!metric) {
+        throw new ConfigurationServiceError('KPI metric not found');
+      }
+      await metric.update(metricData);
+      return metric;
+    } catch (error) {
+      console.error('Error updating KPI metric:', error);
+      throw new ConfigurationServiceError('Failed to update KPI metric');
+    }
+  }
+
+  async deleteKPIMetric(id: string) {
+    try {
+      console.log('Deleting KPI metric:', id);
+      const metric = await KPIMetric.findByPk(id);
+      if (!metric) {
+        throw new ConfigurationServiceError('KPI metric not found');
+      }
+      await metric.destroy();
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting KPI metric:', error);
+      throw new ConfigurationServiceError('Failed to delete KPI metric');
+    }
+  }
+
+  async getAllKPIMetrics() {
+    try {
+      console.log('Fetching all KPI metrics');
+      const metrics = await KPIMetric.findAll({
+        order: [['createdAt', 'ASC']]
+      });
+      return metrics;
+    } catch (error) {
+      console.error('Error fetching KPI metrics:', error);
+      throw new ConfigurationServiceError('Failed to fetch KPI metrics');
     }
   }
 } 

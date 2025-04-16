@@ -105,7 +105,7 @@ const Sidebar: React.FC<SidebarProps> = ({ logoSrc }) => {
       
       <div className="mt-auto p-4 border-t w-full">
         <div className="flex items-center p-2 rounded-md hover:bg-gray-100 cursor-pointer">
-          <div className="h-8 w-8 bg-[#00aff0] bg-opacity-20 rounded-full text-[#00aff0] flex items-center justify-center mr-2">
+          <div className="h-8 w-8  bg-opacity-20 rounded-full text-[#00aff0] flex items-center justify-center mr-2">
             <LuFileAudio size={16} />
           </div>
           <div>

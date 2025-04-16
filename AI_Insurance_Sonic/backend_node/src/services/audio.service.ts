@@ -13,6 +13,7 @@ import * as path from 'path';
 import * as os from 'os';
 import whisper from 'whisper-node';
 import sequelize from '../db/config';
+import { getStorage } from 'firebase-admin/storage';
 
 export class AudioService {
   constructor() {}
@@ -162,6 +163,7 @@ export class AudioService {
         kpiMetrics: analysis.kpiMetrics,
         kpiScore: analysis.kpiScore,
         agentPerformance: analysis.agentPerformance,
+        kpiAnalysis: analysis.kpiAnalysis,
         createdAt: new Date(),
         updatedAt: new Date()
       }, { transaction: t });
@@ -300,5 +302,28 @@ export class AudioService {
     );
     
     console.log(`Completed processing all files for batch ${batchId}`);
+  }
+
+  async getDownloadUrl(fileId: string): Promise<string> {
+    try {
+      const audioFile = await AudioFile.findByPk(fileId);
+      if (!audioFile) {
+        throw new FileNotFoundError('Audio file not found');
+      }
+
+      const bucket = getStorage().bucket();
+      const file = bucket.file(audioFile.fileName);
+      
+      // Generate a signed URL that expires in 1 hour
+      const [url] = await file.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 60 * 60 * 1000, // 1 hour
+      });
+
+      return url;
+    } catch (error) {
+      console.error('Error getting download URL:', error);
+      throw new StorageError('Failed to get download URL');
+    }
   }
 } 

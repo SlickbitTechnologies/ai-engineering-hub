@@ -1,5 +1,6 @@
-import { createApi } from '@reduxjs/toolkit/query/react';
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { baseQuery } from '../services/api';
+import { KPIMetric } from '../types/kpi';
 
 // Types matching the backend schemas
 export interface ModelConfiguration {
@@ -38,8 +39,8 @@ export interface CompleteConfiguration {
 // Create API
 export const configurationApi = createApi({
   reducerPath: 'configurationApi',
-  baseQuery,
-  tagTypes: ['Configuration', 'Users'],
+  baseQuery: baseQuery,
+  tagTypes: ['Configuration', 'Users', 'KPIMetrics'],
   endpoints: (builder) => ({
     // Get complete configuration
     getConfiguration: builder.query<CompleteConfiguration, void>({
@@ -101,6 +102,38 @@ export const configurationApi = createApi({
       }),
       invalidatesTags: ['Users'],
     }),
+
+    // KPI Metrics endpoints
+    getKPIMetrics: builder.query<KPIMetric[], void>({
+      query: () => 'configuration/kpi-metrics',
+      providesTags: ['KPIMetrics']
+    }),
+
+    createKPIMetric: builder.mutation<KPIMetric, Omit<KPIMetric, 'id'>>({
+      query: (metric) => ({
+        url: 'configuration/kpi-metrics',
+        method: 'POST',
+        body: metric
+      }),
+      invalidatesTags: ['KPIMetrics']
+    }),
+
+    updateKPIMetric: builder.mutation<KPIMetric, KPIMetric>({
+      query: (metric) => ({
+        url: `configuration/kpi-metrics/${metric.id}`,
+        method: 'PUT',
+        body: metric
+      }),
+      invalidatesTags: ['KPIMetrics']
+    }),
+
+    deleteKPIMetric: builder.mutation<void, string>({
+      query: (id) => ({
+        url: `configuration/kpi-metrics/${id}`,
+        method: 'DELETE'
+      }),
+      invalidatesTags: ['KPIMetrics']
+    })
   }),
 });
 
@@ -113,4 +146,8 @@ export const {
   useCreateUserMutation,
   useUpdateUserMutation,
   useDeleteUserMutation,
+  useGetKPIMetricsQuery,
+  useCreateKPIMetricMutation,
+  useUpdateKPIMetricMutation,
+  useDeleteKPIMetricMutation
 } = configurationApi; 
