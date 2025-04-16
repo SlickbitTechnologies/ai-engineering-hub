@@ -182,9 +182,10 @@ app.get("/api/orders", (req, res) => {
 
 app.post("/api/process-order", async (req, res) => {
   const { items } = req.body;
-  // Simple items processing to match menu items
-  // In a real application, you would use NLP or a more sophisticated matching system
+  console.log(items, 'items received in process-order');
+
   try {
+    // Fetch menu items from the database
     const menuItems = await new Promise((resolve, reject) => {
       db.all("SELECT * FROM menu_items", (err, rows) => {
         if (err) reject(err);
@@ -192,6 +193,7 @@ app.post("/api/process-order", async (req, res) => {
       });
     });
 
+    // Match items from the request with menu items in the database
     const matchedItems = menuItems.filter(item =>
       items?.some(orderItem =>
         orderItem?.name?.toLowerCase().includes(item?.name?.toLowerCase())
@@ -203,10 +205,16 @@ app.post("/api/process-order", async (req, res) => {
       return;
     }
 
-    // Calculate total
-    const total = matchedItems.reduce((sum, item) => sum + item.price, 0);
+    // Calculate total price based on quantities
+    const total = matchedItems.reduce((sum, item) => {
+      const orderItem = items.find(orderItem =>
+        orderItem.name.toLowerCase().includes(item.name.toLowerCase())
+      );
+      const quantity = orderItem?.quantity || 1; // Default quantity is 1 if not provided
+      return sum + item.price * quantity;
+    }, 0);
 
-    // Create order
+    // Create the order in the database
     const order = await new Promise((resolve, reject) => {
       db.run(
         "INSERT INTO orders (total) VALUES (?)",
@@ -218,22 +226,28 @@ app.post("/api/process-order", async (req, res) => {
       );
     });
 
-    // Create order items
-    await Promise.all(matchedItems.map(item =>
-      new Promise((resolve, reject) => {
+    // Insert order items into the database, including quantity
+    await Promise.all(matchedItems.map(item => {
+      const orderItem = items.find(orderItem =>
+        orderItem.name.toLowerCase().includes(item.name.toLowerCase())
+      );
+      const quantity = orderItem?.quantity || 1; // Default quantity is 1 if not provided
+
+      return new Promise((resolve, reject) => {
         db.run(
-          "INSERT INTO order_items (order_id, menu_item_id) VALUES (?, ?)",
-          [order.id, item.id],
+          "INSERT INTO order_items (order_id, menu_item_id, quantity) VALUES (?, ?, ?)",
+          [order.id, item.id, quantity],
           (err) => {
             if (err) reject(err);
             else resolve();
           }
         );
-      })
-    ));
+      });
+    }));
 
     res.json({ items: matchedItems, orderId: order.id, total });
   } catch (error) {
+    console.error('Error processing order:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -79,6 +79,51 @@ pharma-redact/
 2. **Test Rules**: Test rules against sample documents
 3. **Activate/Deactivate**: Control which rules are active for redaction
 
+## Database Implementation
+
+The application uses SQLite as a persistent storage solution for document management. This provides a lightweight, serverless database that doesn't require additional infrastructure.
+
+### Document Storage
+
+Documents are stored with the following metadata:
+
+- **id**: A unique identifier for each document
+- **user_id**: The ID of the user who uploaded the document
+- **original_file_path**: Path to the original file on the server
+- **redacted_file_path**: Path to the redacted version (if available)
+- **summary**: Text summary of what was redacted
+- **status**: Document status ('pending' or 'redacted')
+- **file_name**: Original file name
+- **file_type**: File MIME type
+- **file_size**: File size in bytes
+- **uploaded_at**: Timestamp when document was uploaded
+- **updated_at**: Timestamp when document was last updated
+
+### Database Structure
+
+The database is initialized with a `documents` table and appropriate indexes for efficient queries. All queries are scoped by user ID to ensure users can only access their own documents.
+
+### Document Lifecycle
+
+1. **Upload**: Document is uploaded and saved to the server's filesystem. A record is created in the database with status "pending".
+2. **Redaction**: User processes the document for redaction.
+3. **Completion**: When redaction is complete, the redacted file path and summary are stored, and status is updated to "redacted".
+
+### Navigation Control
+
+The application controls navigation based on document status:
+
+- If status is "pending", navigation to `/documents/{id}` allows the user to start or continue redaction.
+- If status is "redacted", navigation to `/documents/{id}/report` displays the redaction report and summary.
+
+### File Storage
+
+Files are stored in a structured directory hierarchy:
+- `uploads/[user_id]/` for original files
+- `uploads/[user_id]/redacted/` for redacted files
+
+This ensures proper organization and security separation between different users' documents.
+
 ## License
 
 [MIT License](LICENSE)

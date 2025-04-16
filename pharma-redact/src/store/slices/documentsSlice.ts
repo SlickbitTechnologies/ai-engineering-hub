@@ -1,6 +1,13 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { getDocumentsFromFirestore, addDocumentToFirestore, deleteDocument } from '@/utils/firebase';
+import {
+    getDocuments,
+    uploadDocument,
+    deleteDocument as deleteDocumentService,
+    getDocumentById
+} from '@/utils/fileServices';
+import { Document as DocumentType } from '@/types/document';
 
+// For compatibility with existing code
 export interface Document {
     id: string;
     name: string;
@@ -10,11 +17,26 @@ export interface Document {
     uploadedAt: string;
     status: 'pending' | 'processing' | 'redacted' | 'error';
     source: string;
-    fileUrl?: string; // URL to Firebase Storage file
-    firestoreId?: string; // Firestore document ID
-    redactedUrl?: string; // URL to redacted version of the document
+    fileUrl?: string;
+    redactedUrl?: string;
     entitiesFound?: number;
 }
+
+// Mapper to convert our SQLite Document to Redux Document
+const mapDbDocToStoreDoc = (dbDoc: DocumentType): Document => {
+    return {
+        id: dbDoc.id,
+        name: dbDoc.fileName,
+        type: dbDoc.fileType.split('/').pop() || 'unknown',
+        path: `/documents/${dbDoc.id}`,
+        size: dbDoc.fileSize,
+        uploadedAt: new Date(dbDoc.uploadedAt).toISOString(),
+        status: dbDoc.status,
+        source: 'upload',
+        fileUrl: dbDoc.originalFilePath,
+        redactedUrl: dbDoc.redactedFilePath || undefined
+    };
+};
 
 interface DocumentsState {
     documents: Document[];
@@ -30,26 +52,26 @@ const initialState: DocumentsState = {
     error: null,
 };
 
-// Async thunk for fetching documents from Firestore
+// Async thunk for fetching documents from SQLite
 export const fetchDocuments = createAsyncThunk(
     'documents/fetchDocuments',
     async (_, { rejectWithValue }) => {
         try {
-            const documents = await getDocumentsFromFirestore();
-            return documents;
+            const documents = await getDocuments();
+            return documents.map(mapDbDocToStoreDoc);
         } catch (error: any) {
             return rejectWithValue(error.message);
         }
     }
 );
 
-// Async thunk for adding a document to Firestore
+// Async thunk for adding a document to SQLite
 export const addDocument = createAsyncThunk(
     'documents/addDocument',
-    async (document: Omit<Document, 'id' | 'firestoreId'>, { rejectWithValue }) => {
+    async (file: File, { rejectWithValue }) => {
         try {
-            const firestoreId = await addDocumentToFirestore(document);
-            return { ...document, firestoreId, id: firestoreId };
+            const dbDocument = await uploadDocument(file);
+            return mapDbDocToStoreDoc(dbDocument);
         } catch (error: any) {
             return rejectWithValue(error.message);
         }
@@ -59,12 +81,23 @@ export const addDocument = createAsyncThunk(
 // Async thunk for deleting a document
 export const removeDocument = createAsyncThunk(
     'documents/removeDocument',
-    async ({ id, fileUrl, firestoreId }: { id: string, fileUrl?: string, firestoreId?: string }, { rejectWithValue }) => {
+    async ({ id }: { id: string }, { rejectWithValue }) => {
         try {
-            if (fileUrl && firestoreId) {
-                await deleteDocument(fileUrl, firestoreId);
-            }
+            await deleteDocumentService(id);
             return id;
+        } catch (error: any) {
+            return rejectWithValue(error.message);
+        }
+    }
+);
+
+// Async thunk for getting a document by ID
+export const getDocument = createAsyncThunk(
+    'documents/getDocument',
+    async (id: string, { rejectWithValue }) => {
+        try {
+            const document = await getDocumentById(id);
+            return mapDbDocToStoreDoc(document);
         } catch (error: any) {
             return rejectWithValue(error.message);
         }
@@ -105,10 +138,7 @@ const documentsSlice = createSlice({
                     state.selectedDocument = { ...state.selectedDocument, ...properties };
                 }
             }
-        },
-        addLocalDocument: (state, action: PayloadAction<Document>) => {
-            state.documents.push(action.payload);
-        },
+        }
     },
     extraReducers: (builder) => {
         builder
@@ -155,10 +185,38 @@ const documentsSlice = createSlice({
             .addCase(removeDocument.rejected, (state, action) => {
                 state.isLoading = false;
                 state.error = action.payload as string;
+            })
+
+            // Get document by ID cases
+            .addCase(getDocument.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
+            .addCase(getDocument.fulfilled, (state, action) => {
+                state.isLoading = false;
+                state.selectedDocument = action.payload;
+
+                // Update in documents list if it exists
+                const index = state.documents.findIndex(doc => doc.id === action.payload.id);
+                if (index !== -1) {
+                    state.documents[index] = action.payload;
+                } else {
+                    // Add to documents list if not found
+                    state.documents.push(action.payload);
+                }
+            })
+            .addCase(getDocument.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload as string;
             });
     },
 });
 
-export const { selectDocument, clearSelectedDocument, updateDocumentStatus, updateDocumentProperties, addLocalDocument } = documentsSlice.actions;
+export const {
+    selectDocument,
+    clearSelectedDocument,
+    updateDocumentStatus,
+    updateDocumentProperties
+} = documentsSlice.actions;
 
 export default documentsSlice.reducer; 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store";
@@ -9,15 +9,200 @@ import { RedactionEntity } from "@/types/redaction";
 import { MainLayout } from "@/components/layout/main-layout";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { getViewableUrl } from "@/utils/localStorage";
+import { getDownloadUrl, downloadDocument, getAuthTokenAndHeaders } from "@/utils/fileServices";
 import { PDFProcessor } from "@/utils/pdf-processor";
+import { useDocuments } from "@/hooks/useDocuments";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/components/ui/use-toast";
+import { EyeIcon } from "lucide-react";
+import PdfViewer from '@/components/PdfViewer';
 
 type RedactionCategory = "PERSON" | "EMAIL" | "PHONE" | "ADDRESS" | "DATE_OF_BIRTH" | "FINANCIAL" | "MEDICAL" | "LEGAL" | string;
 
-export default function ReportPage() {
-  const params = useParams();
+// Helper function to download document with proper authentication
+const downloadAuthenticatedDocument = async (documentId: string, isOriginal: boolean = false) => {
+  try {
+    // Show loading indicator
+    const loadingToast = document.createElement('div');
+    loadingToast.className = 'fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center';
+    loadingToast.innerHTML = `
+      <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <span>Preparing download...</span>
+    `;
+    document.body.appendChild(loadingToast);
+    
+    // Add detailed logs
+    console.log(`Initiating ${isOriginal ? 'original' : 'redacted'} document download for ID: ${documentId}`);
+    console.log("User authentication status:", {
+      authenticated: localStorage.getItem('firebase-user-id') ? true : false,
+      userId: localStorage.getItem('firebase-user-id')
+    });
+    
+    // Use the provided utility function that handles authentication
+    await downloadDocument(documentId, isOriginal);
+    
+    // Success - remove loading indicator
+    document.body.removeChild(loadingToast);
+    
+    // Show success toast
+    const successToast = document.createElement('div');
+    successToast.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center';
+    successToast.innerHTML = `
+      <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+      </svg>
+      <span>Download started successfully</span>
+    `;
+    document.body.appendChild(successToast);
+    
+    // Remove success toast after 3 seconds
+    setTimeout(() => {
+      document.body.removeChild(successToast);
+    }, 3000);
+  } catch (error) {
+    // Remove loading indicator if it exists
+    const loadingToast = document.querySelector('.fixed.bottom-4.right-4.bg-gray-800');
+    if (loadingToast) {
+      document.body.removeChild(loadingToast);
+    }
+    
+    console.error(`Error downloading ${isOriginal ? 'original' : 'redacted'} document:`, error);
+    
+    // Get more detailed error information
+    const errorDetails = {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      docId: documentId,
+      isOriginal: isOriginal,
+      timestamp: new Date().toISOString(),
+      userId: localStorage.getItem('firebase-user-id') || 'unknown'
+    };
+    
+    // Log detailed error information
+    console.error("Detailed error context:", errorDetails);
+    
+    // Show error toast with more details and retry button
+    const errorToast = document.createElement('div');
+    errorToast.className = 'fixed bottom-4 right-4 bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg z-50 flex flex-col';
+    errorToast.innerHTML = `
+      <div class="flex items-center mb-2">
+        <svg class="h-5 w-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+        </svg>
+        <span class="font-medium">Download Failed</span>
+        <button class="ml-auto bg-red-700 hover:bg-red-800 p-1 rounded" id="close-error-toast">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <p class="text-sm mb-2">${errorDetails.message}</p>
+      <div class="flex justify-end space-x-2">
+        <button class="px-3 py-1 bg-red-700 hover:bg-red-800 rounded text-sm font-medium" id="retry-download">
+          Retry Download
+        </button>
+        <button class="px-3 py-1 bg-red-700 hover:bg-red-800 rounded text-sm font-medium" id="alt-download">
+          Alternative Download
+        </button>
+      </div>
+    `;
+    document.body.appendChild(errorToast);
+    
+    // Add event listeners to buttons
+    document.getElementById('close-error-toast')?.addEventListener('click', () => {
+      document.body.removeChild(errorToast);
+    });
+    
+    document.getElementById('retry-download')?.addEventListener('click', () => {
+      document.body.removeChild(errorToast);
+      downloadAuthenticatedDocument(documentId, isOriginal);
+    });
+    
+    document.getElementById('alt-download')?.addEventListener('click', () => {
+      document.body.removeChild(errorToast);
+      // Try alternative download method (POST with form)
+      try {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = isOriginal ? 
+          `/api/documents/${documentId}/download-original` : 
+          `/api/documents/${documentId}/download`;
+        form.target = '_blank';
+        
+        // Add user ID if available
+        const userId = localStorage.getItem('firebase-user-id');
+        if (userId) {
+          const userIdField = document.createElement('input');
+          userIdField.type = 'hidden';
+          userIdField.name = 'user_id';
+          userIdField.value = userId;
+          form.appendChild(userIdField);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+      } catch (e) {
+        console.error("Error in alternative download:", e);
+        alert("Alternative download also failed. Please try again later.");
+      }
+    });
+    
+    // Remove error toast after 15 seconds if not closed
+    setTimeout(() => {
+      if (document.body.contains(errorToast)) {
+        document.body.removeChild(errorToast);
+      }
+    }, 15000);
+  }
+};
+
+// Dummy data for redacted content items
+const dummyRedactedItems = [
+  { id: "1", text: "Robert Johnson", category: "Personal", reason: "Patient name", confidence: 99, page: 1, paragraph: 2 },
+  { id: "2", text: "HealthPlus Insurance", category: "Financial", reason: "Insurance provider", confidence: 95, page: 1, paragraph: 3 },
+  { id: "3", text: "05/12/1975", category: "Personal", reason: "Date of birth", confidence: 98, page: 1, paragraph: 2 },
+  { id: "4", text: "123 Main Street", category: "Personal", reason: "Home address", confidence: 97, page: 1, paragraph: 3 },
+  { id: "5", text: "Cityville, State 12345", category: "Personal", reason: "Home address", confidence: 96, page: 1, paragraph: 3 },
+  { id: "6", text: "(555) 123-4567", category: "Personal", reason: "Phone number", confidence: 99, page: 1, paragraph: 3 },
+  { id: "7", text: "robert.j@example.com", category: "Personal", reason: "Email address", confidence: 98, page: 1, paragraph: 3 },
+  { id: "8", text: "Dr. Jane Smith", category: "Personal", reason: "Doctor name", confidence: 97, page: 1, paragraph: 1 },
+  { id: "9", text: "John Doe", category: "Personal", reason: "Staff name", confidence: 95, page: 1, paragraph: 1 },
+  { id: "10", text: "987-65-4321", category: "Personal", reason: "Patient ID", confidence: 99, page: 1, paragraph: 1 },
+  { id: "11", text: "$1,245.00", category: "Financial", reason: "Payment amount", confidence: 98, page: 2, paragraph: 1 },
+  { id: "12", text: "Policy #H-54321", category: "Financial", reason: "Insurance policy", confidence: 97, page: 2, paragraph: 1 },
+];
+
+export default function DocumentReportPage() {
   const router = useRouter();
-  const documentId = params?.documentId as string;
+  const { documentId } = useParams() as { documentId: string };
+  const { isAuthenticated } = useAuth();
+  const { currentDocument, loading, error, fetchDocument } = useDocuments();
+  const { toast } = useToast();
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated && !loading) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, loading, router]);
+
+  // Fetch document on mount
+  useEffect(() => {
+    if (isAuthenticated && documentId) {
+      fetchDocument(documentId);
+    }
+  }, [isAuthenticated, documentId, fetchDocument]);
+
+  // Redirect to document page if it's not redacted yet
+  useEffect(() => {
+    if (currentDocument && currentDocument.status !== 'redacted') {
+      router.push(`/documents/${currentDocument.id}`);
+    }
+  }, [currentDocument, router]);
   
   // Get document and redaction data from Redux store
   const document = useSelector((state: RootState) => 
@@ -28,29 +213,104 @@ export default function ReportPage() {
     state.redaction.reports[documentId]
   );
   
-  const [showPdfModal, setShowPdfModal] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [originalPdfUrl, setOriginalPdfUrl] = useState<string | null>(null);
+  const [redactedPdfUrl, setRedactedPdfUrl] = useState<string | null>(null);
+  const [originalPdfError, setOriginalPdfError] = useState<string | null>(null);
+  const [redactedPdfError, setRedactedPdfError] = useState<string | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
+  const [redactedItems, setRedactedItems] = useState(dummyRedactedItems);
+  const [categoryCounts, setCategoryCounts] = useState({
+    Personal: 9,
+    Financial: 3,
+    Medical: 0,
+    Legal: 0
+  });
+  
   const feedbackRef = useRef<HTMLTextAreaElement>(null);
-  const pdfViewerRef = useRef<HTMLIFrameElement>(null);
-  const pdfObjectRef = useRef<HTMLObjectElement>(null);
+  const originalPdfRef = useRef<HTMLObjectElement>(null);
+  const redactedPdfRef = useRef<HTMLObjectElement>(null);
 
-  // Get the document URL for viewing
-  useEffect(() => {
-    if (document?.redactedUrl) {
-      const loadUrl = async () => {
-        try {
-          const url = await getViewableUrl(document.redactedUrl as string);
-          setPdfUrl(url);
-        } catch (error) {
-          console.error('Error getting viewable URL:', error);
+  // Create temporary blob URLs with auth tokens for viewing documents in iframes
+  const createSecureDocumentUrl = async (endpoint: string): Promise<{ url: string | null, error: string | null }> => {
+    try {
+      // Get authentication token and headers
+      const { token, headers } = await getAuthTokenAndHeaders();
+      
+      console.log(`Fetching document from ${endpoint} with auth`);
+      
+      // Fetch the document with proper authentication
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          ...headers
         }
+      });
+      
+      if (!response.ok) {
+        console.error(`Error fetching document: ${response.status} ${response.statusText}`);
+        
+        // Try to parse the error response
+        let errorMessage = `Error (${response.status})`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          const textContent = await response.text();
+          errorMessage = textContent || errorMessage;
+        }
+        
+        return { url: null, error: errorMessage };
+      }
+      
+      // Get the document as a blob
+      const fileBlob = await response.blob();
+      
+      // Create a blob URL for the document - use PDF type to ensure viewer loads with controls
+      const url = URL.createObjectURL(new Blob([fileBlob], { type: 'application/pdf' }));
+      return { url, error: null };
+        } catch (error) {
+      console.error('Error creating secure document URL:', error);
+      return { 
+        url: null, 
+        error: error instanceof Error ? error.message : 'Unknown error loading document' 
+      };
+    }
+  };
+
+  // Load documents with authentication
+  useEffect(() => {
+    if (currentDocument) {
+      const loadDocuments = async () => {
+        // Load original document
+        const originalEndpoint = `/api/documents/${documentId}/download-original`;
+        const original = await createSecureDocumentUrl(originalEndpoint);
+        setOriginalPdfUrl(original.url);
+        setOriginalPdfError(original.error);
+        
+        // If the document exists but isn't redacted yet, don't try to load redacted version
+        if (currentDocument.status !== 'redacted') {
+          setRedactedPdfError('Document has not been redacted yet');
+          return;
+        }
+        
+        // Load redacted document
+        const redactedEndpoint = `/api/documents/${documentId}/download`;
+        const redacted = await createSecureDocumentUrl(redactedEndpoint);
+        setRedactedPdfUrl(redacted.url);
+        setRedactedPdfError(redacted.error);
       };
       
-      loadUrl();
+      loadDocuments();
+      
+      // Clean up blob URLs when component unmounts
+      return () => {
+        if (originalPdfUrl) URL.revokeObjectURL(originalPdfUrl);
+        if (redactedPdfUrl) URL.revokeObjectURL(redactedPdfUrl);
+      };
     }
-  }, [document]);
+  }, [currentDocument, documentId]);
 
   const handleItemClick = (id: string) => {
     setSelectedEntity(id === selectedEntity ? null : id);
@@ -68,416 +328,311 @@ export default function ReportPage() {
 
   const handleSubmitFeedback = () => {
     if (feedback.trim()) {
-      // In a real implementation, we would submit the feedback
-      alert("Feedback submitted successfully!");
+      toast({
+        title: "Feedback submitted",
+        description: "Your feedback has been submitted successfully",
+        variant: "default"
+      });
       setFeedback("");
       setSelectedEntity(null);
     }
   };
   
-  const handleViewRedactedPdf = () => {
-    setShowPdfModal(true);
-  };
-  
-  const handleDownloadRedactedPdf = async () => {
-    if (!document?.redactedUrl) return;
-    
-    try {
-      const url = await getViewableUrl(document.redactedUrl);
+  // Calculate category counts from redacted items (in a real app, this would come from redactionReport)
+  useEffect(() => {
+    if (redactedItems.length > 0) {
+      const counts = redactedItems.reduce((acc: Record<string, number>, item) => {
+        acc[item.category] = (acc[item.category] || 0) + 1;
+        return acc;
+      }, {});
       
-      // Use the PDFProcessor's download method for better handling
-      const response = await fetch(url);
-      const pdfData = await response.arrayBuffer();
-      
-      PDFProcessor.downloadRedactedPDF(
-        new Uint8Array(pdfData),
-        `redacted-${document.name || 'document.pdf'}`
-      );
-    } catch (error) {
-      console.error('Error downloading redacted PDF:', error);
+      setCategoryCounts({
+        Personal: counts.Personal || 0,
+        Financial: counts.Financial || 0,
+        Medical: counts.Medical || 0,
+        Legal: counts.Legal || 0
+      });
     }
-  };
+  }, [redactedItems]);
   
-  const handleClosePdfModal = () => {
-    setShowPdfModal(false);
-  };
-  
-  const reloadPdfViewer = () => {
-    if (pdfViewerRef.current && pdfUrl) {
-      pdfViewerRef.current.src = pdfUrl;
-    }
-    if (pdfObjectRef.current && pdfUrl) {
-      pdfObjectRef.current.data = pdfUrl;
-    }
-  };
-
-  // Calculate statistics from real data
-  const getEntityCountByCategory = () => {
-    if (!redactionReport) return {};
-    
-    return redactionReport.entitiesByType;
-  };
-  
-  // Create the categories map for display
-  const entityCountByCategory = getEntityCountByCategory();
-  
-  // If document or redaction data is not available, show loading
-  if (!document || !redactionReport) {
+  if (loading || !currentDocument) {
     return (
       <MainLayout>
-        <div className="flex flex-col gap-6 p-4">
-          <div className="flex items-center gap-2">
+        <div className="container mx-auto p-6 flex items-center justify-center h-96">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout>
+        <div className="container mx-auto p-6">
+          <div className="bg-red-50 dark:bg-red-900 p-4 rounded-md">
+            <h2 className="text-red-800 dark:text-red-200 font-medium">Error</h2>
+            <p className="text-red-700 dark:text-red-300">{error}</p>
             <button
-              onClick={() => router.back()}
-              className="p-2 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
-              aria-label="Go back"
+              onClick={() => router.push('/documents')}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
+              Go back to documents
             </button>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Redaction Report</h2>
-              <p className="text-gray-600">Loading redaction details...</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-center h-[60vh]">
-            <div className="text-center">
-              <svg 
-                className="animate-spin h-12 w-12 text-primary-600 mx-auto mb-4" 
-                xmlns="http://www.w3.org/2000/svg" 
-                fill="none" 
-                viewBox="0 0 24 24"
-              >
-                <circle 
-                  className="opacity-25" 
-                  cx="12" 
-                  cy="12" 
-                  r="10" 
-                  stroke="currentColor" 
-                  strokeWidth="4"
-                ></circle>
-                <path 
-                  className="opacity-75" 
-                  fill="currentColor" 
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              <h2 className="text-xl font-medium text-gray-700">Loading redaction report...</h2>
-            </div>
           </div>
         </div>
       </MainLayout>
     );
   }
 
+  // Find selected redacted item
+  const selectedItem = selectedEntity ? redactedItems.find(item => item.id === selectedEntity) : null;
+
   return (
     <MainLayout>
-      <div className="flex flex-col gap-6 p-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.back()}
-            className="p-2 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
-            aria-label="Go back"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Redaction Report</h2>
-            <p className="text-gray-600">Review redacted content and provide feedback</p>
+      <div className="container mx-auto px-4 py-6">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Redaction Report</h1>
+          <p className="text-gray-600 dark:text-gray-400">Review redacted content and provide feedback</p>
           </div>
-        </div>
-
-        {/* Quick actions */}
-        <div className="flex flex-wrap gap-3 mb-2">
-          {/* Buttons removed */}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Redaction Summary Panel */}
-          <div className="lg:col-span-1 flex flex-col gap-4">
-            <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Redaction Summary</h3>
-              
-              <div className="space-y-5">
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Document Name</p>
-                  <p className="text-gray-900 font-medium">{document.name}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">File Type</p>
-                  <p className="text-gray-900 font-medium">{document.type.toUpperCase()}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Total Redactions</p>
-                  <p className="text-gray-900 font-medium">{redactionReport.totalEntities}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500 mb-2">Redactions by Type</p>
-                  <div className="space-y-2">
-                    {Object.entries(entityCountByCategory).map(([category, count]) => (
-                      <div key={category} className="flex justify-between items-center">
-                        <span className="flex items-center gap-1.5">
-                          <span className={`inline-block w-3 h-3 rounded-full ${
-                            category === 'PERSON' ? 'bg-blue-500' :
-                            category === 'EMAIL' ? 'bg-green-500' :
-                            category === 'PHONE' ? 'bg-yellow-500' :
-                            category === 'ADDRESS' ? 'bg-purple-500' :
-                            category === 'DATE_OF_BIRTH' ? 'bg-pink-500' :
-                            category === 'FINANCIAL' ? 'bg-emerald-500' :
-                            category === 'MEDICAL' ? 'bg-red-500' :
-                            'bg-gray-500'
-                          }`}></span>
-                          <span className="text-sm font-medium text-gray-700">{category}</span>
-                        </span>
-                        <span className="text-sm text-gray-900">{count}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
+          
+        {/* Main content grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Original Document */}
+          <div className="lg:col-span-4 flex flex-col">
+            <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Original Document</h2>
             
-            <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Actions</h3>
-              
-              <div className="space-y-3">
-                {/* Buttons removed */}
-                
-                <Link
-                  href={`/documents/${documentId}`}
-                  className="w-full block text-center px-4 py-2 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 active:translate-y-0.5"
-                >
-                  Back to Document
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* Redacted Content Panel */}
-          <div className="lg:col-span-3">
-            <div className="bg-white rounded-md shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Redacted Content</h3>
-              
-              {redactionReport.totalEntities === 0 ? (
-                <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <h3 className="text-xl font-medium text-gray-700 mb-2">No Redactions Needed</h3>
-                  <p className="text-gray-500 max-w-md mx-auto">
-                    No sensitive information was found in this document. The document has been marked as analyzed but no content was redacted.
-                  </p>
+            <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800 flex flex-col overflow-hidden min-h-[400px] max-h-[450px]">
+              {originalPdfError ? (
+                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                  <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 mb-4 max-w-md">
+                    <p className="text-red-800 dark:text-red-300 font-medium">Error loading original document</p>
+                    <p className="text-red-600 dark:text-red-400 text-sm mt-1">{originalPdfError}</p>
+                  </div>
+          <button
+                    onClick={() => downloadAuthenticatedDocument(documentId, true)}
+                    className="mt-2 bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded font-medium text-sm flex items-center"
+          >
+                    <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download instead
+          </button>
+        </div>
+              ) : originalPdfUrl ? (
+                <div className="w-full h-full">
+                  <PdfViewer url={originalPdfUrl} title="Original Document" />
                 </div>
               ) : (
-                <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
-                  {redactionReport.entityList.map((entity) => (
-                    <div 
-                      key={entity.id}
-                      className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${selectedEntity === entity.id ? 'bg-gray-50 border-l-4 border-primary-500 pl-3' : ''}`}
-                      onClick={() => handleItemClick(entity.id)}
-                      role="button"
-                      tabIndex={0}
-                      aria-selected={selectedEntity === entity.id}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          handleItemClick(entity.id);
-                          e.preventDefault();
-                        }
-                      }}
-                    >
-                      <div className="flex items-start justify-between mb-1.5">
-                        <div className="flex-1 pr-3">
-                          <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <h4 className="font-medium text-gray-900">{entity.text}</h4>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              entity.type === 'PERSON' ? 'bg-blue-100 text-blue-800' :
-                              entity.type === 'EMAIL' ? 'bg-green-100 text-green-800' :
-                              entity.type === 'PHONE' ? 'bg-yellow-100 text-yellow-800' :
-                              entity.type === 'ADDRESS' ? 'bg-purple-100 text-purple-800' :
-                              entity.type === 'DATE_OF_BIRTH' ? 'bg-pink-100 text-pink-800' :
-                              entity.type === 'FINANCIAL' ? 'bg-emerald-100 text-emerald-800' :
-                              entity.type === 'MEDICAL' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {entity.type}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600">Type: {entity.type}</p>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-sm font-medium text-gray-700">{Math.round(entity.confidence * 100)}%</span>
-                          <button 
-                            className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-full p-1"
-                            aria-label={`View details for ${entity.text}`}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                              <circle cx="12" cy="12" r="3" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Page {entity.page + 1} {entity.coordinates && `• Position (${Math.round(entity.coordinates.x)}, ${Math.round(entity.coordinates.y)})`}
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-center h-full">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
                 </div>
               )}
             </div>
-            
-            <div className="mt-4 bg-white rounded-md shadow-sm border border-gray-200 p-5">
-              <textarea
-                ref={feedbackRef}
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                placeholder="Select a redacted item to provide specific feedback, or enter general feedback here..."
-                className="w-full h-24 text-sm border border-gray-300 rounded-md p-3 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                aria-label="Feedback"
-              ></textarea>
-              <div className="flex justify-between items-center mt-3">
-                <button 
-                  onClick={handleClearFeedback}
-                  className="text-gray-500 hover:text-gray-700 p-1 rounded focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  title="Clear feedback"
-                  aria-label="Clear feedback"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm3.5 14l-7-7m0 7l7-7" />
-                  </svg>
-                </button>
-                <div className="flex items-center gap-3">
-                  <div className="text-sm text-gray-500">{feedback.length} characters</div>
-                  <button 
-                    onClick={handleSubmitFeedback}
-                    className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md text-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-                    disabled={!feedback.trim()}
-                    aria-label="Submit feedback"
+            {/* <button
+              onClick={() => downloadAuthenticatedDocument(documentId, true)}
+              className="mt-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 py-2 px-4 rounded-lg font-medium flex items-center justify-center"
+            >
+              <svg
+                className="h-5 w-5 mr-2"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    <span>Submit</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                      <line x1="22" y1="2" x2="11" y2="13" />
-                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                    </svg>
-                  </button>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    />
+                  </svg>
+              Download Original Document
+            </button> */}
+          </div>
+
+          {/* Redacted Document */}
+          <div className="lg:col-span-4 flex flex-col">
+            <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Redacted Document</h2>
+            
+            <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800 flex flex-col overflow-hidden min-h-[400px] max-h-[450px]">
+              {redactedPdfError ? (
+                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                  <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 mb-4 max-w-md">
+                    <p className="text-red-800 dark:text-red-300 font-medium">Error loading redacted document</p>
+                    <p className="text-red-600 dark:text-red-400 text-sm mt-1">{redactedPdfError}</p>
+                  </div>
+                  {currentDocument.status === 'redacted' && (
+                    <button
+                      onClick={() => downloadAuthenticatedDocument(documentId, false)}
+                      className="mt-2 bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded font-medium text-sm flex items-center"
+                    >
+                      <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download instead
+                    </button>
+                  )}
                 </div>
+              ) : redactedPdfUrl ? (
+                <div className="w-full h-full">
+                  <PdfViewer url={redactedPdfUrl} title="Redacted Document" />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+                </div>
+              )}
+            </div>
+            {/* Download button
+            {currentDocument.status === 'redacted' && (
+              <button
+                onClick={() => downloadAuthenticatedDocument(documentId, false)}
+                className="mt-4 bg-primary-600 hover:bg-primary-700 text-white py-2 px-4 rounded-lg font-medium flex items-center justify-center"
+                    >
+                      <svg
+                        className="h-5 w-5 mr-2"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                        />
+                      </svg>
+                      Download Redacted Document
+              </button>
+            )} */}
+                  </div>
+
+          {/* Redacted Content */}
+          <div className="lg:col-span-4 flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Redacted Content ({redactedItems.length})</h2>
+        </div>
+
+            {/* Category counts */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              <div className="text-sm rounded-md px-2 py-1 bg-blue-100 text-blue-800">
+                Personal: {categoryCounts.Personal}
+                </div>
+              <div className="text-sm rounded-md px-2 py-1 bg-green-100 text-green-800">
+                Financial: {categoryCounts.Financial}
+                </div>
+              <div className="text-sm rounded-md px-2 py-1 bg-purple-100 text-purple-800">
+                Medical: {categoryCounts.Medical}
+                </div>
+              <div className="text-sm rounded-md px-2 py-1 bg-yellow-100 text-yellow-800">
+                Legal: {categoryCounts.Legal}
               </div>
+            </div>
+            
+            {/* Redacted items list */}
+            <div className="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 min-h-[350px] max-h-[450px]">
+              {redactedItems.map((item) => (
+                <div
+                  key={item.id}
+                  className={`border-l-4 p-3 mb-2 cursor-pointer ${
+                    selectedEntity === item.id 
+                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
+                      : item.category === 'Personal' 
+                        ? 'border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10'
+                        : item.category === 'Financial'
+                          ? 'border-green-500 hover:bg-green-50 dark:hover:bg-green-900/10'
+                          : item.category === 'Medical'
+                            ? 'border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/10'
+                            : 'border-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/10'
+                  }`}
+                  onClick={() => handleItemClick(item.id)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">{item.text}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{item.reason}</p>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      item.category === 'Personal' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200' :
+                      item.category === 'Financial' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' :
+                      item.category === 'Medical' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200' :
+                      'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200'
+                    }`}>
+                      {item.category}
+                    </span>
+              </div>
+                  <div className="flex items-center justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    <span>Page {item.page}, Para {item.paragraph}</span>
+                    <div className="flex items-center">
+                      <span className="mr-1">{item.confidence}%</span>
+                      <EyeIcon className="h-4 w-4" />
             </div>
           </div>
         </div>
+              ))}
       </div>
       
-      {/* PDF Viewer Modal with Animation */}
-      <AnimatePresence>
-        {showPdfModal && pdfUrl && (
-          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-5">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-5xl h-[calc(100vh-64px)] flex flex-col overflow-hidden"
-            >
-              {/* PDF Modal Header */}
-              <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 p-4">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                  Redacted Document: {document.name}
-                </h3>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={reloadPdfViewer}
-                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    aria-label="Reload PDF"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            {/* Selected redaction feedback */}
+            {selectedItem && (
+              <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                <div className="mb-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <svg className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                  </button>
-                  <button
-                    onClick={handleClosePdfModal}
-                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    aria-label="Close PDF viewer"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                    <h3 className="font-medium text-gray-900 dark:text-white">Selected Redaction</h3>
+                  </div>
+                  <div className="ml-7 space-y-1">
+                    <p className="text-sm text-gray-900 dark:text-white">
+                      <span className="font-medium">Text:</span> {selectedItem.text}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <span className="font-medium">Reason:</span> {selectedItem.reason}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              
-              {/* PDF Viewer Content */}
-              <div className="flex-1 relative overflow-hidden">
-                {/* Method 1: iframe */}
-                <iframe
-                  ref={pdfViewerRef}
-                  src={pdfUrl}
-                  className="w-full h-full"
-                  title="Redacted PDF Viewer"
-                  sandbox="allow-scripts allow-same-origin"
-                  onLoad={() => console.log("PDF iframe loaded")}
-                />
                 
-                {/* Method 2: object tag (fallback) */}
-                <object
-                  ref={pdfObjectRef}
-                  data={pdfUrl}
-                  type="application/pdf"
-                  className="w-full h-full absolute top-0 left-0 opacity-0"
-                  aria-label="PDF Document"
-                >
-                  {/* Method 3: Fallback message with download button */}
-                  <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                    <div className="text-center p-8">
-                      <svg className="w-16 h-16 mx-auto text-gray-400 dark:text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                <div className="space-y-2">
+                  <label htmlFor="feedback" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Provide correction for "{selectedItem.text}"
+                  </label>
+                  <textarea
+                    id="feedback"
+                    ref={feedbackRef}
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white"
+                    rows={3}
+                    placeholder="Enter your feedback..."
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={handleClearFeedback}
+                      className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={handleSubmitFeedback}
+                      className="px-3 py-1 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700"
+                    >
+                      <svg className="inline-block h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      <p className="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">PDF Preview Unavailable</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 max-w-md">Your browser doesn't support inline PDF preview. Please download the file to view it.</p>
-                      <button
-                        onClick={handleDownloadRedactedPdf}
-                        className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-                      >
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        Download PDF
+                      Submit
                       </button>
                     </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
+                    Press Ctrl+Enter to submit
                   </div>
-                </object>
-              </div>
-              
-              {/* PDF Modal Footer */}
-              <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center">
-                <div className="text-sm text-gray-600 dark:text-gray-300">
-                  {redactionReport.totalEntities} items redacted
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleDownloadRedactedPdf}
-                    className="px-4 py-2 rounded-lg border border-primary-600 text-primary-600 font-medium hover:bg-primary-50 dark:hover:bg-primary-900 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-                  >
-                    Download PDF
-                  </button>
-                  <button
-                    onClick={handleClosePdfModal}
-                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-                  >
-                    Close
-                  </button>
                 </div>
               </div>
-            </motion.div>
+            )}
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      </div>
     </MainLayout>
   );
 } 

@@ -8,7 +8,7 @@ import { Document, updateDocumentStatus, updateDocumentProperties, removeDocumen
 import { MainLayout } from "@/components/layout/main-layout";
 import Link from "next/link";
 import { PDFProcessor } from '@/utils/pdf-processor';
-import { storeRedactedFileLocally, getViewableUrl, deleteDocument as deleteLocalDocument } from '@/utils/localStorage';
+import { saveRedactedDocument as saveRedactedDoc, getDownloadUrl, deleteDocument as deleteServerDocument, downloadDocument, getAuthTokenAndHeaders } from '@/utils/fileServices';
 import { redactionTemplates } from "@/config/redactionTemplates";
 import { motion, AnimatePresence } from "framer-motion";
 import { RedactionTemplate, RedactionReport } from "@/types/redaction";
@@ -29,1096 +29,984 @@ import { Toast, ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/components/ui/use-toast";
 import { RedactionPreview } from './components/RedactionPreview';
 import { DocumentProcessor, ProcessingStatus, ProcessingStats } from '@/components/DocumentProcessor';
+import { useDocuments } from "@/hooks/useDocuments";
+import { useAuth } from "@/context/AuthContext";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 
-export default function DocumentDetailPage() {
-  const params = useParams();
+// Helper to get redaction types from template categories
+const getRedactionTypes = (template: RedactionTemplate): string[] => {
+  return template.categories.map(category => category.type);
+};
+
+export default function DocumentPage() {
   const router = useRouter();
-  const dispatch = useDispatch();
-  const { toast } = useToast();
-  // Get documentId with null check
+  const params = useParams();
   const documentId = params?.documentId as string;
+  const { isAuthenticated } = useAuth();
+  const { 
+    currentDocument, 
+    loading, 
+    error, 
+    fetchDocument, 
+    saveRedactedDocument 
+  } = useDocuments();
   
-  // Get document from Redux store
-  const { documents, isLoading } = useSelector((state: RootState) => state.documents);
-  const { templates } = useSelector((state: RootState) => state.redaction);
-  
-  // Find the document with matching ID
-  const documentFromStore = documents.find(doc => doc.id === documentId);
-  
-  // Create a ref to allow cancellation
-  const processingRef = useRef<boolean>(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  
-  // Use document from store or redirect if not found
-  useEffect(() => {
-    if (!documentFromStore && !isLoading && documents.length > 0) {
-      router.push('/documents');
-    }
-  }, [documentFromStore, documents, router, isLoading]);
-  
-  const [document, setDocument] = useState<Document | undefined>(documentFromStore);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [redactedPdfBytes, setRedactedPdfBytes] = useState<Uint8Array | null>(null);
-  const [processingStage, setProcessingStage] = useState<string>('');
-  const [progress, setProgress] = useState(0);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showTemplateValidation, setShowTemplateValidation] = useState(false);
-  const [processingStats, setProcessingStats] = useState<{
-    page?: number;
-    totalPages?: number;
-    entitiesFound?: number;
-  }>({});
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewBytes, setPreviewBytes] = useState<Uint8Array | null>(null);
+  const [isSelectingTemplate, setIsSelectingTemplate] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<RedactionTemplate | null>(null);
   
-  // Update local state when Redux store changes
-  useEffect(() => {
-    if (documentFromStore) {
-      setDocument(documentFromStore);
-    }
-  }, [documentFromStore]);
+  // Replace single template selection with multi-select
+  const [selectedTemplates, setSelectedTemplates] = useState<RedactionTemplate[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredTemplates, setFilteredTemplates] = useState(redactionTemplates);
   
-  // Initialize templates when component loads
+  const [redactedFile, setRedactedFile] = useState<File | null>(null);
+  const [summary, setSummary] = useState("");
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  
+  // New states for template modal and progress tracking
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [redactionProgress, setRedactionProgress] = useState(0);
+  
+  const { toast } = useToast();
+
+  // Redirect if not authenticated
   useEffect(() => {
-    if (templates.length > 0 && !selectedTemplateId) {
-      setSelectedTemplateId(templates[0].id);
-      console.log("Selected initial template:", templates[0].name);
+    if (!isAuthenticated && !loading) {
+      router.push('/login');
     }
-  }, [templates, selectedTemplateId]);
+  }, [isAuthenticated, loading, router]);
 
-  // Cleanup on unmount
+  // Fetch document on mount
   useEffect(() => {
-    return () => {
-      // Cancel any ongoing processing when component unmounts
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-    };
-  }, []);
-
-  // Add a new effect to handle template selection and validation
-  useEffect(() => {
-    // Validate if we have a template selected
-    if (selectedTemplateId) {
-      const template = templates.find(t => t.id === selectedTemplateId) || 
-                       redactionTemplates.find(t => t.id === selectedTemplateId);
-      
-      if (template) {
-        // Validate template
-        const isValid = validateTemplate(template);
-        setShowTemplateValidation(isValid);
+    async function loadDocument() {
+      if (isAuthenticated && documentId) {
+        try {
+          console.log(`=== DEBUG: Attempting to fetch document with ID: ${documentId} ===`);
+          
+          // Debug user information
+          console.log('Current user info:', {
+            authenticated: isAuthenticated,
+            userId: localStorage.getItem('firebase-user-id')
+          });
+          
+          const doc = await fetchDocument(documentId);
+          
+          // Detailed document debugging
+          if (doc) {
+            console.log('=== Document data received ===', doc);
+            console.log('=== Document data summary ===', {
+              id: doc.id,
+              fileName: doc.fileName || 'NO FILENAME',
+              fileType: doc.fileType || 'NO FILETYPE',
+              fileSize: doc.fileSize || 'NO FILESIZE',
+              uploadedAt: doc.uploadedAt ? new Date(doc.uploadedAt).toISOString() : 'NO DATE',
+              originalFilePath: doc.originalFilePath || 'NO PATH',
+              status: doc.status || 'NO STATUS'
+            });
+            
+            // Check if file exists
+            if (doc.originalFilePath) {
+              console.log(`File path: ${doc.originalFilePath}`);
+              console.log(`Checking if file exists: fetch from ${getDownloadUrl(doc.id, true)}`);
       } else {
-        setShowTemplateValidation(false);
+              console.error('Document path is missing!');
       }
     } else {
-      setShowTemplateValidation(false);
-    }
-  }, [selectedTemplateId, templates, redactionTemplates]);
-
-  const handleShowTemplateSelector = () => {
-    setShowTemplateSelector(true);
-    // Default select the first template if none selected
-    if (templates.length > 0 && !selectedTemplateId) {
-      setSelectedTemplateId(templates[0].id);
-      console.log("Selected template in handler:", templates[0].name);
-    }
-  };
-
-  const handleCancelProcessing = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    
-    processingRef.current = false;
-    setIsProcessing(false);
-    setErrorMessage(null);
-    
-    // Update document status back to pending if it was processing
-    if (document?.status === 'processing') {
-      dispatch(updateDocumentStatus({
-        id: documentId,
-        status: 'pending'
-      }));
-      
-      toast({
-        title: "Processing cancelled",
-        description: "Document processing was cancelled successfully.",
-        variant: "default",
-      });
-    }
-  };
-
-  const formatStageName = (stage: string) => {
-    switch (stage) {
-      case 'extracting':
-        return 'Extracting Text';
-      case 'detecting':
-        return 'Detecting Sensitive Information';
-      case 'mapping':
-        return 'Mapping Coordinates';
-      case 'redacting':
-        return 'Applying Redactions';
-      case 'complete':
-        return 'Complete';
-      default:
-        return 'Processing';
-    }
-  };
-
-  const validateTemplate = (template: RedactionTemplate): boolean => {
-    // Check if template has at least one category
-    if (!template.categories || template.categories.length === 0) {
-      setErrorMessage("Selected template has no redaction categories");
-      return false;
+            console.error('Document is null or undefined after fetch!');
+          }
+        } catch (err: any) {
+          console.error("=== Error fetching document ===", err);
+          console.error("Error details:", {
+            message: err?.message,
+            stack: err?.stack,
+          });
+          setFetchError(err?.message || "Failed to load document");
+        }
+      } else {
+        console.warn('Cannot load document: User not authenticated or document ID missing', {
+          isAuthenticated,
+          documentId
+        });
+      }
     }
     
-    // Check if categories have valid patterns
-    const hasValidPatterns = template.categories.some(
-      category => category.patterns && category.patterns.length > 0
+    loadDocument();
+  }, [isAuthenticated, documentId, fetchDocument]);
+  
+  // Redirect to report page if document is already redacted
+  useEffect(() => {
+    if (currentDocument && currentDocument.status === 'redacted') {
+      router.push(`/documents/${currentDocument.id}/report`);
+    }
+  }, [currentDocument, router]);
+
+  // Filter templates when search query changes
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setFilteredTemplates(redactionTemplates);
+      return;
+    }
+
+    const lowercaseQuery = searchQuery.toLowerCase();
+    const filtered = redactionTemplates.filter(template => 
+      template.name.toLowerCase().includes(lowercaseQuery) || 
+      template.description.toLowerCase().includes(lowercaseQuery) ||
+      getRedactionTypes(template).some(type => type.toLowerCase().includes(lowercaseQuery))
     );
     
-    if (!hasValidPatterns) {
-      setErrorMessage("Selected template has no valid redaction patterns");
-      return false;
-    }
-    
-    return true;
-  };
+    setFilteredTemplates(filtered);
+  }, [searchQuery]);
 
-  const handleProcessDocument = async () => {
-    if (!selectedTemplateId) {
+  const handleStartRedaction = () => {
+    // Open modal instead of changing the page layout
+    setIsTemplateModalOpen(true);
+    setSelectedTemplates([]);
+    setSearchQuery("");
+    setFilteredTemplates(redactionTemplates);
+  };
+  
+  const handleTemplateSelected = (template: RedactionTemplate) => {
+    // Toggle selection of a template
+    setSelectedTemplates(prev => {
+      const isAlreadySelected = prev.some(t => t.id === template.id);
+      
+      if (isAlreadySelected) {
+        // Remove template if already selected
+        return prev.filter(t => t.id !== template.id);
+      } else {
+        // Add template if not selected
+        return [...prev, template];
+      }
+    });
+  };
+  
+  const handleProceedWithTemplate = () => {
+    if (selectedTemplates.length === 0) {
       toast({
-        title: "Template Required",
-        description: "Please select a redaction template first",
-        variant: "destructive",
+        title: "No templates selected",
+        description: "Please select at least one redaction template to proceed",
+        variant: "destructive"
       });
       return;
     }
-
-    setShowTemplateSelector(false);
-    setErrorMessage(null);
     
-    // Get the document from Redux store
-    const document = documents.find(doc => doc.id === documentId);
-    if (!document) {
-      setErrorMessage("Document not found");
-      return;
-    }
-
-    // Get the selected template
-    const selectedTemplate = templates.find(t => t.id === selectedTemplateId) || 
-                            redactionTemplates.find(t => t.id === selectedTemplateId);
-    if (!selectedTemplate) {
-      setErrorMessage("Template not found");
-      return;
-    }
+    // Close the modal and start the real redaction process with the first selected template
+    setIsTemplateModalOpen(false);
+    setSelectedTemplate(selectedTemplates[0]);
     
-    // Validate the template before proceeding
-    if (!validateTemplate(selectedTemplate)) {
-      return;
-    }
-
-    try {
-      // Fetch the PDF file for preview
-      let pdfBytes;
-      if (document.fileUrl && document.fileUrl.startsWith('local://')) {
-        const blob = await fetch(await getViewableUrl(document.fileUrl)).then(res => res.arrayBuffer());
-        pdfBytes = new Uint8Array(blob);
-      } else {
-        const response = await fetch(document.path);
-        const arrayBuffer = await response.arrayBuffer();
-        pdfBytes = new Uint8Array(arrayBuffer);
-      }
-      
-      // Save the bytes for processing later
-      setPreviewBytes(pdfBytes);
-      
-      // Show the preview component
-      setShowPreview(true);
-    } catch (error: any) {
-      console.error('Error fetching document for preview:', error);
-      setErrorMessage(`Error fetching document: ${error.message}`);
-    }
+    // Perform real redaction immediately instead of showing the intermediate screen
+    performRealRedaction(selectedTemplates[0], selectedTemplates);
   };
-
-  const handleContinueFromPreview = async () => {
-    setShowPreview(false);
-    
-    if (!previewBytes || !selectedTemplateId) {
-      setErrorMessage("Missing document data or template");
-      return;
-    }
+  
+  const performRealRedaction = async (primaryTemplate: RedactionTemplate, allTemplates: RedactionTemplate[]) => {
+    if (!currentDocument || !primaryTemplate) return;
     
     try {
       setIsProcessing(true);
-      setProgress(0);
-      setProcessingStage('');
-      setRedactedPdfBytes(null);
+      setRedactionProgress(0);
       
-      // Set processing ref flag to true
-      processingRef.current = true;
+      // Improved file fetching with retries and fallback
+      let pdfBuffer: ArrayBuffer | null = null;
+      let fetchAttempts = 0;
+      const maxAttempts = 3;
       
-      // Create new AbortController for this processing run
-      abortControllerRef.current = new AbortController();
-      const signal = abortControllerRef.current.signal;
-
-      // Get the document from Redux store
-      const document = documents.find(doc => doc.id === documentId);
-      if (!document) {
-        throw new Error('Document not found');
-      }
-
-      // Check if document size exceeds threshold (20MB) for warning
-      const sizeInMB = document.size / (1024 * 1024);
-      if (sizeInMB > 20) {
-        toast({
-          title: "Large Document Warning",
-          description: `This document is ${sizeInMB.toFixed(1)}MB in size. Processing may take some time.`,
-          variant: "warning",
-        });
-      }
-
-      // Get the selected template
-      const selectedTemplate = templates.find(t => t.id === selectedTemplateId) || 
-                              redactionTemplates.find(t => t.id === selectedTemplateId);
-      if (!selectedTemplate) {
-        throw new Error('Template not found');
-      }
-
-      // Update document status to processing
-      dispatch(updateDocumentStatus({
-        id: documentId,
-        status: 'processing'
-      }));
-
-      // Setup progress callback
-      PDFProcessor.setProgressCallback((progress) => {
-        if (!processingRef.current) return; // Skip updates if processing was cancelled
-        
-        console.log(`Processing progress: ${progress.stage} - ${progress.progress}%`);
-        setProcessingStage(progress.stage);
-        setProgress(progress.progress);
-        
-        // Update additional stats if available
-        if (progress.page !== undefined) {
-          setProcessingStats(prev => ({ ...prev, page: progress.page, totalPages: progress.totalPages }));
-        }
-        if (progress.entitiesFound !== undefined) {
-          setProcessingStats(prev => ({ ...prev, entitiesFound: progress.entitiesFound }));
-        }
+      const storedUserId = localStorage.getItem('firebase-user-id');
+      console.log('Current authentication state:', { 
+        storedUserId,
+        isAuthenticated,
+        documentId: currentDocument.id
       });
-
-      // Check if processing was cancelled
-      if (signal?.aborted) return;
-
-      console.log("Starting PDF processing with template:", selectedTemplate.name);
-      const { redactedPdf: redactedPdfData, entities } = await PDFProcessor.processPDF(previewBytes, selectedTemplate, signal);
       
-      // Check if processing was cancelled
-      if (!processingRef.current) return;
-      
-      console.log("PDF processing complete, got result of size:", redactedPdfData.length, "bytes");
-      
-      if (!redactedPdfData || redactedPdfData.length === 0) {
-        throw new Error("Processed PDF is empty");
+      // First try using the POST method which is more reliable for authentication
+      console.log('Attempting POST method first for better auth handling');
+      try {
+        const { token, headers } = await getAuthTokenAndHeaders();
+        
+        // Create a FormData object
+        const formData = new FormData();
+        if (storedUserId) {
+          formData.append('user_id', storedUserId);
+        }
+        
+        if (token) {
+          formData.append('token', token);
+        }
+        
+        // Send POST request
+        const postResponse = await fetch(`/api/documents/${currentDocument.id}/download-original`, {
+          method: 'POST',
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            ...headers
+          },
+          body: formData
+        });
+        
+        if (postResponse.ok) {
+          const contentType = postResponse.headers.get('content-type');
+          if (contentType && contentType.includes('application/pdf')) {
+            pdfBuffer = await postResponse.arrayBuffer();
+            console.log(`Successfully fetched PDF via POST method (${pdfBuffer.byteLength} bytes)`);
+          }
+        } else {
+          console.error(`POST method failed: ${postResponse.status} ${postResponse.statusText}`);
+          const errorText = await postResponse.text().catch(() => 'No error details');
+          console.error('Error details:', errorText);
+        }
+      } catch (postError) {
+        console.error('Error during POST attempt:', postError);
       }
       
-      setRedactedPdfBytes(redactedPdfData);
-
-      // Store the redacted PDF locally
-      const redactedFileName = `redacted_${document.name}`;
-      const redactedUrl = await storeRedactedFileLocally(
-        documentId,
-        redactedPdfData,
-        redactedFileName
-      );
-
-      // Update document status and redactedUrl in Redux
-      dispatch(updateDocumentProperties({
-        id: documentId,
-        properties: {
-          status: 'redacted',
-          redactedUrl: redactedUrl,
-          entitiesFound: entities.length
-        }
-      }));
-      
-      // Create and save the redaction report
-      const entitiesByType: Record<string, number> = {};
-      const entitiesByPage: Record<number, number> = {};
-      
-      if (entities && entities.length > 0) {
-        // Calculate statistics
-        entities.forEach(entity => {
-          // Count by type
-          entitiesByType[entity.type] = (entitiesByType[entity.type] || 0) + 1;
+      // If POST method failed, try standard GET with retries
+      while (!pdfBuffer && fetchAttempts < maxAttempts) {
+        fetchAttempts++;
+        
+        try {
+          console.log(`Fetching original PDF via GET (attempt ${fetchAttempts}/${maxAttempts})...`);
           
-          // Count by page
-          entitiesByPage[entity.page] = (entitiesByPage[entity.page] || 0) + 1;
-        });
-        
-        // Create the report
-        const report: RedactionReport = {
-          totalEntities: entities.length,
-          entitiesByType,
-          entitiesByPage,
-          entityList: entities,
-        };
-        
-        // Save the report to Redux
-        dispatch(saveRedactionReport({
-          documentId,
-          report
-        }));
-        
-        console.log("Redaction report created with", entities.length, "entities");
-        
-        // Show success toast
-        toast({
-          title: "Document Processed Successfully",
-          description: `Redacted ${entities.length} sensitive items from the document.`,
-          variant: "success",
-        });
-      } else {
-        console.log("No entities detected, creating empty report");
-        // Create an empty report
-        const report: RedactionReport = {
-          totalEntities: 0,
-          entitiesByType: {},
-          entitiesByPage: {},
-          entityList: [],
-        };
-        
-        // Save the report to Redux
-        dispatch(saveRedactionReport({
-          documentId,
-          report
-        }));
-        
-        toast({
-          title: "Document Processed",
-          description: "No sensitive information was found to redact.",
-          variant: "default",
-        });
-      }
-
-      setProgress(100);
-      
-      // After successful processing, navigate to the report page
-      router.push(`/documents/${documentId}/report`);
-      
-    } catch (error: any) {
-      console.error('Error processing document:', error);
-      
-      // Handle specific error types
-      let errorMsg = "An unknown error occurred during processing";
-      
-      if (error.name === 'AbortError') {
-        console.log('Processing aborted');
-        return;
-      } else if (error.message.includes('PDF')) {
-        errorMsg = `PDF Error: ${error.message}`;
-      } else if (error.message.includes('network')) {
-        errorMsg = `Network Error: ${error.message}`;
-      } else if (error.message) {
-        errorMsg = error.message;
+          const { token, headers } = await getAuthTokenAndHeaders();
+          
+          // Add debug headers in development mode
+          const debugHeaders = { ...headers };
+          if (process.env.NODE_ENV === 'development' && storedUserId) {
+            debugHeaders['x-user-id'] = storedUserId;
+          }
+          
+          const originalPdfResponse = await fetch(getDownloadUrl(currentDocument.id, true), {
+            method: 'GET',
+            headers: {
+              'Authorization': token ? `Bearer ${token}` : '',
+              ...debugHeaders
+            }
+          });
+          
+          if (originalPdfResponse.ok) {
+            // Verify the content type is PDF
+            const contentType = originalPdfResponse.headers.get('content-type');
+            if (contentType && (contentType.includes('application/pdf') || contentType.includes('octet-stream'))) {
+              pdfBuffer = await originalPdfResponse.arrayBuffer();
+              console.log(`Successfully fetched original PDF (${pdfBuffer.byteLength} bytes)`);
+            } else {
+              console.error(`Response is not a PDF file: content-type=${contentType}`);
+              // Continue to next attempt
+            }
+          } else {
+            const errorText = await originalPdfResponse.text().catch(() => "No error details available");
+            console.error(`Failed to fetch original PDF: HTTP ${originalPdfResponse.status}`, errorText);
+            
+            // Wait before retry - increasing backoff
+            if (fetchAttempts < maxAttempts) {
+              const delay = fetchAttempts * 1000; // Increasing delay between retries
+              console.log(`Retrying in ${delay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
+        } catch (fetchError) {
+          console.error(`Error during fetch attempt ${fetchAttempts}:`, fetchError);
+          
+          // Wait before retry if not the last attempt
+          if (fetchAttempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, fetchAttempts * 1000));
+          }
+        }
       }
       
-      setErrorMessage(errorMsg);
+      // If still no PDF, try the form-based method as a fallback
+      if (!pdfBuffer) {
+        console.log("Attempting fallback form-based method to fetch PDF...");
+        
+        try {
+          // Create and submit a form
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = `/api/documents/${currentDocument.id}/download-original`;
+          
+          // Add user ID field if available
+          if (storedUserId) {
+            const userIdInput = document.createElement('input');
+            userIdInput.type = 'hidden';
+            userIdInput.name = 'user_id';
+            userIdInput.value = storedUserId;
+            form.appendChild(userIdInput);
+          }
+          
+          // Create an iframe to receive the response
+          const iframe = document.createElement('iframe');
+          iframe.name = 'pdf-receiver';
+          iframe.style.display = 'none';
+          document.body.appendChild(iframe);
+          
+          // Set the target of the form to the iframe
+          form.target = 'pdf-receiver';
+          
+          // Add the form to the DOM
+          document.body.appendChild(form);
+          
+          // Create a promise that resolves when the iframe loads
+          const iframeLoadPromise = new Promise<ArrayBuffer>((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+              reject(new Error('Iframe load timeout'));
+            }, 5000);
+            
+            iframe.onload = async () => {
+              clearTimeout(timeoutId);
+              try {
+                // Try to access the iframe content
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                if (!iframeDoc) {
+                  reject(new Error('Could not access iframe document'));
+                  return;
+                }
+                
+                // If we got a PDF, convert it to ArrayBuffer
+                const contentType = iframeDoc.contentType || '';
+                if (contentType.includes('application/pdf')) {
+                  // Extract PDF data from the iframe
+                  const response = await fetch(iframe.src);
+                  pdfBuffer = await response.arrayBuffer();
+                  resolve(pdfBuffer);
+                } else {
+                  reject(new Error(`Iframe did not receive a PDF: ${contentType}`));
+                }
+              } catch (error) {
+                reject(error);
+              } finally {
+                // Clean up
+                document.body.removeChild(iframe);
+                document.body.removeChild(form);
+              }
+            };
+          });
+          
+          // Submit the form
+          form.submit();
+          
+          // Wait for the iframe to load
+          try {
+            pdfBuffer = await iframeLoadPromise;
+            console.log(`Successfully fetched PDF via iframe method (${pdfBuffer.byteLength} bytes)`);
+          } catch (iframeError) {
+            console.error('Iframe method failed:', iframeError);
+            // Clean up anyway
+            if (document.body.contains(iframe)) document.body.removeChild(iframe);
+            if (document.body.contains(form)) document.body.removeChild(form);
+          }
+        } catch (formError) {
+          console.error('Error during form-based fetch:', formError);
+        }
+      }
+            
+      // If we still don't have the PDF, show a user-friendly error
+      if (!pdfBuffer) {
+        // Add detailed debugging information to help troubleshoot
+        const docInfo = {
+          id: currentDocument.id,
+          fileName: currentDocument.fileName,
+          filePath: currentDocument.originalFilePath,
+          fileStatus: currentDocument.fileStatus,
+          fileSize: currentDocument.fileSize,
+        };
+        console.error("PDF fetch failed after all attempts. Document info:", docInfo);
+        
+        throw new Error(
+          `Unable to access the original document. The server returned an error. ` +
+          `Please try again later or contact support if the problem persists.`
+        );
+      }
       
-      // Show error toast
-      toast({
-        title: "Processing Failed",
-        description: errorMsg,
-        variant: "destructive",
-        action: <ToastAction altText="Try again">Try Again</ToastAction>,
+      // Add summary log with document info before processing
+      console.log("Successfully retrieved document, starting redaction process", {
+        documentId: currentDocument.id,
+        fileName: currentDocument.fileName,
+        templateName: primaryTemplate.name,
+        totalTemplates: allTemplates.length,
+        pdfSize: pdfBuffer.byteLength
       });
       
-      // Update document status to error
-      dispatch(updateDocumentStatus({
-        id: documentId,
-        status: 'error'
-      }));
-    } finally {
-      processingRef.current = false;
-      abortControllerRef.current = null;
+      // Initialize progress reporting
+      PDFProcessor.setProgressCallback((progress) => {
+        console.log(`Redaction progress: ${progress.stage} - ${progress.progress}%`);
+        setRedactionProgress(progress.progress);
+      });
+      
+      // Process the PDF with real redaction using the PDFProcessor
+      const { redactedPdf, entities } = await PDFProcessor.processPDF(
+        new Uint8Array(pdfBuffer),
+        primaryTemplate
+      );
+      
+      // Create a summary of the redaction
+      const summary = `Redacted ${entities.length} items of sensitive information using ${allTemplates.length} template(s): ${allTemplates.map(t => t.name).join(', ')}`;
+      
+      // Create a File object from the redacted PDF
+      const redactedFileName = currentDocument.fileName.replace('.pdf', '-redacted.pdf');
+      const redactedFile = new File([redactedPdf], redactedFileName, { type: 'application/pdf' });
+      
+      // Save the redacted document
+      await saveRedactedDocument(currentDocument.id, redactedFile, summary);
+      
+      // Navigate to report page
+      router.push(`/documents/${currentDocument.id}/report`);
+    } catch (error) {
+      console.error("Error during redaction process:", error);
       setIsProcessing(false);
-      setPreviewBytes(null);
+        toast({
+        title: "Redaction failed",
+        description: error instanceof Error ? error.message : "There was an error processing your document",
+        variant: "destructive",
+        action: (
+          <ToastAction altText="Try Again" onClick={handleStartRedaction}>
+            Try Again
+          </ToastAction>
+        )
+      });
+    }
+  };
+  
+  const handleCancelTemplateSelection = () => {
+    setIsTemplateModalOpen(false);
+    setSelectedTemplates([]);
+    setSearchQuery("");
+  };
+
+  const handleViewOriginal = async () => {
+    try {
+      // Get authentication token
+      const { token } = await getAuthTokenAndHeaders();
+      console.log("Attempting to view document with ID:", documentId);
+      
+      // Create a form to post to the API endpoint
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/api/documents/${documentId}/download-original`;
+      form.target = '_blank'; // Open in a new tab
+      
+      // Add token field
+      const tokenField = document.createElement('input');
+      tokenField.type = 'hidden';
+      tokenField.name = 'token';
+      tokenField.value = token;
+      form.appendChild(tokenField);
+      
+      // In development mode, also send the user ID as a fallback
+      if (process.env.NODE_ENV === 'development') {
+        const userId = localStorage.getItem('firebase-user-id');
+        if (userId) {
+          const userIdField = document.createElement('input');
+          userIdField.type = 'hidden';
+          userIdField.name = 'user_id';
+          userIdField.value = userId;
+          form.appendChild(userIdField);
+          console.log("Adding user_id to form for development mode:", userId);
+        }
+      }
+      
+      // Add to document, submit, and remove
+      document.body.appendChild(form);
+      form.submit();
+      document.body.removeChild(form);
+      
+    } catch (error) {
+      console.error("Error viewing original document:", error);
+      toast({
+        title: "View failed",
+        description: "Failed to view the original document. Please try again later.",
+        variant: "destructive"
+      });
     }
   };
 
-  const handleDownloadRedactedPDF = async () => {
-    if (!document?.redactedUrl) return;
+  // Fix formatting for file size
+  const formatFileSize = (bytes: number | undefined) => {
+    if (!bytes || isNaN(bytes)) return "Unknown size";
+    
+    if (bytes < 1024) return `${bytes} bytes`;
+    else if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+    else return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  // Fix formatting for date
+  const formatDate = (timestamp: number | undefined) => {
+    if (!timestamp || isNaN(timestamp)) return "Unknown date";
     
     try {
-      if (redactedPdfBytes) {
-        // Use the in-memory redacted PDF if available
-        PDFProcessor.downloadRedactedPDF(
-          redactedPdfBytes, 
-          `redacted-${document.name || 'document.pdf'}`
-        );
-      } else {
-        // Otherwise fetch from storage
-        const viewableUrl = await getViewableUrl(document.redactedUrl);
-        window.open(viewableUrl, '_blank');
-      }
-    } catch (error: any) {
-      console.error('Error downloading redacted PDF:', error);
-      toast({
-        title: "Download Failed",
-        description: error.message || "Could not download the redacted PDF",
-        variant: "destructive",
-      });
+      return new Date(timestamp).toLocaleString();
+    } catch (e) {
+      console.error("Error formatting date:", e);
+      return "Invalid date";
     }
   };
 
-  const formatFileSize = (size: number) => {
-    if (size < 1024) {
-      return `${size} B`;
-    } else if (size < 1024 * 1024) {
-      return `${(size / 1024).toFixed(1)} KB`;
-    } else {
-      return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-    }
+  // Helper to check if a template is selected
+  const isTemplateSelected = (templateId: string) => {
+    return selectedTemplates.some(template => template.id === templateId);
   };
 
-  // Show loading state while document is being fetched
-  if (isLoading || !document) {
+  if (loading || !currentDocument) {
     return (
       <MainLayout>
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-center h-[60vh]">
-            <div className="text-center">
-              <svg 
-                className="animate-spin h-12 w-12 text-primary-600 mx-auto mb-4" 
-                xmlns="http://www.w3.org/2000/svg" 
-                fill="none" 
-                viewBox="0 0 24 24"
-              >
-                <circle 
-                  className="opacity-25" 
-                  cx="12" 
-                  cy="12" 
-                  r="10" 
-                  stroke="currentColor" 
-                  strokeWidth="4"
-                ></circle>
-                <path 
-                  className="opacity-75" 
-                  fill="currentColor" 
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              <h2 className="text-xl font-medium text-gray-700">Loading document...</h2>
-            </div>
-          </div>
+        <div className="container mx-auto p-6 flex items-center justify-center h-96">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
         </div>
+      </MainLayout>
+    );
+  }
+
+  if (error || fetchError) {
+  return (
+    <MainLayout>
+        <div className="container mx-auto p-6">
+          <div className="bg-red-50 dark:bg-red-900 p-4 rounded-md">
+            <h2 className="text-red-800 dark:text-red-200 font-medium">Error</h2>
+            <p className="text-red-700 dark:text-red-300">{error || fetchError}</p>
+            <div className="mt-2 p-2 bg-red-100 dark:bg-red-800 rounded text-sm">
+              <p className="font-mono">Document ID: {documentId}</p>
+              <p>This error might occur if the document doesn't exist or if you don't have permission to access it.</p>
+            </div>
+                <button
+              onClick={() => router.push('/documents')}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+              Go back to documents
+                </button>
+              </div>
+            </div>
       </MainLayout>
     );
   }
 
   return (
     <MainLayout>
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col gap-8">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="container mx-auto p-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
             <div>
-              <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              {currentDocument.fileName}
+            </h1>      
+                    </div>
+
+          <div className="mt-4 md:mt-0 flex space-x-3">
                 <button
-                  onClick={() => router.back()}
-                  className="p-2 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  aria-label="Go back"
+              onClick={() => router.push('/documents')}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-                    <polyline points="15 18 9 12 15 6" />
+              Back to Documents
+                </button>
+            
+            {currentDocument.status === 'pending' && !isProcessing && !isSelectingTemplate && (
+              <button
+                onClick={handleStartRedaction}
+                className="px-4 py-2 bg-chateau-green-600 hover:bg-chateau-green-700 transition-colors text-white rounded-lg shadow-sm flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2"
+              >
+                <span>Start Redaction</span>
+              </button>
+            )}
+                    </div>
+                  </div>
+
+        {/* Template Selection Modal */}
+        <Dialog open={isTemplateModalOpen} onOpenChange={setIsTemplateModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center">
+                <svg className="w-5 h-5 mr-2 text-chateau-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                Select Redaction Templates
+              </DialogTitle>
+              <DialogDescription>
+                Choose one or more templates to determine what types of information will be redacted.
+              </DialogDescription>
+            </DialogHeader>
+            
+            {/* Search Bar */}
+            <div className="relative mb-4">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="search"
+                className="block w-full p-2 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-chateau-green-500 focus:border-chateau-green-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                placeholder="Search templates..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button 
+                  className="absolute inset-y-0 right-0 flex items-center pr-3"
+                  onClick={() => setSearchQuery("")}
+                >
+                  <svg className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{document.name}</h1>
-              </div>
-              <p className="text-gray-600 dark:text-gray-300 mt-1 ml-9">
-                {document.type.toUpperCase()} • {formatFileSize(document.size)}
-              </p>
-            </div>
-          </div>
-
-          {/* Document Preview */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">Document Preview</h2>
-                
-                {isProcessing || document.status === 'processing' ? (
-                  <div className="flex flex-col items-center justify-center py-20">
-                    {/* Processing Progress Section */}
-                    <div className="w-full max-w-md bg-gray-200 rounded-full h-4 mb-4 overflow-hidden">
-                      <div 
-                        className="bg-primary-600 h-4 rounded-full transition-all duration-300" 
-                        style={{ width: `${progress}%` }}
-                        role="progressbar"
-                        aria-valuenow={progress}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                      ></div>
-                    </div>
-                    <p className="text-gray-600">{formatStageName(processingStage)} ({progress}%)</p>
-                    
-                    {processingStage === 'detecting' && processingStats.page && processingStats.totalPages && (
-                      <p className="text-sm text-gray-500 mt-2">
-                        Page {processingStats.page} of {processingStats.totalPages}
-                      </p>
-                    )}
-                    
-                    {processingStage === 'redacting' && processingStats.entitiesFound && (
-                      <p className="text-sm text-gray-500 mt-2">
-                        Redacting {processingStats.entitiesFound} sensitive items
-                      </p>
-                    )}
-                    
-                    {/* Cancel Button */}
-                    <Button
-                      variant="outline"
-                      className="mt-6"
-                      onClick={handleCancelProcessing}
-                    >
-                      <XIcon className="h-4 w-4 mr-2" />
-                      Cancel Processing
-                    </Button>
-                  </div>
-                ) : document.status === 'redacted' ? (
-                  <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-6">
-                    <div className="flex">
-                      <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-                      <p className="text-green-700">
-                        This document has been successfully redacted.
-                        {document.entitiesFound !== undefined && (
-                          <span className="ml-1">
-                            {document.entitiesFound} {document.entitiesFound === 1 ? 'entity' : 'entities'} were redacted.
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                ) : document.status === 'error' ? (
-                  <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
-                    <div className="flex">
-                      <XCircle className="h-5 w-5 text-red-500 mr-2" />
-                      <div>
-                        <p className="text-red-700">
-                          There was an error processing this document.
-                        </p>
-                        {errorMessage && (
-                          <p className="text-red-600 text-sm mt-1">{errorMessage}</p>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="mt-2"
-                          onClick={handleShowTemplateSelector}
-                        >
-                          Try Again
-                        </Button>
+              )}
                       </div>
-                    </div>
+            
+            {/* Templates List */}
+            <div className="max-h-80 overflow-y-auto grid gap-4 pb-4">
+              {filteredTemplates.length === 0 ? (
+                <div className="text-center text-gray-500 dark:text-gray-400 p-4">
+                  No templates match your search. Try a different term.
                   </div>
                 ) : (
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-10 text-center">
-                    <div className="mb-6">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-16 w-16 text-gray-400 mx-auto">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
-                        <path d="M9 13h6" />
-                        <path d="M9 17h6" />
-                        <path d="M10 9h4" />
+                filteredTemplates.map((template) => (
+                  <button
+                    key={template.id}
+                    onClick={() => handleTemplateSelected(template)}
+                    className={`flex items-start p-4 rounded-lg border transition-all hover:shadow-md text-left
+                      ${isTemplateSelected(template.id)
+                        ? 'border-chateau-green-500 bg-chateau-green-50 dark:bg-chateau-green-900/30' 
+                        : 'border-gray-200 dark:border-gray-700 hover:border-chateau-green-300 dark:hover:border-chateau-green-700'
+                      }`}
+                  >
+                    <div className={`rounded-full p-2 mr-3 
+                      ${isTemplateSelected(template.id)
+                        ? 'bg-chateau-green-100 text-chateau-green-700 dark:bg-chateau-green-800 dark:text-chateau-green-200' 
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      {isTemplateSelected(template.id) ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                      )}
                     </div>
-                    <h3 className="text-xl font-medium text-gray-900 mb-3">Ready to Process</h3>
-                    <p className="text-gray-600 max-w-md mx-auto mb-4">
-                      Select a redaction template and click "Process Document" to start redacting sensitive information.
-                    </p>
-                    
-                    <div className="flex flex-col items-center justify-center gap-6">
-                      {/* Template Selector */}
-                      <div className="w-full max-w-md">
-                        <div className="relative">
-                          <Button
-                            variant="outline"
-                            onClick={handleShowTemplateSelector}
-                            className="w-full justify-between font-normal relative"
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">{template.name}</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{template.description}</p>
+                      
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {getRedactionTypes(template).slice(0, 3).map((type, idx) => (
+                          <span 
+                            key={idx} 
+                            className="text-xs inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
                           >
-                            <span>
-                              {selectedTemplateId ? (
-                                <>
-                                  Template: <span className="font-medium">
-                                    {templates.find(t => t.id === selectedTemplateId)?.name || 
-                                     redactionTemplates.find(t => t.id === selectedTemplateId)?.name || 
-                                     "Select Template"}
+                            {type}
                                   </span>
-                                </>
-                              ) : (
-                                "Select Redaction Template"
-                              )}
+                        ))}
+                        {getRedactionTypes(template).length > 3 && (
+                          <span className="text-xs inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                            +{getRedactionTypes(template).length - 3} more
                             </span>
-                            <ChevronDown className="h-4 w-4 ml-2 opacity-70" />
-                            
-                            {/* Template Selected Indicator */}
-                            {showTemplateValidation && (
-                              <motion.span 
-                                initial={{ opacity: 0, scale: 0.5 }} 
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="absolute right-8 text-primary-500"
-                              >
-                                <Check className="h-4 w-4" />
-                              </motion.span>
-                            )}
-                          </Button>
-                          
-                          {!selectedTemplateId && (
-                            <motion.p 
-                              initial={{ opacity: 0 }} 
-                              animate={{ opacity: 1 }}
-                              className="text-sm text-amber-600 mt-2 text-left"
-                            >
-                              Please select a template to enable processing
-                            </motion.p>
                           )}
                         </div>
+                    </div>
+                  </button>
+                ))
+              )}
                       </div>
                       
-                      {/* Processing Button */}
-                      <motion.div 
-                        className="w-full max-w-md"
-                        animate={{ 
-                          scale: showTemplateValidation ? 1 : 0.98,
-                          opacity: showTemplateValidation ? 1 : 0.7
-                        }}
-                        transition={{ type: "spring", bounce: 0.3 }}
-                      >
-                        <Button
-                          size="lg"
-                          className="w-full"
-                          disabled={!showTemplateValidation}
-                          onClick={handleProcessDocument}
-                        >
-                          Process Document
-                        </Button>
-                        
-                        {!showTemplateValidation && (
-                          <p className="text-xs text-gray-500 mt-2">
-                            Button is disabled until a valid template is selected
-                          </p>
-                        )}
-                      </motion.div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Error Message Display */}
-                {errorMessage && !isProcessing && document.status !== 'error' && (
-                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-                    <div className="flex">
-                      <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-                      <p className="text-red-700">{errorMessage}</p>
-                    </div>
-                  </div>
-                )}
-                
-              </div>
-            </div>
-
-            <div>
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">Document Details</h2>
-                
-                <div className="space-y-5">
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Status</p>
-                    <div className="flex items-center">
-                      <span className={`inline-block w-3 h-3 rounded-full mr-2 ${
-                        document.status === 'pending' ? 'bg-yellow-500' :
-                        document.status === 'processing' ? 'bg-blue-500' :
-                        document.status === 'redacted' ? 'bg-primary-500' :
-                        document.status === 'error' ? 'bg-red-500' : 'bg-gray-500'
-                      }`}></span>
-                      <p className="text-gray-900 font-medium capitalize">{document.status}</p>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Source</p>
-                    <p className="text-gray-900 capitalize">{document.source}</p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Uploaded</p>
-                    <p className="text-gray-900">{new Date(document.uploadedAt).toLocaleDateString()}</p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">File Type</p>
-                    <p className="text-gray-900">{document.type.toUpperCase()}</p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">File Size</p>
-                    <p className="text-gray-900">{formatFileSize(document.size)}</p>
-                  </div>
-
-                  {document.fileUrl && (
-                    <div>
-                      <p className="text-sm text-gray-500 mb-1">Storage Location</p>
-                      <a 
-                        href={document.fileUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-primary-600 hover:underline truncate block"
-                      >
-                        View Original File
-                      </a>
-                    </div>
-                  )}
-                </div>
-
-                {document.status === 'redacted' && (
-                  <div className="mt-8 pt-6 border-t border-gray-200">
-                    <h3 className="text-md font-medium text-gray-900 mb-4">Redaction Summary</h3>
-                    
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <p className="text-sm text-gray-600">Sensitive Items Redacted</p>
-                        <p className="text-sm font-medium text-gray-900">
-                          {document.entitiesFound !== undefined 
-                            ? `${document.entitiesFound} ${document.entitiesFound === 1 ? 'item' : 'items'}`
-                            : 'Unknown'
-                          }
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Add the DocumentProcessor with conditional rendering */}
-        {document.status === 'pending' && selectedTemplateId && showTemplateValidation && (
-          <div className="fixed bottom-6 right-6 z-40">
-            <motion.div
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 100, opacity: 0 }}
-              className="bg-white rounded-lg shadow-lg p-4 border border-gray-200 w-72"
-            >
-              <DocumentProcessor
-                documentId={documentId}
-                documentSize={document.size}
-                selectedTemplate={
-                  templates.find(t => t.id === selectedTemplateId) || 
-                  redactionTemplates.find(t => t.id === selectedTemplateId)
-                }
-                onComplete={(stats: ProcessingStats) => {
-                  // Update document status and redactedUrl in Redux
-                  dispatch(updateDocumentProperties({
-                    id: documentId,
-                    properties: {
-                      status: 'redacted',
-                      entitiesFound: stats.totalEntitiesFound
-                    }
-                  }));
-                  // Navigate to report
-                  router.push(`/documents/${documentId}/report`);
-                }}
-                onCancel={handleCancelProcessing}
-                processDocument={async (docId, templateId, signal) => {
-                  if (!templateId) {
-                    throw new Error("Template is required");
-                  }
-                  
-                  // Get the document from Redux store
-                  const document = documents.find(doc => doc.id === docId);
-                  if (!document) {
-                    throw new Error("Document not found");
-                  }
-                  
-                  // Get the selected template
-                  const selectedTemplate = templates.find(t => t.id === templateId) || 
-                                         redactionTemplates.find(t => t.id === templateId);
-                  if (!selectedTemplate) {
-                    throw new Error("Template not found");
-                  }
-                  
-                  try {
-                    // Fetch the PDF file
-                    let pdfBytes;
-                    if (document.fileUrl && document.fileUrl.startsWith('local://')) {
-                      const blob = await fetch(await getViewableUrl(document.fileUrl)).then(res => res.arrayBuffer());
-                      pdfBytes = new Uint8Array(blob);
-                    } else {
-                      const response = await fetch(document.path);
-                      const arrayBuffer = await response.arrayBuffer();
-                      pdfBytes = new Uint8Array(arrayBuffer);
-                    }
-                    
-                    // Process PDF
-                    const startTime = Date.now();
-                    const { redactedPdf, entities } = await PDFProcessor.processPDF(pdfBytes, selectedTemplate, signal);
-                    const processingTime = Date.now() - startTime;
-                    
-                    // Store the redacted PDF locally
-                    const redactedFileName = `redacted_${document.name}`;
-                    const redactedUrl = await storeRedactedFileLocally(
-                      docId,
-                      redactedPdf,
-                      redactedFileName
-                    );
-                    
-                    // Update document with redactedUrl
-                    dispatch(updateDocumentProperties({
-                      id: docId,
-                      properties: {
-                        redactedUrl
-                      }
-                    }));
-                    
-                    // Create and save the redaction report
-                    const entitiesByType: Record<string, number> = {};
-                    const entitiesByPage: Record<number, number> = {};
-                    
-                    if (entities && entities.length > 0) {
-                      // Calculate statistics
-                      entities.forEach(entity => {
-                        // Count by type
-                        entitiesByType[entity.type] = (entitiesByType[entity.type] || 0) + 1;
-                        
-                        // Count by page
-                        entitiesByPage[entity.page] = (entitiesByPage[entity.page] || 0) + 1;
-                      });
-                      
-                      // Create the report
-                      const report: RedactionReport = {
-                        totalEntities: entities.length,
-                        entitiesByType,
-                        entitiesByPage,
-                        entityList: entities,
-                      };
-                      
-                      // Save the report to Redux
-                      dispatch(saveRedactionReport({
-                        documentId: docId,
-                        report
-                      }));
-                    } else {
-                      // Create an empty report
-                      const report: RedactionReport = {
-                        totalEntities: 0,
-                        entitiesByType: {},
-                        entitiesByPage: {},
-                        entityList: [],
-                      };
-                      
-                      // Save the report to Redux
-                      dispatch(saveRedactionReport({
-                        documentId: docId,
-                        report
-                      }));
-                    }
-                    
-                    toast({
-                      title: "Document Processed Successfully",
-                      description: `Redacted ${entities.length} sensitive items from the document.`,
-                      variant: "success",
-                    });
-                    
-                    // Return processing stats
-                    return {
-                      totalEntitiesFound: entities.length,
-                      processingTimeMs: processingTime
-                    };
-                  } catch (error: any) {
-                    console.error('Error processing document:', error);
-                    throw new Error(error.message || "Unknown error occurred");
-                  }
-                }}
-              />
-            </motion.div>
-          </div>
-        )}
-
-        {/* Template Selector Modal with Animation */}
-        <AnimatePresence>
-          {showTemplateSelector && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ type: "spring", damping: 20, stiffness: 300 }}
-                className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-2xl w-full"
+            <DialogFooter className="sm:justify-end space-x-2">
+              <button
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+                onClick={handleCancelTemplateSelection}
               >
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
-                  Select Redaction Template
-                </h2>
-                <p className="text-gray-600 dark:text-gray-300 mb-6">
-                  Choose a template to apply to your document. Each template contains different redaction rules.
-                  {templates.length > 0 && (
-                    <span className="ml-1 bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs">
-                      {templates.length} template{templates.length !== 1 ? 's' : ''} available
-                    </span>
-                  )}
-                </p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  {templates.length > 0 ? (
-                    templates.map((template: RedactionTemplate) => (
-                      <motion.div
-                        key={template.id}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className={`border rounded-lg p-4 cursor-pointer transition-all relative ${
-                          selectedTemplateId === template.id 
-                            ? 'bg-primary-50 shadow-sm'
-                            : 'border-gray-200 hover:border-primary-300'
-                        }`}
-                        style={{
-                          borderWidth: selectedTemplateId === template.id ? '2px' : '1px',
-                          borderColor: selectedTemplateId === template.id ? '#16a34a' : '',
-                          boxShadow: selectedTemplateId === template.id ? '0 0 0 1px rgba(22, 163, 74, 0.2)' : ''
-                        }}
-                        onClick={() => {
-                          console.log("Selected template:", template.name);
-                          setSelectedTemplateId(template.id);
-                          setErrorMessage(null);
-                        }}
-                      >
-                        {selectedTemplateId === template.id && (
-                          <motion.div 
-                            className="absolute top-3 right-3 text-white rounded-full p-0.5"
-                            style={{ backgroundColor: '#16a34a' }}
-                            initial={{ scale: 0, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ type: "spring", duration: 0.3 }}
-                          >
-                            <Check className="h-4 w-4" />
-                          </motion.div>
-                        )}
-                        <h3 className={`font-medium ${selectedTemplateId === template.id ? 'text-[#16a34a]' : 'text-gray-900'}`}>{template.name}</h3>
-                        <p className="text-sm text-gray-600 mt-1">{template.description}</p>
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          {template.categories.map((category, index) => (
-                            <Badge key={index} variant={selectedTemplateId === template.id ? "default" : "secondary"}>
-                              {category.type}
-                            </Badge>
-                          ))}
-                        </div>
-                      </motion.div>
-                    ))
-                  ) : (
-                    <div className="col-span-2 text-center py-8 border border-dashed rounded-lg">
-                      <p className="text-gray-500">No templates available. Please create templates in the Redaction Settings section.</p>
+                Cancel
+              </button>
+              
+              <button
+                className={`px-4 py-2 rounded-md text-sm font-medium text-white 
+                  ${selectedTemplates.length === 0 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-chateau-green-600 hover:bg-chateau-green-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2'
+                  }`}
+                onClick={handleProceedWithTemplate}
+                disabled={selectedTemplates.length === 0}
+              >
+                Proceed with {selectedTemplates.length > 0 ? selectedTemplates.length : ''} Template{selectedTemplates.length !== 1 ? 's' : ''}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Progress Overlay */}
+        {isProcessing && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full">
+              <h3 className="text-lg font-semibold mb-2">Processing Document</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                {redactionProgress < 100 
+                  ? `Please wait while we process your document (${redactionProgress}%)...` 
+                  : "Finalizing redaction..."}
+              </p>
+              
+              <div className="space-y-3">
+                <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-chateau-green-600 rounded-full transition-all duration-200 ease-in-out"
+                    style={{ width: `${redactionProgress}%` }}
+                  ></div>
                     </div>
-                  )}
-                </div>
-                
-                {/* Error message in template modal */}
-                {errorMessage && (
-                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
-                    <div className="flex">
-                      <AlertCircle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0" />
-                      <p className="text-red-700">{errorMessage}</p>
+                  </div>
                     </div>
                   </div>
                 )}
                 
-                <div className="flex justify-end gap-3">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                    onClick={() => {
-                      setShowTemplateSelector(false);
-                      setErrorMessage(null);
-                    }}
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    disabled={!selectedTemplateId || templates.length === 0}
-                    className={`px-4 py-2 rounded-md text-white ${
-                      selectedTemplateId && templates.length > 0
-                        ? "hover:bg-opacity-90" 
-                        : "bg-gray-400 cursor-not-allowed"
-                    }`}
-                    style={{
-                      backgroundColor: (selectedTemplateId && templates.length > 0) ? '#16a34a' : ''
-                    }}
-                    onClick={() => {
-                      console.log("Processing with template ID:", selectedTemplateId);
-                      const template = templates.find(t => t.id === selectedTemplateId);
-                      console.log("Template name:", template?.name);
-                      handleProcessDocument();
-                    }}
-                  >
-                    {selectedTemplateId ? (
-                      <>
-                        Process with{" "}
-                        <span className="font-bold">
-                          {templates.find(t => t.id === selectedTemplateId)?.name || 
-                           redactionTemplates.find(t => t.id === selectedTemplateId)?.name}
-                        </span>
+        {isSelectingTemplate ? (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+              <svg className="w-5 h-5 mr-2 text-chateau-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              Template Selection
+            </h2>
+            
+            {selectedTemplates.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Selected Templates:</h3>
+                <div className="flex flex-wrap gap-2">
+                  {selectedTemplates.map(template => (
+                    <div key={template.id} className="p-3 bg-chateau-green-50 dark:bg-chateau-green-900/20 rounded-md border border-chateau-green-200 dark:border-chateau-green-800">
+                      <h3 className="text-sm font-medium text-chateau-green-800 dark:text-chateau-green-200 flex items-center">
+                        <CheckCircle className="w-4 h-4 mr-1" />
+                        {template.name}
+                      </h3>
+                      <p className="text-xs text-chateau-green-700 dark:text-chateau-green-300 mt-1">
+                        Will redact: {getRedactionTypes(template).join(', ')}
+                      </p>
+                    </div>
+                  ))}
+                  </div>
+                  </div>
+            )}
+                
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
+              Click the button below to begin the automatic redaction process.
+            </p>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setIsSelectingTemplate(false);
+                  setSelectedTemplates([]);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              
+              <button
+                onClick={() => selectedTemplates.length > 0 && handleProceedWithTemplate()}
+                disabled={selectedTemplates.length === 0}
+                className={`px-4 py-2 rounded-md text-sm font-medium text-white ${
+                  selectedTemplates.length === 0 
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-chateau-green-600 hover:bg-chateau-green-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2'
+                }`}
+              >
+                Proceed with Redaction
+              </button>
+                    </div>
+                </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Document Preview - 2/3 width on desktop */}
+            <div className="md:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <svg className="w-5 h-5 mr-2 text-chateau-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Document Preview
+              </h2>
+              
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-8 border border-gray-200 dark:border-gray-700 min-h-[400px] flex items-center justify-center">
+                {isProcessing ? (
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="relative h-32 w-32 mb-4">
+                      <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-chateau-green-500"></div>
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-full w-full text-gray-400">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-chateau-green-600"></div>
+                      </div>
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white">Preparing Document</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Setting up the redaction process...
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center w-full">
+                    <svg className="mx-auto h-24 w-24 text-gray-400 dark:text-gray-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  
+                    {currentDocument.originalFilePath ? (
+                  <div>
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                          {currentDocument.fileName || "Document"}
+                        </h3>
+                        
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                          {currentDocument.fileStatus === 'missing' ? (
+                            <span className="inline-flex items-center text-amber-600 dark:text-amber-400">
+                              <AlertCircle className="w-4 h-4 mr-1" />
+                              The file exists in the database but could not be found on disk.
+                            </span>
+                          ) : currentDocument.fileStatus === 'error' ? (
+                            <span className="inline-flex items-center text-red-600 dark:text-red-400">
+                              <XCircle className="w-4 h-4 mr-1" />
+                              There was an error accessing this document's file.
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-chateau-green-600 dark:text-chateau-green-400">
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Your document has been uploaded and is ready for redaction.
+                            </span>
+                          )}
+                        </p>
+                        
+                        <div className="flex justify-center space-x-4">
+                          {currentDocument.fileStatus !== 'missing' && currentDocument.fileStatus !== 'error' && (
+                            <>
+                              <button 
+                                onClick={handleStartRedaction}
+                                className="px-5 py-2.5 bg-chateau-green-600 text-white rounded-lg hover:bg-chateau-green-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-chateau-green-500 focus:ring-offset-2 flex items-center"
+                              >
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                                Start Redaction
+                              </button>
+                              
+                              <button 
+                                onClick={handleViewOriginal}
+                                className="px-5 py-2.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 flex items-center"
+                              >
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                View Original
+                              </button>
+                            </>
+                          )}
+                          
+                          {(currentDocument.fileStatus === 'missing' || currentDocument.fileStatus === 'error') && (
+                            <button
+                              onClick={() => router.push('/documents')}
+                              className="px-5 py-2.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 flex items-center"
+                            >
+                              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                              </svg>
+                              Back to Documents
+                            </button>
+                          )}
+                          
+                          {process.env.NODE_ENV === 'development' && currentDocument.fileStatus === 'missing' && (
+                            <button 
+                              onClick={() => window.location.reload()}
+                              className="px-5 py-2.5 bg-chateau-green-600 text-white rounded-lg hover:bg-chateau-green-700 flex items-center"
+                            >
+                              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              Try to Repair File (Dev)
+                            </button>
+                          )}
+                        </div>
+                    </div>
+                    ) : (
+                      <div>
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">File Not Found</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                          There might be an issue with this document. The original file could not be located.
+                        </p>
+                        <button
+                          onClick={() => router.push('/documents')}
+                          className="px-5 py-2.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 flex items-center mx-auto"
+                        >
+                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                          </svg>
+                          Back to Documents
+                        </button>
+                    </div>
+                  )}
+              </div>
+                )}
+          </div>
+                </div>
+                
+            {/* Document Information - 1/3 width on desktop */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                <svg className="w-5 h-5 mr-2 text-chateau-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Document Information
+              </h2>
+              
+              <dl className="space-y-4">
+                <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">File Name</dt>
+                  <dd className="mt-1 text-sm text-gray-900 dark:text-white font-medium">
+                    {currentDocument.fileName || "Unnamed document"}
+                  </dd>
+                    </div>
+
+                <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">File Type</dt>
+                  <dd className="mt-1 text-sm text-gray-900 dark:text-white font-medium">
+                    {currentDocument.fileType || "Unknown type"}
+                  </dd>
+                  </div>
+                
+                <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">File Size</dt>
+                  <dd className="mt-1 text-sm text-gray-900 dark:text-white font-medium">
+                    {formatFileSize(currentDocument.fileSize)}
+                  </dd>
+                </div>
+                
+                <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Uploaded At</dt>
+                  <dd className="mt-1 text-sm text-gray-900 dark:text-white font-medium">
+                    {formatDate(currentDocument.uploadedAt)}
+                  </dd>
+                    </div>
+                
+                <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg">
+                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</dt>
+                  <dd className="mt-1">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        currentDocument.status === 'redacted'
+                          ? 'bg-chateau-green-100 text-chateau-green-800 dark:bg-chateau-green-900 dark:text-chateau-green-200'
+                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                      }`}
+                    >
+                      {currentDocument.status === 'redacted' ? (
+                        <>
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Redacted
                       </>
                     ) : (
-                      "Process with Selected Template"
-                    )}
-                  </motion.button>
+                        <>
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Pending Redaction
+                        </>
+                      )}
+                    </span>
+                  </dd>
                 </div>
-              </motion.div>
+              </dl>
+            </div>
             </div>
           )}
-        </AnimatePresence>
-        
-        {/* Preview Modal */}
-        <AnimatePresence>
-          {showPreview && previewBytes && selectedTemplateId && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ type: "spring", damping: 20, stiffness: 300 }}
-                className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-              >
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-                  Redaction Preview
-                </h2>
-                
-                <RedactionPreview
-                  documentId={documentId}
-                  documentFile={previewBytes}
-                  template={
-                    templates.find(t => t.id === selectedTemplateId) || 
-                    redactionTemplates.find(t => t.id === selectedTemplateId)!
-                  }
-                  onContinue={handleContinueFromPreview}
-                  onCancel={() => {
-                    setShowPreview(false);
-                    setPreviewBytes(null);
-                  }}
-                  onError={(message) => {
-                    setErrorMessage(message);
-                  }}
-                />
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
       </div>
     </MainLayout>
   );

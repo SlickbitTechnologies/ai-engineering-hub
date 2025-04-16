@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query, where } from 'firebase/firestore';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from 'firebase/auth';
 
 // Firebase configuration from environment variables
 const firebaseConfig = {
@@ -18,7 +18,22 @@ const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 const db = getFirestore(app);
 const auth = getAuth(app);
+
+// Configure persistence to remember users between sessions
+setPersistence(auth, browserLocalPersistence)
+    .then(() => {
+        console.log('Firebase auth persistence set to LOCAL');
+    })
+    .catch((error) => {
+        console.error('Error setting auth persistence:', error);
+    });
+
+// Configure Google provider
 const googleProvider = new GoogleAuthProvider();
+// Enable account selection even when already logged in
+googleProvider.setCustomParameters({
+    prompt: 'select_account'
+});
 
 console.log("Firebase initialized with config:", {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.substring(0, 5) + "...",
@@ -176,4 +191,4 @@ export const deleteDocument = async (fileUrl: string, firestoreId: string) => {
     }
 };
 
-export { storage, db, auth, googleProvider }; 
+export { app, storage, db, auth, googleProvider }; 
