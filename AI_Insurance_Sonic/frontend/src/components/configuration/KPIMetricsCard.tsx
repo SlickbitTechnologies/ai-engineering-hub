@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FaSave, FaPlus } from 'react-icons/fa';
+import { FaPlus } from 'react-icons/fa';
 import { MdModeEdit, MdDelete } from 'react-icons/md';
 import { KPIMetric } from '../../types/kpi';
 import { 

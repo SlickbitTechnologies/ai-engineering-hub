@@ -8,7 +8,6 @@ interface TopicData {
   percentage: number;
 }
 
-type KPIStatus = 'success' | 'warning' | 'danger';
 
 interface CallInsightsProps {
   sentiment: {
@@ -33,11 +32,6 @@ interface CallInsightsProps {
   };
 }
 
-const getStatusFromScore = (score: number): KPIStatus => {
-  if (score >= 90) return 'success';
-  if (score >= 70) return 'warning';
-  return 'danger';
-};
 
 const CallInsights: React.FC<CallInsightsProps> = ({ 
   sentiment, 
@@ -53,15 +47,6 @@ const CallInsights: React.FC<CallInsightsProps> = ({
   
   const { data: kpiDefinitions = [] } = useGetKPIMetricsQuery();
   
-  const formattedKPIMetrics = kpiMetrics ? 
-    kpiDefinitions
-      .filter(def => def.enabled)
-      .map(def => ({
-        name: def.name,
-        score: kpiMetrics[def.key] || 0,
-        status: getStatusFromScore(kpiMetrics[def.key] || 0)
-      }))
-    : [];
   
   return (
     <div>

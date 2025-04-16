@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Tab } from '@headlessui/react';
 import { FaCloudUploadAlt, FaCheckCircle, FaSpinner, FaExclamationCircle } from 'react-icons/fa';
-import { useCreateBatchMutation, useGetBatchesQuery, useUploadFilesMutation, Batch, AudioFile, useTestAnalyzeApiQuery } from '../redux/analyzeApi';
+import { useCreateBatchMutation, useGetBatchesQuery, useUploadFilesMutation, Batch } from '../redux/analyzeApi';
 import { parseApiError } from '../services/errorHandler';
 import { FetchBaseQueryError } from '@reduxjs/toolkit/query/react';
 import { SerializedError } from '@reduxjs/toolkit';

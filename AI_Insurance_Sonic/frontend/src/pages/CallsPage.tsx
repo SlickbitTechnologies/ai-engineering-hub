@@ -116,7 +116,7 @@ const CallsPage: React.FC = () => {
       key: 'date', 
       label: 'Date/Time', 
       sortable: true,
-      render: (value, item: any) => (
+      render: (_, item: any) => (
         <div>
           <div className="text-sm font-medium text-gray-900">{item.date}</div>
           <div className="text-sm text-gray-500">{item.time}</div>

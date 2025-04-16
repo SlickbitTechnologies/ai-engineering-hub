@@ -17,11 +17,6 @@ ChartJS.register(
   Tooltip
 );
 
-interface KPIMetric {
-  name: string;
-  score: number;
-  status: 'success' | 'warning' | 'danger';
-}
 
 interface CallData {
   analysis: {

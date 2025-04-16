@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FaDownload, FaFileExport } from 'react-icons/fa';
-import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import Chart from 'chart.js/auto';
 
@@ -38,7 +37,6 @@ const CallDetailHeader: React.FC<CallDetailHeaderProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const reportRef = useRef<HTMLDivElement>(null);
   
   // Cleanup charts on unmount
   useEffect(() => {

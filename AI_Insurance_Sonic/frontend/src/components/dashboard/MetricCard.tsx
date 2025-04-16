@@ -16,19 +16,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
   title,
   value,
   trend,
-  icon,
-  variant = 'default'
-}) => {
-  const getVariantClasses = () => {
-    switch (variant) {
-      case 'success':
-        return 'text-green-600';
-      case 'danger':
-        return 'text-red-600';
-      default:
-        return 'text-gray-900';
-    }
-  };
+  icon}) => {
 
   const getTrendClasses = () => {
     if (!trend) return '';

@@ -20,7 +20,7 @@ import { ChartData } from 'chart.js';
 
 const DashboardPage: React.FC = () => {
   // Fetch data using RTK Query hooks
-  const { data: metricsData, isLoading: isMetricsLoading } = useGetDashboardMetricsQuery();
+  const { data: metricsData } = useGetDashboardMetricsQuery();
   const { data: callVolumeData, isLoading: isCallVolumeLoading } = useGetCallVolumeTrendQuery('week');
   const { data: kpiData, isLoading: isKpiLoading } = useGetKpiPerformanceQuery('month');
   const { data: sentimentData, isLoading: isSentimentLoading } = useGetSentimentTrendQuery('month');
