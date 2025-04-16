@@ -18,6 +18,8 @@ PharmaRedact is a modern web application for automatically retrieving, processin
 - **TailwindCSS v4**: Utility-first CSS framework
 - **ShadCN**: Styled components for a consistent UI
 - **TypeScript**: Type-safe JavaScript
+- **Firebase**: Authentication, storage, and database
+- **OpenAI & Gemini AI**: AI models for document analysis and redaction
 
 ## Getting Started
 
@@ -25,6 +27,9 @@ PharmaRedact is a modern web application for automatically retrieving, processin
 
 - Node.js 18.x or later
 - npm 9.x or later
+- Firebase account
+- OpenAI API key
+- Gemini API key
 
 ### Installation
 
@@ -39,12 +44,33 @@ PharmaRedact is a modern web application for automatically retrieving, processin
    npm install
    ```
 
-3. Run the development server:
+3. Set up environment variables:
+   - Copy `.env.example` to `.env`
+   - Fill in your API keys and Firebase configuration
+   ```bash
+   cp .env.example .env
+   ```
+
+4. Environment Variables:
+   - `OPENAI_API_KEY`: Your OpenAI API key for document analysis
+   - `GEMINI_API_KEY`: Your Gemini API key
+   - `NEXT_PUBLIC_GEMINI_API_KEY`: Same Gemini API key exposed to client
+   - `NEXT_PUBLIC_FIREBASE_API_KEY`: Firebase API key
+   - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`: Firebase auth domain
+   - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`: Firebase project ID
+   - `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`: Firebase storage bucket
+   - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`: Firebase messaging sender ID
+   - `NEXT_PUBLIC_FIREBASE_APP_ID`: Firebase app ID
+   - `FIREBASE_PROJECT_ID`: Same as above for server-side
+   - `FIREBASE_CLIENT_EMAIL`: Firebase service account email
+   - `FIREBASE_PRIVATE_KEY`: Firebase service account private key
+
+5. Run the development server:
    ```
    npm run dev
    ```
 
-4. Open your browser and navigate to `http://localhost:3000`
+6. Open your browser and navigate to `http://localhost:3000`
 
 ## Project Structure
 
@@ -56,10 +82,12 @@ pharma-redact/
 │   ├── components/      # Reusable UI components
 │   │   ├── layout/      # Layout components (header, footer, etc.)
 │   │   └── ui/          # UI components (cards, buttons, etc.)
-│   ├── lib/             # Utility functions and helpers
+│   ├── utils/           # Utility functions and APIs
+│   ├── firebase/        # Firebase configuration and utilities
 │   └── store/           # Redux store setup
 │       └── slices/      # Redux slices
 ├── tailwind.config.js   # Tailwind CSS configuration
+├── .env.example         # Example environment variables
 └── next.config.js       # Next.js configuration
 ```
 

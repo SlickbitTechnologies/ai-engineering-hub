@@ -166,12 +166,27 @@ export default function DocumentsPage() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Documents</h1>
             <p className="text-gray-600 dark:text-gray-300 mt-1">Manage and process your documents</p>
           </div>
-          <button
-            onClick={handleUploadClick}
-            className="mt-4 md:mt-0 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-          >
-            Upload Document
-          </button>
+          <div className="mt-6">
+            <button
+              onClick={handleUploadClick}
+              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-chateau-green-600 hover:bg-chateau-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500"
+            >
+              <svg
+                className="-ml-1 mr-2 h-5 w-5"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Upload Document
+            </button>
+          </div>
         </div>
 
         <div className="mb-6">
@@ -179,7 +194,7 @@ export default function DocumentsPage() {
             <button
               className={`py-2 px-4 ${
                 activeTab === 'all'
-                  ? 'text-primary-600 border-b-2 border-primary-600 font-medium'
+                  ? 'text-chateau-green-600 border-b-2 border-chateau-green-600 font-medium'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => handleTabChange('all')}
@@ -189,7 +204,7 @@ export default function DocumentsPage() {
             <button
               className={`py-2 px-4 ${
                 activeTab === 'pending'
-                  ? 'text-primary-600 border-b-2 border-primary-600 font-medium'
+                  ? 'text-chateau-green-600 border-b-2 border-chateau-green-600 font-medium'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => handleTabChange('pending')}
@@ -199,7 +214,7 @@ export default function DocumentsPage() {
             <button
               className={`py-2 px-4 ${
                 activeTab === 'redacted'
-                  ? 'text-primary-600 border-b-2 border-primary-600 font-medium'
+                  ? 'text-chateau-green-600 border-b-2 border-chateau-green-600 font-medium'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => handleTabChange('redacted')}
@@ -212,7 +227,7 @@ export default function DocumentsPage() {
         <div className="h-[calc(100vh-280px)] overflow-y-auto pr-2 -mr-2">
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-chateau-green-600"></div>
             </div>
           ) : filteredDocuments.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
@@ -241,7 +256,7 @@ export default function DocumentsPage() {
               <div className="mt-6">
                 <button
                   onClick={handleUploadClick}
-                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                  className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-chateau-green-600 hover:bg-chateau-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500"
                 >
                   <svg
                     className="-ml-1 mr-2 h-5 w-5"
@@ -302,7 +317,7 @@ export default function DocumentsPage() {
                                 : doc.status === 'processing'
                                 ? 'bg-blue-100 text-blue-800'
                                 : doc.status === 'redacted'
-                                ? 'bg-primary-100 text-primary-800'
+                                ? 'bg-chateau-green-100 text-chateau-green-800'
                                 : 'bg-red-100 text-red-800'
                             }`}
                           >
@@ -351,8 +366,8 @@ export default function DocumentsPage() {
                     type="button"
                     className={`py-2 px-4 rounded-md ${
                       uploadSource === 'local'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        ? 'bg-chateau-green-600 text-white'
+                        : 'bg-chateau-green-100 text-chateau-green-800 dark:bg-chateau-green-700 dark:text-chateau-green-200 hover:bg-chateau-green-200 dark:hover:bg-chateau-green-600'
                     }`}
                     onClick={() => setUploadSource('local')}
                   >
@@ -362,8 +377,8 @@ export default function DocumentsPage() {
                     type="button"
                     className={`py-2 px-4 rounded-md ${
                       uploadSource === 'dms'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        ? 'bg-chateau-green-600 text-white'
+                        : 'bg-chateau-green-100 text-chateau-green-800 dark:bg-chateau-green-700 dark:text-chateau-green-200 hover:bg-chateau-green-200 dark:hover:bg-chateau-green-600'
                     }`}
                     onClick={() => setUploadSource('dms')}
                   >
@@ -373,8 +388,8 @@ export default function DocumentsPage() {
                     type="button"
                     className={`py-2 px-4 rounded-md ${
                       uploadSource === 'sharepoint'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        ? 'bg-chateau-green-600 text-white'
+                        : 'bg-chateau-green-100 text-chateau-green-800 dark:bg-chateau-green-700 dark:text-chateau-green-200 hover:bg-chateau-green-200 dark:hover:bg-chateau-green-600'
                     }`}
                     onClick={() => setUploadSource('sharepoint')}
                   >
@@ -387,7 +402,7 @@ export default function DocumentsPage() {
                 <>
                   <div 
                     className={`border-2 border-dashed rounded-lg p-8 mb-6 text-center ${
-                      selectedFiles.length > 0 ? 'border-primary-300 bg-primary-50' : 'border-gray-300 hover:border-primary-300'
+                      selectedFiles.length > 0 ? 'border-chateau-green-300 bg-chateau-green-50' : 'border-gray-300 hover:border-chateau-green-300'
                     }`}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
@@ -420,7 +435,7 @@ export default function DocumentsPage() {
                           <button 
                             type="button" 
                             onClick={handleFileSelect}
-                            className="text-primary-600 hover:text-primary-500 font-medium"
+                            className="text-chateau-green-600 hover:text-chateau-green-500 font-medium"
                           >
                             Click to upload
                           </button> or drag and drop
@@ -432,7 +447,7 @@ export default function DocumentsPage() {
                     ) : (
                       <div className="text-center">
                         <svg 
-                          className="mx-auto h-12 w-12 text-primary-500" 
+                          className="mx-auto h-12 w-12 text-chateau-green-500" 
                           fill="none" 
                           stroke="currentColor" 
                           viewBox="0 0 24 24" 
@@ -445,13 +460,13 @@ export default function DocumentsPage() {
                             d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                           />
                         </svg>
-                        <p className="mt-2 text-sm font-medium text-primary-600">
+                        <p className="mt-2 text-sm font-medium text-chateau-green-600">
                           {selectedFiles.length} {selectedFiles.length === 1 ? 'file' : 'files'} selected
                         </p>
                         <button 
                           type="button" 
                           onClick={handleFileSelect}
-                          className="mt-1 text-xs text-primary-600 hover:text-primary-500 font-medium underline"
+                          className="mt-1 text-xs text-chateau-green-600 hover:text-chateau-green-500 font-medium underline"
                         >
                           Add more files
                         </button>
@@ -532,7 +547,7 @@ export default function DocumentsPage() {
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2.5">
                     <div 
-                      className="bg-primary-600 h-2.5 rounded-full transition-all duration-300" 
+                      className="bg-chateau-green-600 h-2.5 rounded-full transition-all duration-300" 
                       style={{ width: `${uploadProgress}%` }}
                     ></div>
                   </div>
@@ -543,7 +558,7 @@ export default function DocumentsPage() {
                 <button
                   type="button"
                   onClick={() => setIsUploadModalOpen(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500"
                 >
                   Cancel
                 </button>
@@ -551,10 +566,10 @@ export default function DocumentsPage() {
                   type="button"
                   onClick={handleUpload}
                   disabled={selectedFiles.length === 0 || isUploading || uploadSource !== 'local'}
-                  className={`px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
+                  className={`px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500 ${
                     selectedFiles.length === 0 || isUploading || uploadSource !== 'local'
                       ? 'bg-gray-300 cursor-not-allowed'
-                      : 'bg-primary-600 hover:bg-primary-700'
+                      : 'bg-chateau-green-600 hover:bg-chateau-green-700'
                   }`}
                 >
                   {isUploading ? 'Uploading...' : 'Upload'}

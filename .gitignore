@@ -5,3 +5,8 @@
 businesscard_extractor/.env
 /dinedial_ai
 table-buddy/restaurants.db
+pharma-redact/.env
+**/secrets.json
+**/.env
+**/.env.*
+!**/.env.example

@@ -2,10 +2,11 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
 import { Document } from "@/store/slices/documentsSlice";
 import { RedactionEntity } from "@/types/redaction";
+import { fetchDocumentRedactionReport } from "@/store/slices/redactionSlice";
 import { MainLayout } from "@/components/layout/main-layout";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -160,28 +161,22 @@ const downloadAuthenticatedDocument = async (documentId: string, isOriginal: boo
   }
 };
 
-// Dummy data for redacted content items
-const dummyRedactedItems = [
-  { id: "1", text: "Robert Johnson", category: "Personal", reason: "Patient name", confidence: 99, page: 1, paragraph: 2 },
-  { id: "2", text: "HealthPlus Insurance", category: "Financial", reason: "Insurance provider", confidence: 95, page: 1, paragraph: 3 },
-  { id: "3", text: "05/12/1975", category: "Personal", reason: "Date of birth", confidence: 98, page: 1, paragraph: 2 },
-  { id: "4", text: "123 Main Street", category: "Personal", reason: "Home address", confidence: 97, page: 1, paragraph: 3 },
-  { id: "5", text: "Cityville, State 12345", category: "Personal", reason: "Home address", confidence: 96, page: 1, paragraph: 3 },
-  { id: "6", text: "(555) 123-4567", category: "Personal", reason: "Phone number", confidence: 99, page: 1, paragraph: 3 },
-  { id: "7", text: "robert.j@example.com", category: "Personal", reason: "Email address", confidence: 98, page: 1, paragraph: 3 },
-  { id: "8", text: "Dr. Jane Smith", category: "Personal", reason: "Doctor name", confidence: 97, page: 1, paragraph: 1 },
-  { id: "9", text: "John Doe", category: "Personal", reason: "Staff name", confidence: 95, page: 1, paragraph: 1 },
-  { id: "10", text: "987-65-4321", category: "Personal", reason: "Patient ID", confidence: 99, page: 1, paragraph: 1 },
-  { id: "11", text: "$1,245.00", category: "Financial", reason: "Payment amount", confidence: 98, page: 2, paragraph: 1 },
-  { id: "12", text: "Policy #H-54321", category: "Financial", reason: "Insurance policy", confidence: 97, page: 2, paragraph: 1 },
-];
-
 export default function DocumentReportPage() {
   const router = useRouter();
+  const dispatch = useDispatch();
   const { documentId } = useParams() as { documentId: string };
   const { isAuthenticated } = useAuth();
   const { currentDocument, loading, error, fetchDocument } = useDocuments();
   const { toast } = useToast();
+  
+  // Get document and redaction data from Redux store
+  const document = useSelector((state: RootState) => 
+    state.documents.documents.find(doc => doc.id === documentId)
+  );
+  
+  const redactionReport = useSelector((state: RootState) => 
+    state.redaction.reports[documentId]
+  );
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -197,6 +192,17 @@ export default function DocumentReportPage() {
     }
   }, [isAuthenticated, documentId, fetchDocument]);
 
+  // Fetch redaction report when document is loaded
+  useEffect(() => {
+    if (isAuthenticated && documentId && currentDocument && currentDocument.status === 'redacted') {
+      // Check if we already have the report in Redux store
+      if (!redactionReport) {
+        // Dispatch action to fetch the redaction report
+        dispatch(fetchDocumentRedactionReport(documentId) as any);
+      }
+    }
+  }, [isAuthenticated, documentId, currentDocument, dispatch, redactionReport]);
+
   // Redirect to document page if it's not redacted yet
   useEffect(() => {
     if (currentDocument && currentDocument.status !== 'redacted') {
@@ -204,25 +210,16 @@ export default function DocumentReportPage() {
     }
   }, [currentDocument, router]);
   
-  // Get document and redaction data from Redux store
-  const document = useSelector((state: RootState) => 
-    state.documents.documents.find(doc => doc.id === documentId)
-  );
-  
-  const redactionReport = useSelector((state: RootState) => 
-    state.redaction.reports[documentId]
-  );
-  
   const [originalPdfUrl, setOriginalPdfUrl] = useState<string | null>(null);
   const [redactedPdfUrl, setRedactedPdfUrl] = useState<string | null>(null);
   const [originalPdfError, setOriginalPdfError] = useState<string | null>(null);
   const [redactedPdfError, setRedactedPdfError] = useState<string | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
-  const [redactedItems, setRedactedItems] = useState(dummyRedactedItems);
+  const [redactedItems, setRedactedItems] = useState<any[]>([]);
   const [categoryCounts, setCategoryCounts] = useState({
-    Personal: 9,
-    Financial: 3,
+    Personal: 0,
+    Financial: 0,
     Medical: 0,
     Legal: 0
   });
@@ -312,6 +309,162 @@ export default function DocumentReportPage() {
     }
   }, [currentDocument, documentId]);
 
+  // Function to map RedactionEntity to UI format
+  const mapRedactionEntityToUIFormat = (entity: RedactionEntity, index: number) => {
+    // Map entity type to category
+    let category = "Personal";
+    if (entity.type === "EMAIL" || entity.type === "PHONE" || entity.type === "PERSON" || entity.type === "ADDRESS" || entity.type === "SSN") {
+      category = "Personal";
+    } else if (entity.type === "COMPANY" || entity.type === "FINANCIAL") {
+      category = "Financial";
+    } else if (entity.type === "MEDICAL" || entity.type === "ENDPOINT") {
+      category = "Medical";
+    } else if (entity.type === "LEGAL" || entity.type === "IDENTIFIER") {
+      category = "Legal";
+    }
+
+    // Set reason based on entity type
+    let reason = "Sensitive information";
+    switch (entity.type) {
+      case "EMAIL": reason = "Email address"; break;
+      case "PHONE": reason = "Phone number"; break;
+      case "PERSON": reason = "Person name"; break;
+      case "ADDRESS": reason = "Physical address"; break;
+      case "SSN": reason = "Social security number"; break;
+      case "COMPANY": reason = "Company name"; break;
+      case "FINANCIAL": reason = "Financial information"; break;
+      case "MEDICAL": reason = "Medical information"; break;
+      case "ENDPOINT": reason = "Clinical endpoint"; break;
+      case "LEGAL": reason = "Legal information"; break;
+      case "IDENTIFIER": reason = "Document identifier"; break;
+      default: reason = entity.type;
+    }
+
+    return {
+      id: entity.id || `entity-${index}`,
+      text: entity.text,
+      category,
+      reason,
+      confidence: Math.round(entity.confidence * 100),
+      page: entity.page,
+      paragraph: 1, // Default paragraph since we might not have this info
+    };
+  };
+
+  // Process redaction report from Redux when available
+  useEffect(() => {
+    if (redactionReport?.entityList?.length > 0) {
+      // Map entities to UI format
+      const formattedItems = redactionReport.entityList.map(mapRedactionEntityToUIFormat);
+      setRedactedItems(formattedItems);
+      
+      // Calculate category counts
+      const counts = formattedItems.reduce((acc: Record<string, number>, item) => {
+        acc[item.category] = (acc[item.category] || 0) + 1;
+        return acc;
+      }, {});
+      
+      setCategoryCounts({
+        Personal: counts.Personal || 0,
+        Financial: counts.Financial || 0,
+        Medical: counts.Medical || 0,
+        Legal: counts.Legal || 0
+      });
+    } else if (currentDocument?.status === 'redacted' && !redactionReport) {
+      // If document is redacted but we don't have report data, try to construct basic data
+      try {
+        const summary = currentDocument.summary || '';
+        // Extract basic counts from summary if possible
+        const personalCount = summary.match(/personal: (\d+)/i)?.[1] ? parseInt(summary.match(/personal: (\d+)/i)?.[1] || '0') : 0;
+        const financialCount = summary.match(/financial: (\d+)/i)?.[1] ? parseInt(summary.match(/financial: (\d+)/i)?.[1] || '0') : 0;
+        const medicalCount = summary.match(/medical: (\d+)/i)?.[1] ? parseInt(summary.match(/medical: (\d+)/i)?.[1] || '0') : 0;
+        const legalCount = summary.match(/legal: (\d+)/i)?.[1] ? parseInt(summary.match(/legal: (\d+)/i)?.[1] || '0') : 0;
+        
+        // Create basic synthetic data if needed
+        const syntheticItems = [];
+        let itemId = 1;
+        
+        for (let i = 0; i < personalCount; i++) {
+          syntheticItems.push({
+            id: `synth-${itemId++}`,
+            text: `[Personal Data ${i+1}]`,
+            category: "Personal",
+            reason: "Personal information",
+            confidence: 95,
+            page: 1,
+            paragraph: 1
+          });
+        }
+        
+        for (let i = 0; i < financialCount; i++) {
+          syntheticItems.push({
+            id: `synth-${itemId++}`,
+            text: `[Financial Data ${i+1}]`,
+            category: "Financial",
+            reason: "Financial information",
+            confidence: 95,
+            page: 1,
+            paragraph: 1
+          });
+        }
+        
+        for (let i = 0; i < medicalCount; i++) {
+          syntheticItems.push({
+            id: `synth-${itemId++}`,
+            text: `[Medical Data ${i+1}]`,
+            category: "Medical",
+            reason: "Medical information",
+            confidence: 95,
+            page: 1,
+            paragraph: 1
+          });
+        }
+        
+        for (let i = 0; i < legalCount; i++) {
+          syntheticItems.push({
+            id: `synth-${itemId++}`,
+            text: `[Legal Data ${i+1}]`,
+            category: "Legal",
+            reason: "Legal information",
+            confidence: 95,
+            page: 1,
+            paragraph: 1
+          });
+        }
+        
+        // Set the synthetic items
+        setRedactedItems(syntheticItems);
+        
+        // Update category counts
+        setCategoryCounts({
+          Personal: personalCount,
+          Financial: financialCount,
+          Medical: medicalCount,
+          Legal: legalCount
+        });
+      } catch (e) {
+        console.error("Error generating summary data:", e);
+        // Fall back to empty data
+        setRedactedItems([]);
+        setCategoryCounts({
+          Personal: 0,
+          Financial: 0,
+          Medical: 0,
+          Legal: 0
+        });
+      }
+    } else {
+      // No redaction report available yet
+      setRedactedItems([]);
+      setCategoryCounts({
+        Personal: 0,
+        Financial: 0,
+        Medical: 0,
+        Legal: 0
+      });
+    }
+  }, [redactionReport, currentDocument]);
+
   const handleItemClick = (id: string) => {
     setSelectedEntity(id === selectedEntity ? null : id);
     if (feedbackRef.current) {
@@ -337,23 +490,6 @@ export default function DocumentReportPage() {
       setSelectedEntity(null);
     }
   };
-  
-  // Calculate category counts from redacted items (in a real app, this would come from redactionReport)
-  useEffect(() => {
-    if (redactedItems.length > 0) {
-      const counts = redactedItems.reduce((acc: Record<string, number>, item) => {
-        acc[item.category] = (acc[item.category] || 0) + 1;
-        return acc;
-      }, {});
-      
-      setCategoryCounts({
-        Personal: counts.Personal || 0,
-        Financial: counts.Financial || 0,
-        Medical: counts.Medical || 0,
-        Legal: counts.Legal || 0
-      });
-    }
-  }, [redactedItems]);
   
   if (loading || !currentDocument) {
     return (

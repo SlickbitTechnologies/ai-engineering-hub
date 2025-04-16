@@ -177,6 +177,95 @@ export const deleteTemplateAsync = createAsyncThunk(
     }
 );
 
+export const fetchDocumentRedactionReport = createAsyncThunk(
+    'redaction/fetchDocumentRedactionReport',
+    async (documentId: string, { rejectWithValue }) => {
+        try {
+            // Get authentication token
+            const { token, headers } = await getAuthTokenAndHeaders();
+
+            // Make API request
+            const response = await fetch(`/api/documents/${documentId}/redaction-report`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    ...headers
+                }
+            });
+
+            // If this endpoint doesn't exist, we can try to get the redaction data from the document itself
+            if (response.status === 404) {
+                console.log('Redaction report endpoint not found, trying to get data from document');
+                const docResponse = await fetch(`/api/documents/${documentId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        ...headers
+                    }
+                });
+
+                if (!docResponse.ok) {
+                    throw new Error(`Error ${docResponse.status}: ${docResponse.statusText}`);
+                }
+
+                const document = await docResponse.json();
+
+                // Create a basic report from document summary
+                if (document && document.summary) {
+                    try {
+                        // Try to parse the summary as JSON
+                        const reportData = JSON.parse(document.summary);
+                        if (reportData.entityList) {
+                            return reportData;
+                        }
+                    } catch (e) {
+                        // If summary is not JSON, create a basic report
+                        const summary = document.summary;
+                        const personalCount = summary.match(/personal: (\d+)/i)?.[1] ? parseInt(summary.match(/personal: (\d+)/i)?.[1] || '0') : 0;
+                        const financialCount = summary.match(/financial: (\d+)/i)?.[1] ? parseInt(summary.match(/financial: (\d+)/i)?.[1] || '0') : 0;
+                        const medicalCount = summary.match(/medical: (\d+)/i)?.[1] ? parseInt(summary.match(/medical: (\d+)/i)?.[1] || '0') : 0;
+                        const legalCount = summary.match(/legal: (\d+)/i)?.[1] ? parseInt(summary.match(/legal: (\d+)/i)?.[1] || '0') : 0;
+
+                        const totalEntities = personalCount + financialCount + medicalCount + legalCount;
+
+                        const report = {
+                            totalEntities,
+                            entitiesByType: {
+                                PERSON: personalCount,
+                                FINANCIAL: financialCount,
+                                MEDICAL: medicalCount,
+                                LEGAL: legalCount
+                            },
+                            entitiesByPage: { 1: totalEntities },
+                            entityList: []
+                        };
+
+                        return report;
+                    }
+                }
+
+                // If we couldn't create a report from the document, return a basic empty report
+                return {
+                    totalEntities: 0,
+                    entitiesByType: {},
+                    entitiesByPage: {},
+                    entityList: []
+                };
+            }
+
+            if (!response.ok) {
+                throw new Error(`Error ${response.status}: ${response.statusText}`);
+            }
+
+            const report = await response.json();
+            return { documentId, report };
+        } catch (error) {
+            console.error('Error fetching redaction report:', error);
+            return rejectWithValue((error as Error).message);
+        }
+    }
+);
+
 interface RedactionState {
     rules: RedactionRule[];
     items: RedactionItem[];
@@ -336,19 +425,11 @@ export const redactionSlice = createSlice({
             })
             .addCase(fetchUserTemplates.fulfilled, (state, action) => {
                 state.isLoadingTemplates = false;
-                if (action.payload && action.payload.length > 0) {
-                    state.templates = action.payload;
-                }
-                else if (state.templates.length === 0) {
-                    state.templates = defaultTemplates;
-                }
+                state.templates = action.payload;
             })
             .addCase(fetchUserTemplates.rejected, (state, action) => {
                 state.isLoadingTemplates = false;
-                state.error = action.payload as string || 'Failed to fetch templates';
-                if (state.templates.length === 0) {
-                    state.templates = defaultTemplates;
-                }
+                state.error = action.payload as string;
             })
             .addCase(createTemplate.fulfilled, (state, action) => {
                 state.templates.push(action.payload);
@@ -361,6 +442,21 @@ export const redactionSlice = createSlice({
             })
             .addCase(deleteTemplateAsync.fulfilled, (state, action) => {
                 state.templates = state.templates.filter(template => template.id !== action.payload);
+            })
+            .addCase(fetchDocumentRedactionReport.fulfilled, (state, action) => {
+                if (action.payload) {
+                    // If we have a documentId and report structure
+                    if (action.payload.documentId && action.payload.report) {
+                        const { documentId, report } = action.payload;
+                        state.reports[documentId] = report;
+                    }
+                    // If we just have a report structure (no nested documentId)
+                    else if (action.payload.entityList || action.payload.totalEntities) {
+                        // Use the documentId from the API call parameters
+                        const documentId = action.meta.arg;
+                        state.reports[documentId] = action.payload;
+                    }
+                }
             });
     }
 });

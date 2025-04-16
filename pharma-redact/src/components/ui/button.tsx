@@ -13,11 +13,11 @@ const buttonVariants = cva(
         destructive:
           "bg-red-500 text-white hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-600",
         outline:
-          "border border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:hover:bg-gray-800 dark:hover:text-gray-50",
+          "border border-chateau-green-200 bg-white hover:bg-chateau-green-100 hover:text-chateau-green-900 dark:border-chateau-green-700 dark:bg-gray-950 dark:hover:bg-chateau-green-800 dark:hover:text-chateau-green-50",
         secondary:
-          "bg-gray-200 text-gray-900 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-50 dark:hover:bg-gray-700",
+          "bg-chateau-green-200 text-chateau-green-900 hover:bg-chateau-green-300 dark:bg-chateau-green-800 dark:text-chateau-green-50 dark:hover:bg-chateau-green-700",
         ghost:
-          "hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-50",
+          "hover:bg-chateau-green-100 hover:text-chateau-green-900 dark:hover:bg-chateau-green-800 dark:hover:text-chateau-green-50",
         link: "text-chateau-green-600 underline-offset-4 hover:underline dark:text-chateau-green-500",
       },
       size: {
