@@ -21,7 +21,7 @@ import {
 import { useAuth } from '../lib/AuthContext';
 
 export default function SideNav() {
-  const { user, isAuthenticated, loading, signOut } = useAuth();
+  const { user, isAuthenticated, signOut } = useAuth();
   const [isMobile, setIsMobile] = useState(false);
   const [isOpen, setIsOpen] = useState(false); // Only used for mobile
   const pathname = usePathname();
@@ -58,11 +58,10 @@ export default function SideNav() {
   };
 
   // Don't render for non-authenticated users or specific pages
-  if (loading || !isAuthenticated || pathname === '/' || pathname.startsWith('/auth')) {
+  if (!isAuthenticated || pathname === '/' || pathname.startsWith('/auth')) {
     return null;
   }
 
-  // Define menu items
   const menuItems = [
     { path: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
     { path: '/documents', icon: <FileText size={20} />, label: 'Documents' },
@@ -70,14 +69,6 @@ export default function SideNav() {
     { path: '/templates', icon: <Settings size={20} />, label: 'Redaction Settings' },
     { path: '/settings', icon: <Settings size={20} />, label: 'Settings' },
   ];
-
-  // Handle secure navigation
-  const handleNavigation = (e, path) => {
-    e.preventDefault();
-    if (user) {
-      router.push(path);
-    }
-  };
 
   return (
     <>
@@ -110,11 +101,7 @@ export default function SideNav() {
             <ul className="space-y-1 px-2">
               {menuItems.map((item) => (
                 <motion.li key={item.path} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <a 
-                    href={item.path} 
-                    onClick={(e) => handleNavigation(e, item.path)} 
-                    className="block"
-                  >
+                  <Link href={item.path} className="block">
                     <div 
                       className={`flex items-center px-3 py-3 rounded-md ${
                         pathname === item.path || (pathname.startsWith(`${item.path}/`) && item.path !== '/documents/upload' && item.path !== '/redact')
@@ -125,7 +112,7 @@ export default function SideNav() {
                       <span className="flex-shrink-0">{item.icon}</span>
                       <span className="ml-3 font-medium text-sm">{item.label}</span>
                     </div>
-                  </a>
+                  </Link>
                 </motion.li>
               ))}
             </ul>
