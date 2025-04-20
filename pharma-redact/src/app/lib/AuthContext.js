@@ -18,9 +18,15 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('[app/lib/AuthContext]: Setting up auth state listener');
+    
     // Subscribe to the Firebase auth state change events
     const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+      console.log('[app/lib/AuthContext]: Auth state changed', authUser ? `User: ${authUser.uid}` : 'No user');
       setUser(authUser);
+      setLoading(false);
+    }, (error) => {
+      console.error('[app/lib/AuthContext]: Auth state change error', error);
       setLoading(false);
     });
 
@@ -58,9 +64,10 @@ export function AuthProvider({ children }) {
     googleSignIn
   };
 
+  // Always render children, don't wait for authentication
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 } 

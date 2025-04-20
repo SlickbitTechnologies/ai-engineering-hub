@@ -1,14 +1,34 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { File, Download, ArrowLeft, FileText, Shield, AlertTriangle } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { 
+  File, 
+  Download, 
+  ArrowLeft, 
+  FileText, 
+  Shield, 
+  AlertTriangle 
+} from 'lucide-react';
 import { useAuth } from '../../../../lib/AuthContext';
-import { getDocument } from '../../../../lib/firebase';
+import { getDocumentById } from '../../../../../lib/firebase';
+
+// Animation variants
+const fadeIn = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.3 } }
+};
+
+const slideUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+};
 
 export default function DocumentReport({ params }) {
-  const documentId = params.id;
+  const unwrappedParams = use(params);
+  const documentId = unwrappedParams.id;
   const { user, isAuthenticated, loading } = useAuth();
   const [document, setDocument] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,18 +43,12 @@ export default function DocumentReport({ params }) {
   ];
 
   useEffect(() => {
-    // Redirect if not authenticated
-    if (!loading && !isAuthenticated) {
-      router.push('/auth/login');
-    }
-  }, [isAuthenticated, loading, router]);
-
-  useEffect(() => {
     async function fetchDocument() {
       if (!documentId || !user) return;
       
       try {
-        const doc = await getDocument('documents', documentId);
+        console.log(`Fetching document report with ID: ${documentId}`);
+        const doc = await getDocumentById(documentId);
         
         if (!doc) {
           setError('Document not found');
@@ -104,7 +118,7 @@ export default function DocumentReport({ params }) {
 
   if (loading || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center h-full min-h-[70vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-chateau-green-600"></div>
       </div>
     );
@@ -112,8 +126,13 @@ export default function DocumentReport({ params }) {
 
   if (error) {
     return (
-      <div className="py-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <motion.div 
+        initial="hidden"
+        animate="visible"
+        variants={fadeIn}
+        className="p-6 md:p-8"
+      >
+        <div className="max-w-7xl mx-auto">
           <div className="rounded-md bg-red-50 p-4">
             <div className="flex">
               <div className="flex-shrink-0">
@@ -130,15 +149,23 @@ export default function DocumentReport({ params }) {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="py-10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <motion.div 
+      initial="hidden"
+      animate="visible"
+      variants={fadeIn}
+      className="p-6 md:p-8"
+    >
+      <div className="max-w-7xl mx-auto">
         {/* Header with navigation */}
-        <div className="md:flex md:items-center md:justify-between">
+        <motion.div 
+          variants={slideUp}
+          className="md:flex md:items-center md:justify-between mb-6"
+        >
           <div className="flex-1 min-w-0">
             <div className="flex items-center">
               <Link href={`/documents/${documentId}`} className="inline-flex items-center text-gray-500 hover:text-gray-700 mr-2">
@@ -152,22 +179,33 @@ export default function DocumentReport({ params }) {
               {document?.filename}
             </p>
           </div>
-          <div className="mt-5 flex md:mt-0 md:ml-4">
-            <button className="btn-secondary mr-2 inline-flex items-center">
-              <Download className="mr-1 h-5 w-5" />
+          <div className="mt-5 flex flex-wrap gap-3 md:mt-0 md:ml-4">
+            <motion.button 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+            >
+              <Download className="mr-2 h-5 w-5" />
               Download Report
-            </button>
-            <button className="btn-primary inline-flex items-center">
-              <FileText className="mr-1 h-5 w-5" />
+            </motion.button>
+            <motion.button 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-chateau-green-600 hover:bg-chateau-green-700 transition-colors"
+            >
+              <FileText className="mr-2 h-5 w-5" />
               Download Redacted Document
-            </button>
+            </motion.button>
           </div>
-        </div>
+        </motion.div>
 
         {/* Summary Cards */}
         <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {/* Total Redactions */}
-          <div className="bg-white overflow-hidden shadow rounded-lg">
+          <motion.div 
+            variants={slideUp}
+            className="bg-white overflow-hidden shadow rounded-lg"
+          >
             <div className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -187,10 +225,13 @@ export default function DocumentReport({ params }) {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Template Used */}
-          <div className="bg-white overflow-hidden shadow rounded-lg">
+          <motion.div 
+            variants={slideUp}
+            className="bg-white overflow-hidden shadow rounded-lg"
+          >
             <div className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -210,10 +251,13 @@ export default function DocumentReport({ params }) {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Processed Date */}
-          <div className="bg-white overflow-hidden shadow rounded-lg">
+          <motion.div 
+            variants={slideUp}
+            className="bg-white overflow-hidden shadow rounded-lg"
+          >
             <div className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -233,10 +277,13 @@ export default function DocumentReport({ params }) {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Confidence Level */}
-          <div className="bg-white overflow-hidden shadow rounded-lg">
+          <motion.div 
+            variants={slideUp}
+            className="bg-white overflow-hidden shadow rounded-lg"
+          >
             <div className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -256,11 +303,14 @@ export default function DocumentReport({ params }) {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Redacted Content Summary */}
-        <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
+        <motion.div 
+          variants={slideUp}
+          className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg"
+        >
           <div className="px-4 py-5 sm:px-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900">
               Redaction Summary
@@ -321,10 +371,13 @@ export default function DocumentReport({ params }) {
               </tfoot>
             </table>
           </div>
-        </div>
+        </motion.div>
 
         {/* Document Information */}
-        <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
+        <motion.div 
+          variants={slideUp}
+          className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg"
+        >
           <div className="px-4 py-5 sm:px-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900">
               Document Information
@@ -358,10 +411,13 @@ export default function DocumentReport({ params }) {
               </div>
             </dl>
           </div>
-        </div>
+        </motion.div>
 
         {/* Compliance Notes */}
-        <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
+        <motion.div 
+          variants={slideUp}
+          className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg"
+        >
           <div className="px-4 py-5 sm:px-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900">
               Compliance Notes
@@ -399,8 +455,8 @@ export default function DocumentReport({ params }) {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 } 

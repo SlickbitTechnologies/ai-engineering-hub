@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Shield, Mail, Lock, AlertCircle, User, Key, LogIn, UserPlus, FileText, CheckCircle, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { loginUser, registerUser } from '../lib/firebase';
+import { signInWithGoogle, signIn, createUser } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import Cookies from 'js-cookie';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { auth } from '../lib/firebase';
 
 // Custom Google Icon component
 const GoogleIcon = () => (
@@ -246,8 +249,24 @@ export default function Auth() {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const { user, isAuthenticated } = useAuth();
   const router = useRouter();
-  const { googleSignIn } = useAuth();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams?.get('redirectTo') || '/dashboard';
+
+  // Check if already authenticated and redirect
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      console.log('Already authenticated, redirecting to:', redirectTo);
+      
+      // Set an auth cookie for the middleware
+      Cookies.set('auth', 'true', { expires: 7 });
+      
+      // Redirect to the specified page or dashboard
+      router.push(redirectTo);
+    }
+  }, [isAuthenticated, user, redirectTo, router]);
 
   const toggleForm = () => {
     setError('');
@@ -258,10 +277,39 @@ export default function Auth() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
+    
     try {
+      console.log(`Attempting to ${isLogin ? 'login' : 'register'} with email:`, email);
+      
       if (isLogin) {
-        await loginUser(email, password);
+        // Sign in with Firebase directly
+        try {
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+          console.log('Login successful:', userCredential.user.uid);
+          
+          // Set auth cookie
+          Cookies.set('auth', 'true', { expires: 7 });
+          setSuccess(true);
+          
+          // Redirect after a brief delay
+          setTimeout(() => {
+            router.push(redirectTo);
+          }, 1000);
+          
+          return;
+        } catch (firebaseError) {
+          console.error('Firebase login error:', firebaseError);
+          
+          // Handle specific Firebase errors
+          if (firebaseError.code === 'auth/user-not-found' || firebaseError.code === 'auth/wrong-password') {
+            setError('Invalid email or password. Please try again.');
+          } else {
+            setError(firebaseError.message || 'Login failed. Please try again.');
+          }
+          
+          setLoading(false);
+          return;
+        }
       } else {
         // Validation for registration
         if (password !== confirmPassword) {
@@ -269,15 +317,41 @@ export default function Auth() {
           setLoading(false);
           return;
         }
-        await registerUser(email, password);
+        
+        // Create user with Firebase directly
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          console.log('Registration successful:', userCredential.user.uid);
+          
+          // Set auth cookie
+          Cookies.set('auth', 'true', { expires: 7 });
+          setSuccess(true);
+          
+          // Redirect after a brief delay
+          setTimeout(() => {
+            router.push(redirectTo);
+          }, 1000);
+          
+          return;
+        } catch (firebaseError) {
+          console.error('Firebase registration error:', firebaseError);
+          
+          // Handle specific Firebase errors
+          if (firebaseError.code === 'auth/email-already-in-use') {
+            setError('This email is already registered. Please log in instead.');
+          } else if (firebaseError.code === 'auth/weak-password') {
+            setError('Password is too weak. Please use a stronger password.');
+          } else {
+            setError(firebaseError.message || 'Registration failed. Please try again.');
+          }
+          
+          setLoading(false);
+          return;
+        }
       }
-      router.push('/dashboard');
     } catch (err) {
-      console.error(isLogin ? 'Login error:' : 'Registration error:', err);
-      setError(isLogin ? 
-        'Failed to login. Please check your email and password.' : 
-        'Failed to register. This email may already be in use.'
-      );
+      console.error('Authentication error:', err);
+      setError('An unexpected error occurred. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -286,12 +360,26 @@ export default function Auth() {
   const handleGoogleSignIn = async () => {
     setError('');
     setLoading(true);
+    
     try {
-      await googleSignIn();
-      router.push('/dashboard');
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      
+      if (result && result.user) {
+        console.log('Google sign-in successful:', result.user.uid);
+        
+        // Set auth cookie
+        Cookies.set('auth', 'true', { expires: 7 });
+        setSuccess(true);
+        
+        // Redirect after a brief delay
+        setTimeout(() => {
+          router.push(redirectTo);
+        }, 1000);
+      }
     } catch (err) {
       console.error('Google sign-in error:', err);
-      setError('Google sign-in failed. Please try again.');
+      setError('Failed to sign in with Google. Please try again.');
     } finally {
       setLoading(false);
     }

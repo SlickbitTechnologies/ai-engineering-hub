@@ -9,18 +9,29 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@radix-ui/react-dialog": "^1.1.7",
+    "@radix-ui/react-dialog": "^1.1.10",
     "@radix-ui/react-dropdown-menu": "^2.1.7",
-    "@radix-ui/react-tabs": "^1.1.4",
+    "@radix-ui/react-switch": "^1.2.2",
+    "@radix-ui/react-tabs": "^1.1.7",
     "autoprefixer": "^10.4.21",
+    "docxtemplater": "^3.61.1",
     "firebase": "^11.6.0",
     "framer-motion": "^12.7.3",
+    "js-cookie": "^3.0.5",
     "lucide-react": "^0.488.0",
+    "mammoth": "^1.9.0",
     "next": "15.3.0",
+    "node-fetch": "^3.3.2",
+    "openai": "^4.33.0",
+    "pdf-lib": "^1.17.1",
+    "pizzip": "^3.1.8",
     "postcss": "^8.5.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwindcss": "^3.4.0"
+    "react-loading-skeleton": "^3.5.0",
+    "tailwindcss": "^3.4.0",
+    "tesseract.js": "^6.0.1",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

@@ -84,16 +84,38 @@ export const updateDocument = async (collectionName, docId, data) => {
 };
 
 export const getUserDocuments = async (userId) => {
-  const q = query(
-    collection(db, 'documents'),
-    where('userId', '==', userId),
-    orderBy('createdAt', 'desc')
-  );
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  try {
+    console.log(`[app/lib/firebase.js] Fetching documents for user: ${userId}`);
+    // Use a simple query without orderBy to avoid index issues
+    const q = query(
+      collection(db, 'documents'),
+      where('userId', '==', userId)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const docs = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`[app/lib/firebase.js] Retrieved ${docs.length} documents`);
+    
+    // Sort manually in memory
+    docs.sort((a, b) => {
+      // Handle missing createdAt values
+      if (!a.createdAt) return 1;
+      if (!b.createdAt) return -1;
+      // Handle different timestamp formats
+      const aTime = a.createdAt.seconds ? a.createdAt.seconds : a.createdAt.getTime() / 1000;
+      const bTime = b.createdAt.seconds ? b.createdAt.seconds : b.createdAt.getTime() / 1000;
+      return bTime - aTime; // descending order
+    });
+    
+    return docs;
+  } catch (error) {
+    console.error('[app/lib/firebase.js] Error fetching documents:', error);
+    throw error;
+  }
 };
 
 // Storage helpers

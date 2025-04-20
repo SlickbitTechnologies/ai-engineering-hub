@@ -14,9 +14,7 @@ import {
   X,
   Settings,
   User,
-  LogOut,
-  Home,
-  FileType
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 
@@ -67,7 +65,6 @@ export default function SideNav() {
     { path: '/documents', icon: <FileText size={20} />, label: 'Documents' },
     { path: '/documents/upload', icon: <UploadCloud size={20} />, label: 'Upload Document' },
     { path: '/templates', icon: <Settings size={20} />, label: 'Redaction Settings' },
-    { path: '/settings', icon: <Settings size={20} />, label: 'Settings' },
   ];
 
   return (
