@@ -35,12 +35,19 @@ Follow these steps to set up the project locally.
 
 Setting Up Environment Variables:
 
-Create a .env file in the root of your project and add below two lines, Replace your-api-key with your openAi secret key.
+Create a .env file in the root of your project and add below lines, Replace your-api-key with your gemini secret key and your firebase credentials aswell.
 
 > PORT=3000
 
 > VITE_GOOGLE_API_KEY=your-api-key
 
+> FIREBASE_API_KEY=your-FIREBASE_API_KEY
+> FIREBASE_AUTH_DOMAIN=your-FIREBASE_AUTH_DOMAIN
+> FIREBASE_PROJECT_ID=your-FIREBASE_PROJECT_ID
+> FIREBASE_STORAGE_BUCKET=your-FIREBASE_STORAGE_BUCKET
+> FIREBASE_MESSAGING_SENDER_ID=your-FIREBASE_MESSAGING_SENDER_ID
+> FIREBASE_APP_ID=your-FIREBASE_APP_ID
+> FIREBASE_MEASUREMENT_ID=your-FIREBASE_MEASUREMENT_ID
 ---
 
 📞 Contact
