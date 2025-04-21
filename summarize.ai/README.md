@@ -102,4 +102,64 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [Firebase](https://firebase.google.com/)
 - [Gemini AI](https://gemini.google.com/)
 - [Puppeteer](https://pptr.dev/)
-- [Tesseract.js](https://tesseract.projectnaptha.com/) 
+- [Tesseract.js](https://tesseract.projectnaptha.com/)
+
+## Deployment
+
+### Vercel Deployment
+
+To deploy the application to Vercel, follow these steps:
+
+1. **Environment Variables Setup**:
+   Make sure all environment variables are properly configured in Vercel:
+   - Go to your Vercel project dashboard
+   - Navigate to "Settings" → "Environment Variables"
+   - Add all variables from your `.env.local` file:
+     ```
+     # OpenAI API Keys
+     OPENAI_API_KEY=your_openai_api_key
+     
+     # Gemini API Keys
+     GEMINI_API_KEY=your_gemini_api_key
+     NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
+     
+     # Firebase Configuration
+     NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+     NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+     NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
+     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
+     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+     NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
+     NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_firebase_measurement_id
+     ```
+
+2. **Build Optimization**:
+   Recent changes to ensure successful deployment:
+   - Updated route configuration to use Next.js 14 App Router format
+   - Removed deprecated `serverActions` flag from `next.config.js`
+   - Updated API route configuration for better performance
+   - Fixed React hooks and ESLint issues
+
+3. **Deployment Commands**:
+   ```
+   npm run build
+   npm run start
+   ```
+
+4. **Limits and Considerations**:
+   - Free tier Vercel has a 4.5MB request size limit
+   - For handling larger files (like PDFs or audio), consider upgrading to a Pro plan
+   - Set appropriate timeout values for API routes that need more processing time
+
+### Troubleshooting
+
+If you encounter deployment issues:
+
+1. **API Route Timeouts**: 
+   Check the `maxDuration` settings in API route files
+
+2. **File Size Limits**:
+   Implement client-side validation for file uploads
+
+3. **Build Errors**:
+   Run `npm run build` locally to identify and fix any build issues before deployment 

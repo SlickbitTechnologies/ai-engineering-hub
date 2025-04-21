@@ -288,7 +288,7 @@ export default function HistoryPage() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-5">
+                <div className="space-y-5 h-96 overflow-y-auto">
                   {filteredSummaries.map((summary, index) => (
                     <div 
                       key={summary.id} 

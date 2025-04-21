@@ -82,32 +82,40 @@ export default function TranslatePage() {
   
   // Debounced language detection
   const debouncedDetectLanguage = useCallback(
-    debounce(async (text: string) => {
+    (text: string) => {
       if (text.length < 10 || sourceLanguage !== 'auto') return;
       
-      try {
-        setIsDetectingLanguage(true);
-        setStage('Detecting language...');
-        const response = await fetch('/api/detect-language', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
-        });
-        
-        if (!response.ok) throw new Error('Language detection failed');
-        
-        const data = await response.json();
-        if (data.language) {
-          setDetectedLanguage(data.language);
-          console.log('Detected language:', data.language);
-        }
-      } catch (err) {
-        console.error('Error detecting language:', err);
-      } finally {
-        setIsDetectingLanguage(false);
-        setStage('');
+      // Clear any previous detection timeouts
+      if (detectionTimeoutRef.current) {
+        clearTimeout(detectionTimeoutRef.current);
       }
-    }, DETECTION_DEBOUNCE),
+      
+      // Set a new timeout for detection
+      detectionTimeoutRef.current = setTimeout(async () => {
+        try {
+          setIsDetectingLanguage(true);
+          setStage('Detecting language...');
+          const response = await fetch('/api/detect-language', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          });
+          
+          if (!response.ok) throw new Error('Language detection failed');
+          
+          const data = await response.json();
+          if (data.language) {
+            setDetectedLanguage(data.language);
+            console.log('Detected language:', data.language);
+          }
+        } catch (err) {
+          console.error('Error detecting language:', err);
+        } finally {
+          setIsDetectingLanguage(false);
+          setStage('');
+        }
+      }, DETECTION_DEBOUNCE);
+    },
     [sourceLanguage]
   );
   

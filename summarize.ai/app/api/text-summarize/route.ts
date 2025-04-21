@@ -54,11 +54,7 @@ export async function POST(request: NextRequest) {
     }
 }
 
-// Configure request body size limit
-export const config = {
-    api: {
-        bodyParser: {
-            sizeLimit: '5mb',
-        },
-    },
-}; 
+// Updated route segment config for Next.js App Router
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30; // 30 seconds for text summarization 

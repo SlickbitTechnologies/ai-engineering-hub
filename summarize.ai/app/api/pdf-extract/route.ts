@@ -233,4 +233,9 @@ async function extractTextFromPdfSimple(arrayBuffer: ArrayBuffer): Promise<strin
         console.error('Error in simple PDF text extraction:', error);
         throw error;
     }
-} 
+}
+
+// Add route segment configuration for PDF extraction
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // 60 seconds for PDF processing 

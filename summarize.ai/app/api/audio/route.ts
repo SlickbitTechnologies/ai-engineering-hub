@@ -85,9 +85,7 @@ export async function POST(request: NextRequest) {
     }
 }
 
-export const config = {
-    api: {
-        bodyParser: false,
-        responseLimit: '20mb',
-    },
-}; 
+// Updated route segment config for Next.js App Router
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Set to 60 seconds for audio processing 

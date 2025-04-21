@@ -466,7 +466,7 @@ export default function AuthPage() {
                   
                   <CardFooter className="flex justify-center">
                     <p className="text-sm text-muted-foreground">
-                      Don't have an account?{' '}
+                      Don&apos;t have an account?{' '}
                       <button 
                         onClick={toggleAuthMode} 
                         className="text-primary hover:text-primary/90 hover:underline font-medium"
@@ -622,7 +622,7 @@ export default function AuthPage() {
                             ) : (
                               <>
                                 <AlertCircle className="h-4 w-4 text-red-500" />
-                                <span className="text-xs text-red-600 dark:text-red-400">Passwords don't match</span>
+                                <span className="text-xs text-red-600 dark:text-red-400">Passwords don&apos;t match</span>
                               </>
                             )}
                           </div>
