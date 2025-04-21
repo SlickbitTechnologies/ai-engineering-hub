@@ -5,8 +5,9 @@ const express = require('express');
 const ViteExpress = require('vite-express');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const sqlite3 = require('sqlite3').verbose();
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { initializeApp } = require('firebase/app');
+const { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, limit } = require('firebase/firestore');
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -16,29 +17,20 @@ if (!process.env.GEMINI_API_KEY) {
   console.error('Error: GEMINI_API_KEY environment variable is not set. AI suggestions will not be available.');
 }
 
-// Initialize SQLite database
-const db = new sqlite3.Database('seo_history.db');
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID,
+  measurementId: process.env.FIREBASE_MEASUREMENT_ID
+};
 
-// Drop existing table if exists and create new one
-db.serialize(() => {
-  db.run(`DROP TABLE IF EXISTS history`);
-  db.run(`
-    CREATE TABLE history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      url TEXT NOT NULL,
-      overall_score INTEGER NOT NULL,
-      title_score INTEGER NOT NULL,
-      meta_score INTEGER NOT NULL,
-      headings_score INTEGER NOT NULL,
-      images_score INTEGER NOT NULL,
-      social_score INTEGER NOT NULL,
-      links_score INTEGER NOT NULL,
-      ai_suggestions TEXT,
-      competitor_analysis TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-});
+// Initialize Firebase
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
 
 const app = express();
 app.use(express.json());
@@ -552,25 +544,24 @@ app.post('/api/analyze', async (req, res) => {
     const aiSuggestions = await getAISuggestions(analysis, url);
     analysis.aiSuggestions = aiSuggestions;
 
-    // Save to history with AI suggestions
-    db.run(
-      `INSERT INTO history (
-        url, overall_score, title_score, meta_score, 
-        headings_score, images_score, social_score, links_score,
-        ai_suggestions
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
+    // Save to Firebase
+    try {
+      const docRef = await addDoc(collection(db, 'history'), {
         url,
-        analysis.overallScore,
-        analysis.title.score,
-        analysis.meta.score,
-        analysis.headings.score,
-        analysis.images.score,
-        analysis.social.score,
-        analysis.links.score,
-        JSON.stringify(aiSuggestions)
-      ]
-    );
+        overallScore: analysis.overallScore,
+        titleScore: analysis.title.score,
+        metaScore: analysis.meta.score,
+        headingsScore: analysis.headings.score,
+        imagesScore: analysis.images.score,
+        socialScore: analysis.social.score,
+        linksScore: analysis.links.score,
+        aiSuggestions,
+        createdAt: new Date().toISOString()
+      });
+      console.log('Analysis saved with ID:', docRef.id);
+    } catch (dbError) {
+      console.error('Error saving to Firebase:', dbError);
+    }
 
     res.json(analysis);
   } catch (error) {
@@ -582,35 +573,41 @@ app.post('/api/analyze', async (req, res) => {
 });
 
 // Get analysis history
-app.get('/api/history', (req, res) => {
-  db.all(
-    `SELECT * FROM history ORDER BY created_at DESC LIMIT 50`,
-    [],
-    (err, rows) => {
-      if (err) {
-        res.status(500).json({ error: 'Failed to fetch history' });
-        return;
-      }
-      rows.forEach(row => {
-        if (row.ai_suggestions) {
-          row.ai_suggestions = JSON.parse(row.ai_suggestions);
-        }
+app.get('/api/history', async (req, res) => {
+  try {
+    const historyQuery = query(
+      collection(db, 'history'),
+      orderBy('createdAt', 'desc'),
+      limit(50)
+    );
+    
+    const querySnapshot = await getDocs(historyQuery);
+    const history = [];
+    
+    querySnapshot.forEach((doc) => {
+      history.push({
+        id: doc.id,
+        ...doc.data()
       });
-      res.json(rows);
-    }
-  );
+    });
+    
+    res.json(history);
+  } catch (error) {
+    console.error('Error fetching history:', error);
+    res.status(500).json({ error: 'Failed to fetch history' });
+  }
 });
 
 // Delete history entry
-app.delete('/api/history/:id', (req, res) => {
-  const { id } = req.params;
-  db.run('DELETE FROM history WHERE id = ?', [id], (err) => {
-    if (err) {
-      res.status(500).json({ error: 'Failed to delete history entry' });
-      return;
-    }
+app.delete('/api/history/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await deleteDoc(doc(db, 'history', id));
     res.json({ message: 'History entry deleted successfully' });
-  });
+  } catch (error) {
+    console.error('Error deleting history entry:', error);
+    res.status(500).json({ error: 'Failed to delete history entry' });
+  }
 });
 
 // Start the server
