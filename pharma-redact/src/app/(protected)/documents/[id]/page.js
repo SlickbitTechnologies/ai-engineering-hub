@@ -1,595 +1,505 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  File, 
-  FileText, 
-  CheckCircle, 
-  Clock, 
-  AlertCircle, 
-  Eye, 
-  EyeOff, 
-  Download, 
-  ArrowLeft, 
-  ChevronRight, 
-  X 
+  ArrowLeft, Calendar, Clock, CheckCircle, Download, AlertCircle,
+  FileText, ChevronRight, Eye, AlertTriangle, Trash2
 } from 'lucide-react';
+import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
+import Link from 'next/link';
+import { getDocumentById, updateDocumentStatus, deleteDocument } from '../../../lib/firebase';
 import { useAuth } from '../../../lib/AuthContext';
-import { getDocumentById, updateDocumentStatus, getTemplates } from '../../../../lib/firebase';
-import { processDocument } from '../../../../lib/redaction';
-import { generateDocumentPreview } from '../../../../lib/redactionService';
 
 // Animation variants
 const fadeIn = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.3 } }
+  visible: { opacity: 1, transition: { duration: 0.5 } }
 };
 
 const slideUp = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
 };
 
-// Add document preview component
-const DocumentPreviewModal = ({ isOpen, onClose, documentUrl, documentType, documentName }) => {
-  const [previewUrl, setPreviewUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+export default function DocumentDetail() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const params = useParams();
+  const documentId = params?.id;
 
-  // Load document preview when the modal opens
-  useEffect(() => {
-    const loadPreview = async () => {
-      if (isOpen && documentUrl) {
-        setIsLoading(true);
-        setError('');
-        
-        try {
-          // For PDFs, we can use the URL directly
-          if (documentType.toLowerCase().includes('pdf')) {
-            setPreviewUrl(documentUrl);
-          } else {
-            // For other document types, use generateDocumentPreview helper
-            const preview = await generateDocumentPreview(documentUrl, documentType);
-            setPreviewUrl(preview);
-          }
-        } catch (err) {
-          console.error('Error generating preview:', err);
-          setError('Failed to generate document preview');
-        } finally {
-          setIsLoading(false);
-        }
-      }
-    };
-    
-    loadPreview();
-    
-    // Clean up when modal closes
-    return () => {
-      if (previewUrl && previewUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [isOpen, documentUrl, documentType]);
-
-  if (!isOpen) return null;
-
-  return (
-    <Dialog.Root open={isOpen} onOpenChange={onClose}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
-        <Dialog.Content className="fixed top-10 left-1/2 transform -translate-x-1/2 w-[90vw] max-w-5xl h-[80vh] bg-white rounded-lg shadow-xl flex flex-col overflow-hidden">
-          <Dialog.Title className="flex items-center justify-between p-4 border-b">
-            <div className="flex items-center">
-              <FileText className="h-5 w-5 mr-2 text-chateau-green-600" />
-              <span className="font-medium text-lg">
-                {documentName || 'Document Preview'}
-              </span>
-            </div>
-            <Dialog.Close asChild>
-              <button className="text-gray-400 hover:text-gray-600">
-                <X className="h-5 w-5" />
-              </button>
-            </Dialog.Close>
-          </Dialog.Title>
-          
-          <div className="flex-1 overflow-hidden bg-gray-50">
-            {isLoading ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-chateau-green-600"></div>
-              </div>
-            ) : error ? (
-              <div className="h-full flex flex-col items-center justify-center p-4">
-                <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-                <p className="text-red-600 font-medium">{error}</p>
-                <p className="text-gray-500 mt-2">Unable to load document preview</p>
-              </div>
-            ) : documentType.toLowerCase().includes('pdf') ? (
-              <iframe 
-                src={`${previewUrl}#toolbar=0&navpanes=0`} 
-                className="w-full h-full border-0" 
-                title="Document Preview"
-              />
-            ) : (
-              <iframe 
-                src={previewUrl} 
-                className="w-full h-full border-0" 
-                title="Document Preview"
-              />
-            )}
-          </div>
-          
-          <div className="p-4 border-t flex justify-between">
-            <Dialog.Close asChild>
-              <button className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
-                Close
-              </button>
-            </Dialog.Close>
-            <a 
-              href={documentUrl} 
-              download={documentName}
-              className="px-4 py-2 bg-chateau-green-600 text-white rounded-md hover:bg-chateau-green-700 inline-flex items-center"
-            >
-              <Download className="h-4 w-4 mr-1" />
-              Download
-            </a>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-};
-
-export default function DocumentDetail({ params }) {
-  const unwrappedParams = use(params);
-  const documentId = unwrappedParams.id;
-  const { user, isAuthenticated, loading } = useAuth();
   const [document, setDocument] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [processingProgress, setProcessingProgress] = useState(0);
-  const [templates, setTemplates] = useState([]);
-  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
-  const [previewDocument, setPreviewDocument] = useState(null);
-  const router = useRouter();
-  
-  // Fetch templates from Firebase
-  useEffect(() => {
-    async function fetchTemplates() {
-      try {
-        const templatesData = await getTemplates();
-        setTemplates(templatesData);
-      } catch (err) {
-        console.error('Error fetching templates:', err);
-        // Fallback to default templates if fetch fails
-        setTemplates([
-          { id: 'template1', name: 'HIPAA Compliance', description: 'Redacts PHI including names, addresses, emails, and medical record numbers' },
-          { id: 'template2', name: 'GDPR Standard', description: 'Redacts personal identifiable information as per GDPR guidelines' },
-          { id: 'template3', name: 'Internal Communications', description: 'Redacts employee IDs, internal codes and proprietary information' },
-        ]);
-      }
-    }
-    
-    fetchTemplates();
-  }, []);
+  const [activeTab, setActiveTab] = useState('details');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
-    async function fetchDocument() {
-      if (!documentId || !user) return;
-      
-      try {
-        console.log(`Fetching document with ID: ${documentId}`);
-        const doc = await getDocumentById(documentId);
-        
-        if (!doc) {
-          setError('Document not found');
-          return;
-        }
-        
-        if (doc.userId !== user.uid) {
-          setError('You do not have permission to view this document');
-          return;
-        }
-        
-        setDocument(doc);
-      } catch (err) {
-        console.error('Error fetching document:', err);
-        setError('Failed to load document');
-      } finally {
-        setIsLoading(false);
-      }
+    if (!user && !authLoading) {
+      router.push('/auth');
+      return;
     }
 
-    if (user) {
-      fetchDocument();
+    if (user && documentId) {
+      fetchDocumentDetails();
     }
-  }, [documentId, user]);
+  }, [user, authLoading, documentId]);
 
-  const handleProcessDocument = async () => {
-    if (!selectedTemplate || !document || !user) return;
-    
-    setIsProcessing(true);
-    setProcessingProgress(0);
-    
-    // Start progress animation
-    const simulateProgress = () => {
-      setProcessingProgress(prev => {
-        if (prev < 95) {
-          return prev + Math.floor(Math.random() * 5) + 1;
-        }
-        return prev;
-      });
-    };
-    
-    const progressInterval = setInterval(simulateProgress, 500);
+  const fetchDocumentDetails = async () => {
+    setIsLoading(true);
+    setError('');
     
     try {
-      // Use the real redaction service
-      const results = await processDocument(documentId, selectedTemplate, user.uid);
+      const doc = await getDocumentById(documentId);
       
-      // Update local state
-      setDocument(prev => ({
-        ...prev,
-        status: 'redacted',
-        redactedAt: { seconds: Date.now() / 1000 },
-        templateId: selectedTemplate,
-        redactionResults: results
-      }));
+      if (!doc) {
+        setError('Document not found');
+        setIsLoading(false);
+        return;
+      }
       
-      clearInterval(progressInterval);
-      setProcessingProgress(100);
+      if (doc.userId !== user.uid) {
+        setError('You do not have permission to view this document');
+        setIsLoading(false);
+        return;
+      }
       
-      // Navigate to report page after completion
-      setTimeout(() => {
-        router.push(`/documents/${documentId}/report`);
-      }, 1500);
-      
+      setDocument(doc);
     } catch (err) {
-      console.error('Error processing document:', err);
-      setError('Failed to process document: ' + err.message);
-      clearInterval(progressInterval);
+      console.error('Error fetching document:', err);
+      setError('Failed to load document details. Please try again.');
     } finally {
-      setIsProcessing(false);
+      setIsLoading(false);
     }
   };
 
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
-    const date = new Date(timestamp.seconds * 1000);
-    return date.toLocaleDateString('en-US', {
+    
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit',
-    });
+      minute: '2-digit'
+    }).format(date);
   };
 
-  const getSelectedTemplateName = () => {
-    const template = templates.find(t => t.id === selectedTemplate);
-    return template ? template.name : 'Select a template';
+  const handleStatusChange = async (newStatus) => {
+    if (isUpdating) return;
+    
+    setIsUpdating(true);
+    try {
+      await updateDocumentStatus(documentId, newStatus);
+      setDocument(prev => ({ ...prev, status: newStatus }));
+    } catch (err) {
+      console.error('Error updating document status:', err);
+      setError('Failed to update document status. Please try again.');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  if (loading || isLoading) {
+  const handleDeleteDocument = async () => {
+    if (isDeleting) return;
+    
+    setIsDeleting(true);
+    setDeleteError('');
+    
+    try {
+      await deleteDocument(documentId);
+      setIsDeleteModalOpen(false);
+      router.push('/documents');
+    } catch (err) {
+      console.error('Error deleting document:', err);
+      setDeleteError('Failed to delete document. Please try again.');
+      setIsDeleting(false);
+    }
+  };
+
+  if (authLoading || (!user && authLoading)) {
     return (
-      <div className="flex items-center justify-center h-full min-h-[70vh]">
+      <div className="flex justify-center items-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-chateau-green-600"></div>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <motion.div 
-        initial="hidden"
-        animate="visible"
-        variants={fadeIn}
-        className="p-6 md:p-8"
-      >
-        <div className="max-w-7xl mx-auto">
-          <div className="rounded-md bg-red-50 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <AlertCircle className="h-5 w-5 text-red-400" />
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                <div className="mt-2 text-sm text-red-700">
-                  <Link href="/documents" className="font-medium underline hover:text-red-600">
-                    Return to documents
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    );
+  if (!user) {
+    return null; // This will be handled by the useEffect redirect
   }
 
-  // Modify the document cards to include proper preview functionality
-  const documentCards = (
-    <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-      {/* Original Document Preview */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        <div className="px-4 py-5 sm:px-6 flex items-center justify-between">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">Original Document</h3>
-          <button 
-            onClick={() => {
-              setPreviewDocument({
-                url: document?.file?.url,
-                type: document?.type || 'application/pdf',
-                name: document?.filename
-              });
-              setIsPreviewModalOpen(true);
-            }}
-            className="inline-flex items-center text-sm font-medium text-chateau-green-600 hover:text-chateau-green-500"
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      {/* Back button */}
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="mb-6"
+      >
+        <Link href="/documents" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Back to Documents
+        </Link>
+      </motion.div>
+      
+      {isLoading ? (
+        <div className="flex justify-center p-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-chateau-green-600"></div>
+        </div>
+      ) : error ? (
+        <motion.div
+          initial={fadeIn.hidden}
+          animate={fadeIn.visible}
+          className="bg-white rounded-xl shadow-sm p-12 text-center border border-gray-200"
+        >
+          <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
+          <h3 className="mt-4 text-lg font-medium text-gray-900">Error</h3>
+          <p className="mt-2 text-gray-500 max-w-sm mx-auto">{error}</p>
+          <Link
+            href="/documents"
+            className="mt-6 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-chateau-green-600 hover:bg-chateau-green-700"
           >
-            <Eye className="mr-1 h-4 w-4" />
-            Preview
-          </button>
-        </div>
-        <div className="border-t border-gray-200">
-          <div className="h-96 bg-gray-50 flex flex-col items-center justify-center">
-            <File className="h-16 w-16 text-gray-400 mb-4" />
-            <p className="text-sm text-gray-500">
-              {document?.type === 'application/pdf' ? 'PDF Document' : 'DOCX Document'}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              {document?.filename}
-            </p>
-            <a
-              href={document?.file?.url}
-              download={document?.filename}
-              className="mt-4 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Download
-            </a>
-          </div>
-        </div>
-      </div>
-
-      {/* Redacted Preview or Process Section */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        <div className="px-4 py-5 sm:px-6 flex items-center justify-between">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
-            {document?.status === 'redacted' ? 'Redacted Document' : 'Redaction Process'}
-          </h3>
-          {document?.status === 'redacted' && document?.redactedUrl && (
-            <button 
-              onClick={() => {
-                setPreviewDocument({
-                  url: document.redactedUrl,
-                  type: document?.type || 'application/pdf',
-                  name: `Redacted-${document?.filename}`
-                });
-                setIsPreviewModalOpen(true);
-              }}
-              className="inline-flex items-center text-sm font-medium text-chateau-green-600 hover:text-chateau-green-500"
-            >
-              <Eye className="mr-1 h-4 w-4" />
-              Preview
-            </button>
-          )}
-        </div>
-        <div className="border-t border-gray-200">
-          {document?.status === 'redacted' ? (
-            // Redacted document preview
-            <div className="h-96 bg-gray-50 flex flex-col items-center justify-center">
-              <File className="h-16 w-16 text-chateau-green-600 mb-4" />
-              <p className="text-sm text-gray-700">
-                Redacted using <span className="font-medium">{getSelectedTemplateName()}</span>
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Processed on {formatDate(document?.redactedAt)}
-              </p>
-              <div className="mt-4 flex space-x-3">
-                {document?.redactedUrl && (
+            Return to Documents
+          </Link>
+        </motion.div>
+      ) : document ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="space-y-6"
+        >
+          {/* Document Header */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="p-3 rounded-lg bg-gray-100">
+                  <FileText className="h-6 w-6 text-gray-700" />
+                </div>
+                <div className="ml-4">
+                  <h1 className="text-xl font-semibold text-gray-900">
+                    {document.fileName || document.filename || 'Unnamed Document'}
+                  </h1>
+                  <div className="flex items-center mt-1 text-sm text-gray-500">
+                    <Calendar className="h-4 w-4 mr-1" />
+                    <span>Uploaded on {formatDate(document.createdAt)}</span>
+                    <span className="mx-2">•</span>
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        document.status === 'redacted'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}
+                    >
+                      {document.status === 'redacted' ? (
+                        <>
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Redacted
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="h-3 w-3 mr-1" />
+                          Pending
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex space-x-3">
+                {document.downloadUrl && (
                   <a
-                    href={document.redactedUrl}
-                    download={`redacted-${document?.filename}`}
-                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500"
+                    href={document.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                   >
-                    <Download className="mr-2 h-4 w-4" />
+                    <Download className="h-4 w-4 mr-1.5" />
                     Download
                   </a>
                 )}
-                <Link
-                  href={`/documents/${documentId}/report`}
-                  className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-chateau-green-600 hover:bg-chateau-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500"
-                >
-                  View Full Report
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </Link>
-              </div>
-            </div>
-          ) : isProcessing ? (
-            // Processing progress indicator
-            <div className="h-96 bg-gray-50 flex flex-col items-center justify-center px-8">
-              <div className="w-full bg-gray-200 rounded-full h-4 mb-6">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${processingProgress}%` }}
-                  transition={{ duration: 0.5 }}
-                  className="bg-chateau-green-600 h-4 rounded-full" 
-                ></motion.div>
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Processing Your Document
-              </h3>
-              <p className="text-center text-sm text-gray-500 mb-4">
-                We're applying the {getSelectedTemplateName()} template to your document.
-                This may take a few moments.
-              </p>
-              <div className="text-center text-sm text-gray-500 mt-4">
-                <p>Progress: {processingProgress}%</p>
-              </div>
-            </div>
-          ) : (
-            // Redaction template selection and process button
-            <div className="h-96 bg-gray-50 flex flex-col items-center justify-center px-8">
-              <EyeOff className="h-16 w-16 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Apply Redaction Template
-              </h3>
-              <p className="text-center text-sm text-gray-500 mb-4">
-                Select a redaction template to process this document.
-                The template will determine which types of sensitive information
-                will be redacted from your document.
-              </p>
-              <div className="w-full max-w-sm">
-                <Dialog.Root open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
+                
+                <Dialog.Root open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
                   <Dialog.Trigger asChild>
-                    <motion.button
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.99 }}
-                      className="w-full flex justify-between items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-chateau-green-500"
-                    >
-                      <span>{getSelectedTemplateName()}</span>
-                      <ChevronRight className="h-4 w-4 text-gray-400" />
-                    </motion.button>
+                    <button className="inline-flex items-center px-3 py-1.5 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-white hover:bg-red-50">
+                      <Trash2 className="h-4 w-4 mr-1.5" />
+                      Delete
+                    </button>
                   </Dialog.Trigger>
+                  
                   <Dialog.Portal>
-                    <Dialog.Overlay className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50" />
-                    <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-lg shadow-xl p-6 z-50">
-                      <Dialog.Title className="text-lg font-medium text-gray-900 mb-4">
-                        Select a Redaction Template
-                      </Dialog.Title>
-                      <div className="space-y-3 mt-2 max-h-80 overflow-y-auto">
-                        {templates.map((template) => (
-                          <motion.div 
-                            key={template.id} 
-                            whileHover={{ scale: 1.01 }}
-                            whileTap={{ scale: 0.99 }}
-                            className={`border rounded-md p-3 cursor-pointer hover:border-chateau-green-500 ${
-                              selectedTemplate === template.id ? 'border-chateau-green-500 bg-chateau-green-50' : 'border-gray-200'
-                            }`}
-                            onClick={() => {
-                              setSelectedTemplate(template.id);
-                              setIsTemplateDialogOpen(false);
-                            }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-medium text-gray-900">{template.name}</h4>
-                              {selectedTemplate === template.id && (
-                                <CheckCircle className="h-5 w-5 text-chateau-green-500" />
-                              )}
-                            </div>
-                            <p className="mt-1 text-sm text-gray-500">{template.description}</p>
-                          </motion.div>
-                        ))}
+                    <Dialog.Overlay className="fixed inset-0 bg-black/30 backdrop-blur-sm z-10" />
+                    <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl p-6 w-full max-w-md z-20">
+                      <div className="text-center">
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                          <AlertTriangle className="h-6 w-6 text-red-600" />
+                        </div>
+                        <div className="mt-3">
+                          <Dialog.Title className="text-lg font-medium text-gray-900">
+                            Delete Document
+                          </Dialog.Title>
+                          <div className="mt-2">
+                            <p className="text-sm text-gray-500">
+                              Are you sure you want to delete this document? This action cannot be undone.
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="mt-5 sm:mt-6 flex justify-end">
+                      
+                      {deleteError && (
+                        <div className="mt-4 p-3 bg-red-50 text-red-800 text-sm rounded-md">
+                          {deleteError}
+                        </div>
+                      )}
+                      
+                      <div className="mt-6 flex justify-end space-x-3">
                         <Dialog.Close asChild>
-                          <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-chateau-green-600 text-sm font-medium text-white hover:bg-chateau-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500"
+                          <button
+                            className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                            disabled={isDeleting}
                           >
-                            Done
-                          </motion.button>
+                            Cancel
+                          </button>
                         </Dialog.Close>
+                        <button
+                          onClick={handleDeleteDocument}
+                          disabled={isDeleting}
+                          className="px-3 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+                        >
+                          {isDeleting ? 'Deleting...' : 'Delete'}
+                        </button>
                       </div>
                     </Dialog.Content>
                   </Dialog.Portal>
                 </Dialog.Root>
-                
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleProcessDocument}
-                  disabled={!selectedTemplate}
-                  className="mt-4 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-chateau-green-600 hover:bg-chateau-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-chateau-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Process Document
-                </motion.button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-  
-  // Add preview modal to the component render
-  return (
-    <motion.div 
-      initial="hidden"
-      animate="visible"
-      variants={fadeIn}
-      className="p-6 md:p-8"
-    >
-      <div className="max-w-7xl mx-auto">
-        {/* Header with navigation */}
-        <motion.div 
-          variants={slideUp}
-          className="md:flex md:items-center md:justify-between mb-6"
-        >
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center">
-              <Link href="/documents" className="inline-flex items-center text-gray-500 hover:text-gray-700 mr-2">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-              <h1 className="text-2xl font-bold text-gray-900 truncate">
-                {document?.filename || 'Document Details'}
-              </h1>
-            </div>
-            <div className="mt-1 flex flex-col sm:flex-row sm:flex-wrap sm:mt-0 sm:space-x-6">
-              <div className="mt-2 flex items-center text-sm text-gray-500">
-                <FileText className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-                {document?.type || 'Unknown type'}
-              </div>
-              <div className="mt-2 flex items-center text-sm text-gray-500">
-                <Clock className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-                Uploaded on {formatDate(document?.createdAt)}
-              </div>
-              <div className="mt-2 flex items-center text-sm text-gray-500">
-                {document?.status === 'redacted' ? (
-                  <>
-                    <CheckCircle className="flex-shrink-0 mr-1.5 h-5 w-5 text-chateau-green-500" />
-                    <span className="text-chateau-green-600">Redacted</span>
-                  </>
-                ) : (
-                  <>
-                    <Clock className="flex-shrink-0 mr-1.5 h-5 w-5 text-yellow-500" />
-                    <span className="text-yellow-600">Pending</span>
-                  </>
-                )}
               </div>
             </div>
           </div>
-          <div className="mt-5 flex md:mt-0 md:ml-4 space-x-3">
-            {document?.status === 'redacted' && (
-              <Link
-                href={`/documents/${documentId}/report`}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-chateau-green-600 hover:bg-chateau-green-700 transition-colors"
+          
+          {/* Document Content */}
+          <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
+            <Tabs.List className="flex space-x-1 bg-white p-1 rounded-xl shadow-sm border border-gray-200">
+              <Tabs.Trigger
+                value="details"
+                className={`flex-1 py-2.5 text-sm font-medium rounded-lg ${
+                  activeTab === 'details'
+                    ? 'bg-chateau-green-600 text-white'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
               >
-                <Eye className="mr-2 h-5 w-5" />
-                View Report
-              </Link>
-            )}
-          </div>
+                Document Details
+              </Tabs.Trigger>
+              <Tabs.Trigger
+                value="processing"
+                className={`flex-1 py-2.5 text-sm font-medium rounded-lg ${
+                  activeTab === 'processing'
+                    ? 'bg-chateau-green-600 text-white'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Processing Status
+              </Tabs.Trigger>
+              {document.status === 'redacted' && (
+                <Tabs.Trigger
+                  value="redactions"
+                  className={`flex-1 py-2.5 text-sm font-medium rounded-lg ${
+                    activeTab === 'redactions'
+                      ? 'bg-chateau-green-600 text-white'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  Redaction Report
+                </Tabs.Trigger>
+              )}
+            </Tabs.List>
+            
+            <div className="mt-6">
+              <Tabs.Content value="details" className="focus:outline-none">
+                <motion.div
+                  initial={slideUp.hidden}
+                  animate={slideUp.visible}
+                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+                >
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">Document Information</h2>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <div className="mb-4">
+                        <h3 className="text-sm font-medium text-gray-500">File Name</h3>
+                        <p className="mt-1 text-sm text-gray-900">{document.fileName || document.filename || 'N/A'}</p>
+                      </div>
+                      
+                      <div className="mb-4">
+                        <h3 className="text-sm font-medium text-gray-500">Upload Date</h3>
+                        <p className="mt-1 text-sm text-gray-900">{formatDate(document.createdAt)}</p>
+                      </div>
+                      
+                      <div className="mb-4">
+                        <h3 className="text-sm font-medium text-gray-500">File Type</h3>
+                        <p className="mt-1 text-sm text-gray-900">{document.fileType || document.contentType || 'N/A'}</p>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="mb-4">
+                        <h3 className="text-sm font-medium text-gray-500">Status</h3>
+                        <div className="mt-1">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              document.status === 'redacted'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}
+                          >
+                            {document.status === 'redacted' ? (
+                              <>
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Redacted
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="h-3 w-3 mr-1" />
+                                Pending
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {document.lastModified && (
+                        <div className="mb-4">
+                          <h3 className="text-sm font-medium text-gray-500">Last Modified</h3>
+                          <p className="mt-1 text-sm text-gray-900">{formatDate(document.lastModified)}</p>
+                        </div>
+                      )}
+                      
+                      {document.fileSize && (
+                        <div className="mb-4">
+                          <h3 className="text-sm font-medium text-gray-500">File Size</h3>
+                          <p className="mt-1 text-sm text-gray-900">
+                            {Math.round(document.fileSize / 1024)} KB
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {document.status === 'pending' && (
+                    <div className="mt-6 flex items-center justify-end">
+                      <button
+                        onClick={() => handleStatusChange('redacted')}
+                        disabled={isUpdating}
+                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-chateau-green-600 hover:bg-chateau-green-700 disabled:opacity-50"
+                      >
+                        {isUpdating ? 'Updating...' : 'Mark as Redacted'}
+                      </button>
+                    </div>
+                  )}
+                </motion.div>
+              </Tabs.Content>
+              
+              <Tabs.Content value="processing" className="focus:outline-none">
+                <motion.div
+                  initial={slideUp.hidden}
+                  animate={slideUp.visible}
+                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+                >
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">Processing Status</h2>
+                  
+                  {document.status === 'redacted' ? (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <CheckCircle className="h-5 w-5 text-green-400" />
+                        </div>
+                        <div className="ml-3">
+                          <h3 className="text-sm font-medium text-green-800">Processing Complete</h3>
+                          <div className="mt-2 text-sm text-green-700">
+                            <p>
+                              This document has been successfully processed and redacted.
+                              {document.lastModified && 
+                                ` Completed on ${formatDate(document.lastModified)}.`}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex">
+                          <div className="flex-shrink-0">
+                            <Clock className="h-5 w-5 text-yellow-400" />
+                          </div>
+                          <div className="ml-3">
+                            <h3 className="text-sm font-medium text-yellow-800">Processing Pending</h3>
+                            <div className="mt-2 text-sm text-yellow-700">
+                              <p>
+                                This document is currently in the processing queue.
+                                {document.createdAt && 
+                                  ` Uploaded on ${formatDate(document.createdAt)}.`}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="border-t border-gray-200 pt-4">
+                        <h3 className="text-sm font-medium text-gray-900 mb-3">Manual Status Update</h3>
+                        <p className="text-sm text-gray-500 mb-4">
+                          If you've already processed this document elsewhere, you can manually update its status.
+                        </p>
+                        
+                        <button
+                          onClick={() => handleStatusChange('redacted')}
+                          disabled={isUpdating}
+                          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-chateau-green-600 hover:bg-chateau-green-700 disabled:opacity-50"
+                        >
+                          {isUpdating ? 'Updating...' : 'Mark as Redacted'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              </Tabs.Content>
+              
+              {document.status === 'redacted' && (
+                <Tabs.Content value="redactions" className="focus:outline-none">
+                  <motion.div
+                    initial={slideUp.hidden}
+                    animate={slideUp.visible}
+                    className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+                  >
+                    <h2 className="text-lg font-medium text-gray-900 mb-4">Redaction Report</h2>
+                    
+                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+                      <Eye className="mx-auto h-8 w-8 text-gray-400" />
+                      <h3 className="mt-2 text-base font-medium text-gray-900">View Detailed Report</h3>
+                      <p className="mt-1 text-sm text-gray-500 max-w-md mx-auto">
+                        Access the complete redaction report with detailed information about what was redacted.
+                      </p>
+                      <Link
+                        href={`/documents/${documentId}/report`}
+                        className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-chateau-green-600 hover:bg-chateau-green-700"
+                      >
+                        View Report
+                        <ChevronRight className="ml-1 h-4 w-4" />
+                      </Link>
+                    </div>
+                  </motion.div>
+                </Tabs.Content>
+              )}
+            </div>
+          </Tabs.Root>
         </motion.div>
-
-        {/* Document cards section */}
-        {documentCards}
-        
-        {/* Document Preview Modal */}
-        <DocumentPreviewModal 
-          isOpen={isPreviewModalOpen}
-          onClose={() => setIsPreviewModalOpen(false)}
-          documentUrl={previewDocument?.url}
-          documentType={previewDocument?.type}
-          documentName={previewDocument?.name}
-        />
-      </div>
-    </motion.div>
+      ) : null}
+    </div>
   );
 } 

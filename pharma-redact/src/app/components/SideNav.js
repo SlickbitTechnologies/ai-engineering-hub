@@ -14,12 +14,13 @@ import {
   X,
   Settings,
   User,
-  LogOut
+  LogOut,
+  Shield
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 
 export default function SideNav() {
-  const { user, isAuthenticated, signOut } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const [isMobile, setIsMobile] = useState(false);
   const [isOpen, setIsOpen] = useState(false); // Only used for mobile
   const pathname = usePathname();
@@ -56,15 +57,29 @@ export default function SideNav() {
   };
 
   // Don't render for non-authenticated users or specific pages
-  if (!isAuthenticated || pathname === '/' || pathname.startsWith('/auth')) {
+  if (!user || loading || pathname === '/' || pathname.startsWith('/auth')) {
     return null;
   }
 
   const menuItems = [
-    { path: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
-    { path: '/documents', icon: <FileText size={20} />, label: 'Documents' },
-    { path: '/documents/upload', icon: <UploadCloud size={20} />, label: 'Upload Document' },
-    { path: '/templates', icon: <Settings size={20} />, label: 'Redaction Settings' },
+    { 
+      path: '/dashboard', 
+      icon: <LayoutDashboard size={20} />, 
+      label: 'Dashboard',
+      isCurrent: pathname === '/dashboard'
+    },
+    { 
+      path: '/documents', 
+      icon: <FileText size={20} />, 
+      label: 'Documents',
+      isCurrent: pathname === '/documents' || pathname.startsWith('/documents/') && !pathname.includes('/documents/upload')
+    },
+    { 
+      path: '/redaction-settings', 
+      icon: <Shield size={20} />, 
+      label: 'Redaction Settings',
+      isCurrent: pathname === '/redaction-settings' || pathname.startsWith('/redaction-settings/')
+    },
   ];
 
   return (
@@ -85,12 +100,15 @@ export default function SideNav() {
       <button 
         className="lg:hidden fixed top-4 left-4 z-30 bg-white p-2 rounded-md shadow-md text-chateau-green-600"
         onClick={toggleSidebar}
+        aria-label="Toggle navigation"
       >
         {isOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
       <div 
-        className={`fixed top-16 left-0 h-[calc(100vh-4rem)] bg-white border-r border-gray-200 z-20 shadow-sm w-64 ${isMobile && !isOpen ? 'hidden' : ''}`}
+        className={`fixed top-16 left-0 h-[calc(100vh-4rem)] bg-white border-r border-gray-200 z-20 shadow-sm lg:shadow-none w-64 transition-transform duration-300 ease-in-out ${
+          isMobile && !isOpen ? '-translate-x-full' : 'translate-x-0'
+        }`}
       >
         <div className="flex flex-col h-full">
           {/* Navigation Links */}
@@ -98,16 +116,25 @@ export default function SideNav() {
             <ul className="space-y-1 px-2">
               {menuItems.map((item) => (
                 <motion.li key={item.path} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Link href={item.path} className="block">
+                  <Link 
+                    href={item.path} 
+                    className="block"
+                    onClick={() => isMobile && setIsOpen(false)}
+                  >
                     <div 
                       className={`flex items-center px-3 py-3 rounded-md ${
-                        pathname === item.path || (pathname.startsWith(`${item.path}/`) && item.path !== '/documents/upload' && item.path !== '/redact')
+                        item.isCurrent
                           ? 'bg-chateau-green-50 text-chateau-green-600'
                           : 'text-gray-700 hover:bg-gray-100'
                       }`}
                     >
                       <span className="flex-shrink-0">{item.icon}</span>
                       <span className="ml-3 font-medium text-sm">{item.label}</span>
+                      {item.isCurrent && (
+                        <span className="ml-auto">
+                          <ChevronRight size={16} />
+                        </span>
+                      )}
                     </div>
                   </Link>
                 </motion.li>
