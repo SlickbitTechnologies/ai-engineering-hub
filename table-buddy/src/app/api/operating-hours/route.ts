@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getOperatingHours, updateOperatingHours } from '@/lib/dbQueries';
 
 interface TimeSlot {
   openingTime: string;
@@ -21,8 +21,7 @@ interface OperatingHours {
 
 export async function GET() {
   try {
-    const db = await getDb();
-    const hours = await db.all('SELECT * FROM operating_hours');
+    const hours = await getOperatingHours();
     return NextResponse.json(hours);
   } catch (error) {
     console.error('Error fetching operating hours:', error);
@@ -33,24 +32,9 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     const data = await request.json() as OperatingHours[];
-    const db = await getDb();
     
     for (const item of data) {
-      await db.run(`
-        INSERT OR REPLACE INTO operating_hours (
-          day,
-          lunch_opening_time,
-          lunch_closing_time,
-          dinner_opening_time,
-          dinner_closing_time
-        ) VALUES (?, ?, ?, ?, ?)
-      `, [
-        item.day,
-        item.lunch_opening_time,
-        item.lunch_closing_time,
-        item.dinner_opening_time,
-        item.dinner_closing_time
-      ]);
+      await updateOperatingHours(item);
     }
 
     return NextResponse.json({ success: true });

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getReservationCountByDate } from '@/lib/dbQueries';
 
 export async function GET(request: Request) {
   try {
@@ -14,17 +14,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const db = await getDb();
-    
-    const reservations = await db.all(`
-      SELECT 
-        date,
-        COUNT(*) as count,
-        GROUP_CONCAT(status) as statuses
-      FROM reservations
-      WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ?
-      GROUP BY date
-    `, [year, month.padStart(2, '0')]);
+    const reservations = await getReservationCountByDate(year, month);
 
     return NextResponse.json(reservations);
   } catch (error) {

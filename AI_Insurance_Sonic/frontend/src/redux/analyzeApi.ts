@@ -65,7 +65,7 @@ export const analyzeApi = createApi({
     // Get a specific batch
     getBatch: builder.query<Batch, number>({
       query: (id) => `analyze/batches/${id}`,
-      providesTags: (result, error, id) => [{ type: 'Batches', id }],
+      providesTags: (_, __, id) => [{ type: 'Batches', id }],
     }),
     
     // Upload files to a batch
@@ -75,7 +75,7 @@ export const analyzeApi = createApi({
         method: 'POST',
         body: files,
       }),
-      invalidatesTags: (result, error, { batchId }) => [
+      invalidatesTags: (_, __, { batchId }) => [
         { type: 'Batches', id: batchId },
         'Batches',
       ],
@@ -88,7 +88,7 @@ export const analyzeApi = createApi({
         method: 'PUT',
         body: { status },
       }),
-      invalidatesTags: (result, error, { batchId }) => [
+      invalidatesTags: (_, __, { batchId }) => [
         { type: 'Batches', id: batchId },
         'Batches',
       ],

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { createReservation, getReservationById, getReservations, getReservationsByFilter, getTableById } from '@/lib/dbQueries';
 
 // GET /api/reservations
 export async function GET(request: Request) {
@@ -8,31 +8,9 @@ export async function GET(request: Request) {
     const date = searchParams.get('date');
     const status = searchParams.get('status');
 
-    const db = await getDb();
-    let query = `
-      SELECT 
-        r.*,
-        t.name as table_name,
-        t.section as table_section
-      FROM reservations r
-      JOIN tables t ON r.table_id = t.id
-      WHERE 1=1
-    `;
-    const params = [];
+    
 
-    if (date) {
-      query += ' AND r.date = ?';
-      params.push(date);
-    }
-
-    if (status) {
-      query += ' AND r.status = ?';
-      params.push(status);
-    }
-
-    query += ' ORDER BY r.date, r.time';
-
-    const reservations = await db.all(query, params);
+    const reservations = await getReservationsByFilter(date, status);
     return NextResponse.json(reservations);
   } catch (error) {
     console.error('Error fetching reservations:', error);
@@ -67,10 +45,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const db = await getDb();
+    
 
     // Check if table exists and has enough capacity
-    const table = await db.get('SELECT * FROM tables WHERE id = ?', table_id);
+    const table = await getTableById(table_id);
     if (!table) {
       return NextResponse.json(
         { error: 'Table not found' },
@@ -86,15 +64,9 @@ export async function POST(request: Request) {
     }
 
     // Check if table is available at the requested time
-    const existingReservation = await db.get(`
-      SELECT * FROM reservations 
-      WHERE table_id = ? 
-      AND date = ? 
-      AND time = ?
-      AND status = 'confirmed'
-    `, [table_id, date, time]);
-
-    if (existingReservation) {
+    const existingReservation = await getReservations(table_id, date, time);
+    console.log("existingReservation",existingReservation);
+    if (existingReservation.length > 0) {
       return NextResponse.json(
         { error: 'Table is already reserved for this time' },
         { status: 400 }
@@ -102,23 +74,33 @@ export async function POST(request: Request) {
     }
 
     // Create the reservation
-    const result = await db.run(`
-      INSERT INTO reservations (
-        table_id, customer_name, customer_email, customer_phone,
-        party_size, date, time, occasion, special_requests
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      table_id, customer_name, customer_email, customer_phone,
-      party_size, date, time, occasion, special_requests
-    ]);
-
+    // const result = await db.run(`
+    //   INSERT INTO reservations (
+    //     table_id, customer_name, customer_email, customer_phone,
+    //     party_size, date, time, occasion, special_requests
+    //   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    // `, [
+    //   table_id, customer_name, customer_email, customer_phone,
+    //   party_size, date, time, occasion, special_requests
+    // ]);
+    const result = await createReservation({
+      table_id,
+      customer_name,
+      customer_email,
+      customer_phone,
+      party_size,
+      date,
+      time,
+      occasion,
+      special_requests
+    });
     // Update table status
     // await db.run(
     //   'UPDATE tables SET status = ? WHERE id = ?',
     //   ['reserved', table_id]
     // );
 
-    const newReservation = await db.get('SELECT * FROM reservations WHERE id = ?', result.lastID);
+    const newReservation = await getReservationById(result.id);
     return NextResponse.json(newReservation, { status: 201 });
   } catch (error) {
     console.error('Error creating reservation:', error);

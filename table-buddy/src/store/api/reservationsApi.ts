@@ -23,7 +23,7 @@ export interface ReservationFormData {
   phoneNumber: string;
   email?: string;
   numberOfGuests: number;
-  tableId: number;
+  tableId: string | null;
   date: string;
   time: string;
   occasion?: string;

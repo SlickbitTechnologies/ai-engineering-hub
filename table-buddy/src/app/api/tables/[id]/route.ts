@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-
+import { getTableById, updateTable, deleteTable, getReservationsByTableId } from '@/lib/dbQueries';
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // GET /api/tables/[id]
 export async function GET(request: Request, { params }: RouteParams) {
   try {
     const db = await getDb();
-    const table = await db.get('SELECT * FROM tables WHERE id = ?', params.id);
+    const {id} = await params
+    const table = await getTableById(id);
 
     if (!table) {
       return NextResponse.json(
@@ -43,21 +44,15 @@ export async function PUT(request: Request, { params }: RouteParams) {
         { status: 400 }
       );
     }
+    const {id} = await params
+    const result = await updateTable(id, {
+      name,
+      section,
+      capacity:parseInt(capacity),
+      status
+    });
 
-    const db = await getDb();
-    const result = await db.run(
-      'UPDATE tables SET name = ?, section = ?, capacity = ?, status = ? WHERE id = ?',
-      [name, section, capacity, status, params.id]
-    );
-
-    if (result.changes === 0) {
-      return NextResponse.json(
-        { error: 'Table not found' },
-        { status: 404 }
-      );
-    }
-
-    const updatedTable = await db.get('SELECT * FROM tables WHERE id = ?', params.id);
+    const updatedTable = await getTableById(id);
     return NextResponse.json(updatedTable);
   } catch (error) {
     console.error('Error updating table:', error);
@@ -77,26 +72,16 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     // console.log("body",body);
     console.log("p",p);
     // Check if table has any reservations
-    const reservations = await db.get(
-      'SELECT COUNT(*) as count FROM reservations WHERE table_id = ?',
-      p.id
-    );
+    const reservations = await getReservationsByTableId(p.id);
 
-    if (reservations.count > 0) {
+    if (reservations.length > 0) {
       return NextResponse.json(
         { error: 'Cannot delete table with existing reservations' },
         { status: 400 }
       );
     }
 
-    const result = await db.run('DELETE FROM tables WHERE id = ?', params.id);
-
-    if (result.changes === 0) {
-      return NextResponse.json(
-        { error: 'Table not found' },
-        { status: 404 }
-      );
-    }
+    const result = await deleteTable(p.id);
 
     return NextResponse.json({ message: 'Table deleted successfully' });
   } catch (error) {

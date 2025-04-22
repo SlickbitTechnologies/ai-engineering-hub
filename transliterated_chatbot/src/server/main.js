@@ -23,6 +23,19 @@ app.use('/api/restaurant', restaurantRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
 const PORT = process.env.PORT || 4001;
-ViteExpress.listen(app, PORT, () =>
-  console.log(`Server is listening on port ${PORT}...`),
-);
+if(process.env.NODE_ENV === 'production') {
+  console.log("Production mode", __dirname);
+  app.get("/api/*", (req, res) => {
+    console.log("Serving static files.",req);
+    res.status(404).json({ error: "Not Found" });
+  });
+  
+  app.use(express.static(path.join(__dirname, '../../dist')));
+  app.listen(PORT, () => {
+    console.log(`✅ Server running on http://localhost:${PORT}`);
+  });
+}else{
+  ViteExpress.listen(app, PORT, () =>
+    console.log(`Server is listening on port ${PORT}...`),
+  );
+}

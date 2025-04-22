@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-
+import { getTableSettings, updateTableSettings } from '@/lib/dbQueries';
 export async function GET() {
   try {
     const db = await getDb();
-    const settings = await db.get('SELECT * FROM table_settings');
+    const settings = await getTableSettings();
     return NextResponse.json(settings || { turnaround_time: 30 });
   } catch (error) {
     console.error('Error fetching table settings:', error);
@@ -17,10 +17,7 @@ export async function PUT(request: Request) {
     const { turnaround_time } = await request.json();
     const db = await getDb();
     
-    await db.run(`
-      INSERT OR REPLACE INTO table_settings (id, turnaround_time)
-      VALUES (1, ?)
-    `, [turnaround_time]);
+    await updateTableSettings({turnaround_time});
 
     return NextResponse.json({ turnaround_time });
   } catch (error) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getReservationCountByDateAndStatus, getUpcomingReservations } from '@/lib/dbQueries';
+
 
 export async function GET() {
   try {
@@ -7,34 +8,16 @@ export async function GET() {
     const today = new Date().toISOString().split('T')[0];
     
     // Get current time in HH:MM format
-    const now = new Date();
-    const currentTime = now.toTimeString().slice(0, 5);
-    
-    // Get time one hour from now
-    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
-    const oneHourLaterTime = oneHourLater.toTimeString().slice(0, 5);
-
-    const db = await getDb();
 
     // Fetch confirmed reservations for today
-    const confirmedResult = await db.get(
-      'SELECT COUNT(*) as count FROM reservations WHERE date = ? AND status = ?',
-      [today, 'confirmed']
-    );
-    const confirmedReservations = confirmedResult?.count || 0;
+    const confirmedReservations = await getReservationCountByDateAndStatus(today, 'confirmed');
 
     // Fetch pending reservations for today
-    const pendingResult = await db.get(
-      'SELECT COUNT(*) as count FROM reservations WHERE date = ? AND status = ?',
-      [today, 'pending']
-    );
-    const pendingReservations = pendingResult?.count || 0;
+    const pendingReservations = await getReservationCountByDateAndStatus(today, 'pending');
+    
 
-    // Fetch upcoming reservations within the next hour
-    const upcomingResult = await db.get(
-      'SELECT COUNT(*) as count FROM reservations WHERE date = ? AND time BETWEEN ? AND ? AND status = ?',
-      [today, currentTime, oneHourLaterTime, 'confirmed']
-    );
+      // Fetch upcoming reservations within the next hour
+      const upcomingResult = await getUpcomingReservations(today);
     console.log(upcomingResult);
     const upcomingReservations = upcomingResult?.count || 0;
 

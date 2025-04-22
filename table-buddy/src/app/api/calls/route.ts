@@ -1,27 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getCalls } from '@/lib/dbQueries';
+import { CallLogWithReservation, CallLog } from '@/lib/interfaces';
 
 export async function GET() {
   try {
-    const db = await getDb();
-    
-    const callLogs = await db.all(`
-      SELECT 
-        cl.id,
-        cl.call_id,
-        cl.customer_phone,
-        cl.call_date,
-        cl.call_time,
-        cl.call_duration,
-        cl.reservation_date,
-        cl.reservation_time,
-        r.customer_name,
-        r.party_size,
-        r.status as reservation_status
-      FROM call_logs cl
-      LEFT JOIN reservations r ON cl.reservation_id = r.id
-      ORDER BY cl.call_date DESC, cl.call_time DESC
-    `);
+    const callLogs = await getCalls() as (CallLogWithReservation | CallLog)[];
 
     // Format the data for the frontend
     const formattedLogs = callLogs.map(log => ({
@@ -37,9 +20,9 @@ export async function GET() {
       duration: formatDuration(log.call_duration),
       reservation: log.reservation_date ? {
         datetime: `${log.reservation_date} at ${formatTime(log.reservation_time)}`,
-        customerName: log.customer_name,
-        partySize: log.party_size,
-        status: log.reservation_status
+        customerName: (log as CallLogWithReservation).customer_name,
+        partySize: (log as CallLogWithReservation).party_size,
+        status: (log as CallLogWithReservation).reservation_status
       } : null
     }));
 

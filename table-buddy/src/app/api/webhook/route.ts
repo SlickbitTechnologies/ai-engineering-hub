@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
-
+import { getTablesByCapacity,getReservationsByDateAndTime, getOperatingHoursByDay, getTurnaroundTime, createReservationInWebhook, createCallLog, getNextDayOperatingHours } from '@/lib/webhookQueries';
 interface VariableValues {
   date:string;
   time:string;
@@ -41,7 +40,6 @@ export async function POST(request: Request) {
 const handleToolCall = async (toolCall: any,callId:string,variableValues:VariableValues) => {
   try {
     console.log("Tool call:",toolCall);
-  const db = await getDb();
   const {id,function:toolFunction } = toolCall;
   // Handle different tool functions
   const {name,arguments:toolArguments} = toolFunction;
@@ -69,7 +67,6 @@ const handleToolCall = async (toolCall: any,callId:string,variableValues:Variabl
 }
 
 const checkAvailability = async (args: any) => {
-  const db = await getDb();
   console.log("Check availability args:", args);
   const { date, time, no_of_people } = args;
 
@@ -85,17 +82,14 @@ const checkAvailability = async (args: any) => {
   const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
   
   // Get operating hours for the day
-  const operatingHours = await db.get(
-    'SELECT * FROM operating_hours WHERE day = :day',
-    { ':day': dayOfWeek }
-  );
+  const operatingHours = await getOperatingHoursByDay(dayOfWeek);
 
   if (!operatingHours) {
     return `Sorry, we are closed on ${dayOfWeek}`;
   }
 
   // Get turnaround time from settings
-  const settings = await db.get('SELECT turnaround_time FROM table_settings LIMIT 1');
+  const settings = await getTurnaroundTime();
   const turnaroundTime = settings?.turnaround_time || 15; // Default to 15 minutes if not set
 
   // Convert time to minutes for comparison
@@ -122,28 +116,10 @@ const checkAvailability = async (args: any) => {
   }
 
   // Get all available tables with sufficient capacity
-  const tables = await db.all(
-    'SELECT * FROM tables WHERE status = :status AND capacity >= :capacity', 
-    { 
-      ':status': 'available',
-      ':capacity': no_of_people 
-    }
-  );
+  const tables = await getTablesByCapacity(no_of_people);
   
   // Get reservations for the given date and time, including those that might still be using the table
-  const reservations = await db.all(`
-    SELECT * FROM reservations 
-    WHERE date = :date 
-    AND status = :status
-    AND (
-      (time - :turnaroundTime < :time AND time + :turnaroundTime > :time)
-    )
-  `, { 
-    ':date': date,
-    ':status': 'confirmed',
-    ':time': time,
-    ':turnaroundTime': turnaroundTime
-  });
+  const reservations = await getReservationsByDateAndTime(date,time,turnaroundTime);
 
   // Filter tables that are not reserved or will be available by the requested time
   const availableTables = tables.filter(table => {
@@ -170,12 +146,12 @@ const checkAvailability = async (args: any) => {
 }
 
 const createReservation = async (args: any, callId: string, variableValues: VariableValues) => {
-  const db = await getDb();
   console.log("Create reservation args:", args);
   const { name, phone, date, time, no_of_people, occasion, special_requests } = args;
 
   // Validate required fields
   if (!name || !phone || !date || !time || !no_of_people) {
+    console.log("Missing required fields. Please provide name, phone, date, time, and no_of_people.");
     return "Missing required fields. Please provide name, phone, date, time, and no_of_people.";
   }
 
@@ -184,6 +160,7 @@ const createReservation = async (args: any, callId: string, variableValues: Vari
   const currentDateTime = new Date();
   
   if (requestedDateTime < currentDateTime) {
+    console.log("Requested date and time are in the past. Returning error message.");
     return "Sorry, you cannot make a reservation for a past date and time.";
   }
 
@@ -191,17 +168,15 @@ const createReservation = async (args: any, callId: string, variableValues: Vari
   const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
   
   // Get operating hours for the day
-  const operatingHours = await db.get(
-    'SELECT * FROM operating_hours WHERE day = :day',
-    { ':day': dayOfWeek }
-  );
+  const operatingHours = await getOperatingHoursByDay(dayOfWeek);
 
   if (!operatingHours) {
+    console.log("No operating hours found for the day. Returning error message.");
     return `Sorry, we are closed on ${dayOfWeek}`;
   }
 
   // Get turnaround time from settings
-  const settings = await db.get('SELECT turnaround_time FROM table_settings LIMIT 1');
+  const settings = await getTurnaroundTime();
   const turnaroundTime = settings?.turnaround_time || 15;
 
   // Convert time to minutes for comparison
@@ -224,36 +199,20 @@ const createReservation = async (args: any, callId: string, variableValues: Vari
   const isWithinDinnerHours = requestedTimeInMinutes >= dinnerOpenInMinutes && requestedTimeInMinutes <= dinnerCloseInMinutes;
 
   if (!isWithinLunchHours && !isWithinDinnerHours) {
+    console.log("Time is not within operating hours. Returning error message.");
     return `Sorry, we are not open at ${time}. Our hours are: Lunch ${operatingHours.lunch_opening_time} - ${operatingHours.lunch_closing_time}, Dinner ${operatingHours.dinner_opening_time} - ${operatingHours.dinner_closing_time}`;
   }
 
   // Find available tables with sufficient capacity
-  const tables = await db.all(
-    'SELECT * FROM tables WHERE status = :status AND capacity >= :capacity', 
-    { 
-      ':status': 'available',
-      ':capacity': no_of_people 
-    }
-  );
+  const tables = await getTablesByCapacity(no_of_people);
 
   if (tables.length === 0) {
+    console.log("No tables available. Returning error message.");
     return `No tables available that can accommodate ${no_of_people} people.`;
   }
 
   // Get existing reservations for the time slot
-  const existingReservations = await db.all(`
-    SELECT * FROM reservations 
-    WHERE date = :date 
-    AND status = :status
-    AND (
-      (time - :turnaroundTime < :time AND time + :turnaroundTime > :time)
-    )
-  `, { 
-    ':date': date,
-    ':status': 'confirmed',
-    ':time': time,
-    ':turnaroundTime': turnaroundTime
-  });
+  const existingReservations = await getReservationsByDateAndTime(date,time,turnaroundTime);
 
   // Find first available table
   const availableTable = tables.find(table => {
@@ -262,85 +221,30 @@ const createReservation = async (args: any, callId: string, variableValues: Vari
   });
 
   if (!availableTable) {
+    console.log("No tables available at the requested time. Returning error message.");
     return "No tables available at the requested time. Please try a different time.";
   }
 
   try {
     // Create the reservation
-    const result = await db.run(`
-      INSERT INTO reservations (
-        customer_name, 
-        customer_phone, 
-        date, 
-        time, 
-        party_size, 
-        table_id, 
-        status,
-        occasion,
-        special_requests,
-        created_at,
-        updated_at
-      ) VALUES (
-        :customer_name,
-        :customer_phone,
-        :date,
-        :time,
-        :party_size,
-        :table_id,
-        :status,
-        :occasion,
-        :special_requests,
-        CURRENT_TIMESTAMP,
-        CURRENT_TIMESTAMP
-      )
-    `, {
-      ':customer_name': name,
-      ':customer_phone': phone,
-      ':date': date,
-      ':time': time,
-      ':party_size': no_of_people,
-      ':table_id': availableTable.id,
-      ':status': 'confirmed',
-      ':occasion': occasion || null,
-      ':special_requests': special_requests || null
-    });
-
-    const reservationId = result.lastID;
+    const result = await createReservationInWebhook({name,phone,date,time,no_of_people,table_id:availableTable.id,occasion,special_requests});
+    console.log("Reservation created successfully. Returning result.");
+    const reservationId = result.id;
 
     // Store call logs
     const callDate = variableValues.date;
     const callTime = variableValues.time;
     const callDuration = Math.floor((new Date().getTime() - new Date(`${callDate}T${callTime}`).getTime()) / 1000); // Duration in seconds
 
-    await db.run(`
-      INSERT INTO call_logs (
-        call_id,
-        reservation_id,
-        customer_phone,
-        call_date,
-        call_time,
-        call_duration,
-        reservation_date,
-        reservation_time
-      ) VALUES (
-        :call_id,
-        :reservation_id,
-        :customer_phone,
-        :call_date,
-        :call_time,
-        :call_duration,
-        :reservation_date,
-        :reservation_time
-      )
-    `, {
-      ':call_id': callId,
-      ':reservation_id': reservationId,
-      ':customer_phone': phone,
-      ':call_date': callDate,
-      ':call_time': callTime,
-      ':call_duration': callDuration,
-      ':reservation_date': date,
-      ':reservation_time': time
+    await createCallLog({
+      call_id: callId,
+      reservation_id: reservationId,
+      customer_phone: phone,
+      call_date: callDate,
+      call_time: callTime,
+      call_duration: callDuration,
+      reservation_date: date,
+      reservation_time: time
     });
 
     return `Reservation created successfully for ${name} at ${time} on ${date} for ${no_of_people} people at Table ${availableTable.id}.`;
@@ -351,23 +255,20 @@ const createReservation = async (args: any, callId: string, variableValues: Vari
 }
 
 const checkNextAvailableSlot = async (args: any) => {
-  const db = await getDb();
   console.log("Check next available slot args:", args);
   const { date, time, no_of_people } = args;
 
   // Get operating hours for the day
   const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-  const operatingHours = await db.get(
-    'SELECT * FROM operating_hours WHERE day = :day',
-    { ':day': dayOfWeek }
-  );
+  const operatingHours = await getOperatingHoursByDay(dayOfWeek);
 
   if (!operatingHours) {
+    console.log("No operating hours found for the day. Returning error message.");
     return `Sorry, we are closed on ${dayOfWeek}`;
   }
 
   // Get turnaround time from settings
-  const settings = await db.get('SELECT turnaround_time FROM table_settings LIMIT 1');
+  const settings = await getTurnaroundTime();
   const turnaroundTime = settings?.turnaround_time || 15;
 
   // Convert time to minutes for comparison
@@ -386,29 +287,11 @@ const checkNextAvailableSlot = async (args: any) => {
   const dinnerCloseInMinutes = dinnerCloseHours * 60 + dinnerCloseMinutes;
 
   // Get all tables with sufficient capacity
-  const tables = await db.all(
-    'SELECT * FROM tables WHERE status = :status AND capacity >= :capacity', 
-    { 
-      ':status': 'available',
-      ':capacity': no_of_people 
-    }
-  );
+  const tables = await getTablesByCapacity(no_of_people);
 
   // Function to check availability at a specific time
   const checkTimeSlot = async (checkTime: string) => {
-    const reservations = await db.all(`
-      SELECT * FROM reservations 
-      WHERE date = :date 
-      AND status = :status
-      AND (
-        (time - :turnaroundTime < :time AND time + :turnaroundTime > :time)
-      )
-    `, { 
-      ':date': date,
-      ':status': 'confirmed',
-      ':time': checkTime,
-      ':turnaroundTime': turnaroundTime
-    });
+    const reservations = await getReservationsByDateAndTime(date,checkTime,turnaroundTime);
 
     const availableTables = tables.filter(table => {
       const tableReservations = reservations.filter(res => res.table_id === table.id);
@@ -436,6 +319,7 @@ const checkNextAvailableSlot = async (args: any) => {
     const isAvailable = await checkTimeSlot(checkTime);
 
     if (isAvailable) {
+      console.log("Next available slot is at",checkTime);
       return `Next available slot is at ${checkTime}`;
     }
 
@@ -449,12 +333,10 @@ const checkNextAvailableSlot = async (args: any) => {
   const nextDay = nextDate.toISOString().split('T')[0];
   
   // Check first available time on next day
-  const nextDayOperatingHours = await db.get(
-    'SELECT * FROM operating_hours WHERE day = :day',
-    { ':day': nextDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() }
-  );
-
+  
+  const nextDayOperatingHours = await getNextDayOperatingHours(nextDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() );
   if (nextDayOperatingHours) {
+    console.log("Next available slot is at",nextDayOperatingHours.lunch_opening_time);
     return `No slots available today. Next available slot is at ${nextDayOperatingHours.lunch_opening_time} on ${nextDay}`;
   }
 

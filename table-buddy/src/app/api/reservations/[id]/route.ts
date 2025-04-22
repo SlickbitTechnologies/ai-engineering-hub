@@ -1,25 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { deleteReservation, findExistingReservation, getReservationById, getTableById, updateReservation } from '@/lib/dbQueries';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // GET /api/reservations/[id]
 export async function GET(request: Request, { params }: RouteParams) {
   try {
-    const db = await getDb();
-    const reservation = await db.get(`
-      SELECT 
-        r.*,
-        t.name as table_name,
-        t.section as table_section
-      FROM reservations r
-      JOIN tables t ON r.table_id = t.id
-      WHERE r.id = ?
-    `, params.id);
+    const {id} = await params
+    const reservation = await getReservationById(id);
 
     if (!reservation) {
       return NextResponse.json(
@@ -63,10 +55,10 @@ export async function PUT(request: Request, { params }: RouteParams) {
       );
     }
 
-    const db = await getDb();
+    
 
     // Check if table exists and has enough capacity
-    const table = await db.get('SELECT * FROM tables WHERE id = ?', table_id);
+    const table = await getTableById(table_id)
     if (!table) {
       return NextResponse.json(
         { error: 'Table not found' },
@@ -82,15 +74,16 @@ export async function PUT(request: Request, { params }: RouteParams) {
     }
 
     // Check if table is available at the requested time (excluding current reservation)
-    const existingReservation = await db.get(`
-      SELECT * FROM reservations 
-      WHERE table_id = ? 
-      AND date = ? 
-      AND time = ?
-      AND status = 'confirmed'
-      AND id != ?
-    `, [table_id, date, time, params.id]);
-
+    // const existingReservation = await db.get(`
+    //   SELECT * FROM reservations 
+    //   WHERE table_id = ? 
+    //   AND date = ? 
+    //   AND time = ?
+    //   AND status = 'confirmed'
+    //   AND id != ?
+    // `, [table_id, date, time, params.id]);
+    const {id} = await params
+    const existingReservation = await findExistingReservation(table_id, date, time, id);
     if (existingReservation) {
       return NextResponse.json(
         { error: 'Table is already reserved for this time' },
@@ -98,21 +91,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Update the reservation
-    const result = await db.run(`
-      UPDATE reservations SET
-        table_id = ?,
-        customer_name = ?,
-        customer_email = ?,
-        customer_phone = ?,
-        party_size = ?,
-        date = ?,
-        time = ?,
-        status = ?,
-        occasion = ?,
-        special_requests = ?
-      WHERE id = ?
-    `, [
+    const result = await updateReservation(id, {
       table_id,
       customer_name,
       customer_email,
@@ -122,40 +101,37 @@ export async function PUT(request: Request, { params }: RouteParams) {
       time,
       status,
       occasion,
-      special_requests,
-      params.id
-    ]);
+      special_requests
+    });
+    // Update the reservation
+    // const result = await db.run(`
+    //   UPDATE reservations SET
+    //     table_id = ?,
+    //     customer_name = ?,
+    //     customer_email = ?,
+    //     customer_phone = ?,
+    //     party_size = ?,
+    //     date = ?,
+    //     time = ?,
+    //     status = ?,
+    //     occasion = ?,
+    //     special_requests = ?
+    //   WHERE id = ?
+    // `, [
+    //   table_id,
+    //   customer_name,
+    //   customer_email,
+    //   customer_phone,
+    //   party_size,
+    //   date,
+    //   time,
+    //   status,
+    //   occasion,
+    //   special_requests,
+    //   params.id
+    // ]);
 
-    if (result.changes === 0) {
-      return NextResponse.json(
-        { error: 'Reservation not found' },
-        { status: 404 }
-      );
-    }
-
-    // Update table status based on reservation status
-    if (status === 'cancelled') {
-      await db.run(
-        'UPDATE tables SET status = ? WHERE id = ?',
-        ['available', table_id]
-      );
-    } else if (status === 'confirmed') {
-      await db.run(
-        'UPDATE tables SET status = ? WHERE id = ?',
-        ['reserved', table_id]
-      );
-    }
-
-    const updatedReservation = await db.get(`
-      SELECT 
-        r.*,
-        t.name as table_name,
-        t.section as table_section
-      FROM reservations r
-      JOIN tables t ON r.table_id = t.id
-      WHERE r.id = ?
-    `, params.id);
-
+    const updatedReservation = await getReservationById(id)
     return NextResponse.json(updatedReservation);
   } catch (error) {
     console.error('Error updating reservation:', error);
@@ -169,10 +145,11 @@ export async function PUT(request: Request, { params }: RouteParams) {
 // DELETE /api/reservations/[id]
 export async function DELETE(request: Request, { params }: RouteParams) {
   try {
-    const db = await getDb();
+  
 
     // Get the reservation to find its table
-    const reservation = await db.get('SELECT * FROM reservations WHERE id = ?', params.id);
+    const {id} = await params
+    const reservation = await getReservationById(id);
     if (!reservation) {
       return NextResponse.json(
         { error: 'Reservation not found' },
@@ -181,13 +158,13 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     }
 
     // Delete the reservation
-    await db.run('DELETE FROM reservations WHERE id = ?', params.id);
+    await deleteReservation(id);
 
     // Update table status to available
-    await db.run(
-      'UPDATE tables SET status = ? WHERE id = ?',
-      ['available', reservation.table_id]
-    );
+    // await db.run(
+    //   'UPDATE tables SET status = ? WHERE id = ?',
+    //   ['available', reservation.table_id]
+    // );
 
     return NextResponse.json({ message: 'Reservation deleted successfully' });
   } catch (error) {

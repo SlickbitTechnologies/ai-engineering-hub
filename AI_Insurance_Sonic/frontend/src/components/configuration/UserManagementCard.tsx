@@ -5,7 +5,7 @@ import { Column } from '../../components/common/DataTable';
 import AddUserModal from './AddUserModal';
 import EditUserModal from './EditUserModal';
 import ConfirmationModal from './ConfirmationModal';
-import { parseApiError, ApiError } from '../../services/errorHandler';
+import { parseApiError } from '../../services/errorHandler';
 import { FetchBaseQueryError } from '@reduxjs/toolkit/query/react';
 import { SerializedError } from '@reduxjs/toolkit';
 
@@ -42,6 +42,18 @@ const UserManagementCard: React.FC<UserManagementCardProps> = ({
   // Operation states
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [sortColumn, setSortColumn] = useState<string>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
 
   // Handle edit user click
   const handleEditUser = (user: User) => {
@@ -185,6 +197,9 @@ const UserManagementCard: React.FC<UserManagementCardProps> = ({
         columns={columns}
         data={users}
         emptyMessage="No users found."
+        sortColumn={sortColumn}
+        sortDirection={sortDirection}
+        onSort={handleSort}
       />
       
       <div className="mt-6">

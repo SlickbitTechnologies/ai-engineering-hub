@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-
+import { createTable, getTableById, getTables } from '@/lib/dbQueries';
 // GET /api/tables
 export async function GET() {
   try {
     const db = await getDb();
     
-    const tables = await db.all(`
-      SELECT * FROM tables
-    `);
+      const tables = await getTables();
 
     // Format the data to match the expected structure
     
@@ -26,8 +24,7 @@ export async function GET() {
 // POST /api/tables
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { name, section, capacity, attributes } = body;
+    const { name, section, capacity, attributes } = await request.json();
 
     // Validate required fields
     if (!name || !section || !capacity) {
@@ -37,13 +34,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const db = await getDb();
-    const result = await db.run(
-      'INSERT INTO tables (name, section, capacity, attributes, status) VALUES (?, ?, ?, ?, ?)',
-      [name, section, capacity, attributes, 'available']
-    );
+    const result = await createTable({
+      name,
+      section,
+      capacity:parseInt(capacity),
+      attributes,
+      status: 'available'
+    });
 
-    const newTable = await db.get('SELECT * FROM tables WHERE id = ?', result.lastID);
+    const newTable = await getTableById(result.id);
     return NextResponse.json(newTable, { status: 201 });
   } catch (error) {
     console.error('Error creating table:', error);

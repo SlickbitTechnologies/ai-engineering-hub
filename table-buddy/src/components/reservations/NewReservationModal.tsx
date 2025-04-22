@@ -18,7 +18,7 @@ export interface ReservationFormData {
   phoneNumber: string;
   email?: string;
   numberOfGuests: number;
-  tableId: number;
+  tableId: string | null;
   date: string;
   time: string;
   occasion?: string;
@@ -47,7 +47,7 @@ const validateForm = (data: ReservationFormData): string | null => {
   if (data.numberOfGuests < 1) {
     return 'Number of guests must be at least 1';
   }
-  if (data.tableId === -1) {
+  if (!data.tableId) {
     return 'Please select a table';
   }
   if (!data.date) {
@@ -76,7 +76,7 @@ export default function NewReservationModal({ isOpen, onClose }: NewReservationM
     phoneNumber: '',
     email: '',
     numberOfGuests: 2,
-    tableId: -1,
+    tableId: null,
     date: '',
     time: '',
     occasion: '',
@@ -234,8 +234,8 @@ export default function NewReservationModal({ isOpen, onClose }: NewReservationM
                         <div>
                           <Dropdown
                             label="Table"
-                            value={formData.tableId.toString()}
-                            onChange={(value) => setFormData({ ...formData, tableId: parseInt(value) })}
+                            value={formData.tableId || ''}
+                            onChange={(value) => setFormData({ ...formData, tableId: value })}
                             options={tables.map(table => ({
                               value: table.id.toString(),
                               label: `${table.name} (${table.capacity} seats)`

@@ -338,7 +338,7 @@ const CallDetailHeader: React.FC<CallDetailHeaderProps> = ({
       setShowExportMenu(false);
     }
   };
-
+  
   return (
     <div className="rounded-lg">
       <div className="p-4">
@@ -390,7 +390,7 @@ const CallDetailHeader: React.FC<CallDetailHeaderProps> = ({
                     role="menuitem"
                   >
                     Export as Excel
-                  </button>
+          </button>
                 </div>
               </div>
             )}

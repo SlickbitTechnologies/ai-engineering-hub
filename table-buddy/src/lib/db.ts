@@ -67,6 +67,7 @@ export async function getDb() {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (table_id) REFERENCES tables(id)
       );
+
       CREATE TABLE IF NOT EXISTS call_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   call_id TEXT NOT NULL,
@@ -80,6 +81,7 @@ export async function getDb() {
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (reservation_id) REFERENCES reservations(id)
 ); 
+
       CREATE TRIGGER IF NOT EXISTS update_restaurant_settings_timestamp 
       AFTER UPDATE ON restaurant_settings
       BEGIN
