@@ -1,0 +1,103 @@
+{
+  "id": "1745255075491",
+  "name": "regulatory-smpc",
+  "description": "meta data",
+  "metadataFields": [
+    {
+      "name": "Product Name",
+      "description": "Invented name, full product name"
+    },
+    {
+      "name": "Strength",
+      "description": "e.g., 500 mg, 20 mg/ml"
+    },
+    {
+      "name": "Pharmaceutical Form",
+      "description": "Tablet, Solution for Injection, etc."
+    },
+    {
+      "name": "Route of Administration",
+      "description": "Oral, Intravenous, Subcutaneous"
+    },
+    {
+      "name": "Legal Status",
+      "description": "Prescription-only, OTC, Hospital use only"
+    },
+    {
+      "name": "ATC Code",
+      "description": "Anatomical Therapeutic Chemical classification"
+    },
+    {
+      "name": "Marketing Authorisation Number",
+      "description": "MA identifier"
+    },
+    {
+      "name": "MA Holder (Organisation)",
+      "description": "Name and address of MAH"
+    },
+    {
+      "name": "MAH Contact Details",
+      "description": "Email, phone, address (if available)"
+    },
+    {
+      "name": "Active Substance(s)",
+      "description": "Common name(s) and form (e.g., Amoxicillin trihydrate)"
+    },
+    {
+      "name": "Strength of Active Ingredient(s)",
+      "description": "Per dosage unit or per ml"
+    },
+    {
+      "name": "Excipient(s)",
+      "description": "Including those with known effect (e.g., lactose, ethanol)"
+    },
+    {
+      "name": "Qualitative and Quantitative Composition",
+      "description": "Full composition statement"
+    },
+    {
+      "name": "Manufacturer(s)",
+      "description": "Names and sites responsible for manufacturing"
+    },
+    {
+      "name": "Batch Release Site",
+      "description": "Often listed in section 6.4 or annex"
+    },
+    {
+      "name": "Packaging Type",
+      "description": "Blister, vial, ampoule, bottle"
+    },
+    {
+      "name": "Pack Sizes",
+      "description": "10 tablets, 100 ml bottle, etc."
+    },
+    {
+      "name": "Therapeutic Indication(s)",
+      "description": "Diseases/conditions the product is approved for"
+    },
+    {
+      "name": "Posology",
+      "description": "Dosage and frequency"
+    },
+    {
+      "name": "Special Populations",
+      "description": "Use in pediatrics, elderly, renal/hepatic impairment"
+    },
+    {
+      "name": "Contraindications",
+      "description": "Conditions where drug should not be used"
+    },
+    {
+      "name": "Warnings & Precautions",
+      "description": "Important risk/mitigation info"
+    },
+    {
+      "name": "Interactions",
+      "description": "Drug-drug, food, or diagnostic interaction info"
+    },
+    {
+      "name": "Pregnancy/Lactation Use",
+      "description": "Use restrictions or allowances"
+    }
+  ]
+}
