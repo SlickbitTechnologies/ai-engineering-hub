@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTemplates } from '../context/TemplateContext';
 import '../styles/global.css';
 
+const url = 'http://localhost:8000';
+
 function Settings() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [fields, setFields] = useState([{ name: '', description: '' }]);
@@ -53,7 +55,7 @@ function Settings() {
       };
 
       // Save the copy to backend
-      const response = await fetch('http://localhost:8000/templates', {
+      const response = await fetch(`${url}/templates`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -66,7 +68,7 @@ function Settings() {
       }
 
       // Refresh templates list
-      const updatedTemplates = await fetch('http://localhost:8000/templates').then(res => res.json());
+      const updatedTemplates = await fetch(`${url}/templates`).then(res => res.json());
       setTemplates(updatedTemplates);
       
       alert(`Template copied successfully with new ID: ${newId}`);
@@ -79,7 +81,7 @@ function Settings() {
   const handleDeleteTemplate = async (templateId) => {
     if (window.confirm('Are you sure you want to delete this template?')) {
       try {
-        const response = await fetch(`http://localhost:8000/templates/${templateId}`, {
+        const response = await fetch(`${url}/templates/${templateId}`, {
           method: 'DELETE',
         });
 
@@ -136,7 +138,7 @@ function Settings() {
       };
 
       // Save template to backend
-      const response = await fetch('http://localhost:8000/templates', {
+      const response = await fetch(`${url}/templates`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -150,7 +152,7 @@ function Settings() {
       }
 
       // Refresh templates list
-      const updatedTemplates = await fetch('http://localhost:8000/templates').then(res => res.json());
+      const updatedTemplates = await fetch(`${url}/templates`).then(res => res.json());
       setTemplates(updatedTemplates);
       
       // Reset form
@@ -198,7 +200,7 @@ function Settings() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:8000/templates/upload-fields', {
+      const response = await fetch(`${url}/templates/upload-fields`, {
         method: 'POST',
         body: formData,
       });
@@ -252,7 +254,7 @@ function Settings() {
   const handleDeleteMetadata = async (documentUrl) => {
     if (window.confirm('Are you sure you want to delete this metadata entry?')) {
       try {
-        const response = await fetch(`http://localhost:8000/metadata/${encodeURIComponent(documentUrl)}`, {
+        const response = await fetch(`${url}/metadata/${encodeURIComponent(documentUrl)}`, {
           method: 'DELETE',
         });
 
@@ -277,7 +279,7 @@ function Settings() {
     const loadData = async () => {
       try {
         // Load templates
-        const templatesResponse = await fetch('http://localhost:8000/templates');
+        const templatesResponse = await fetch(`${url}/templates`);
         if (!templatesResponse.ok) {
           throw new Error('Failed to load templates');
         }
@@ -285,7 +287,7 @@ function Settings() {
         setTemplates(loadedTemplates);
 
         // Load metadata
-        const metadataResponse = await fetch('http://localhost:8000/metadata');
+        const metadataResponse = await fetch(`${url}/metadata`);
         if (!metadataResponse.ok) {
           throw new Error('Failed to load metadata');
         }

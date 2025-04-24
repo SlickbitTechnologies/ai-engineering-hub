@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useTemplates } from '../context/TemplateContext';
 import '../styles/global.css';
 
+const url = 'http://localhost:8000';
+
 function Documents() {
   const { templates } = useTemplates();
   const [documentUrl, setDocumentUrl] = useState('');
@@ -22,7 +24,7 @@ function Documents() {
   useEffect(() => {
     const loadMetadata = async () => {
       try {
-        const response = await fetch('http://localhost:8000/metadata');
+        const response = await fetch(`${url}/metadata`);
         if (response.ok) {
           const data = await response.json();
           if (data.metadata) {
@@ -92,7 +94,7 @@ function Documents() {
         });
       }, 1000);
 
-      const response = await fetch(`http://localhost:8000/process-document?document_url=${encodeURIComponent(documentUrl)}&template_id=${encodeURIComponent(selectedTemplateId)}`, {
+      const response = await fetch(`${url}/process-document?document_url=${encodeURIComponent(documentUrl)}&template_id=${encodeURIComponent(selectedTemplateId)}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -132,7 +134,7 @@ function Documents() {
 
       // Generate/update Excel file
       try {
-        const excelResponse = await fetch('http://localhost:8000/generate-excel', {
+        const excelResponse = await fetch(`${url}/generate-excel`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -165,7 +167,7 @@ function Documents() {
 
   const handleDownloadExcel = () => {
     if (excelPath) {
-      window.open(`http://localhost:8000/download-excel?path=${encodeURIComponent(excelPath)}`, '_blank');
+      window.open(`${url}/download-excel?path=${encodeURIComponent(excelPath)}`, '_blank');
     }
   };
 
@@ -192,7 +194,7 @@ function Documents() {
         if (!docToDelete) return;
 
         // Delete from backend
-        const response = await fetch(`http://localhost:8000/metadata/${encodeURIComponent(docToDelete.url)}`, {
+        const response = await fetch(`${url}/metadata/${encodeURIComponent(docToDelete.url)}`, {
           method: 'DELETE'
         });
 
