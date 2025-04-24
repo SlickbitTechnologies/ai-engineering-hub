@@ -155,3 +155,41 @@ class ExcelGenerator:
         self.document_urls = []
         self.metadata_storage._save_metadata()  # Clear the storage file
         logger.info("Cleared stored data")
+
+    def delete_metadata(self, document_url: str) -> str:
+        """
+        Delete metadata for a specific document from the Excel file.
+        
+        Args:
+            document_url (str): URL of the document to delete
+            
+        Returns:
+            str: Path to the updated Excel file
+        """
+        try:
+            # Extract file name from URL
+            if 'sharepoint.com' in document_url.lower():
+                try:
+                    file_name = document_url.split('Documents/')[-1]
+                    file_name = file_name.replace('%20', ' ')
+                except:
+                    file_name = os.path.basename(document_url)
+            else:
+                file_name = os.path.basename(document_url)
+            
+            # Remove from metadata list and document URLs
+            self.metadata_list = [doc for doc in self.metadata_list if doc.get('File Name') != file_name]
+            self.document_urls = [url for url in self.document_urls if url != file_name]
+            
+            # If no metadata left, clear the Excel file
+            if not self.metadata_list:
+                if os.path.exists(self.excel_path):
+                    os.remove(self.excel_path)
+                return self.excel_path
+            
+            # Generate updated Excel file with remaining metadata
+            return self.generate_excel()
+            
+        except Exception as e:
+            logger.error(f"Error deleting metadata: {str(e)}")
+            raise

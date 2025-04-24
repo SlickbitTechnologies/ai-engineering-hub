@@ -213,6 +213,12 @@ function Documents() {
           setCurrentDocument(null);
         }
 
+        // Clear Excel path if no documents left
+        if (documents.length <= 1) {
+          setExcelPath('');
+          localStorage.removeItem('lastExcelPath');
+        }
+
         // Show success message
         alert('Document deleted successfully');
       } catch (error) {
@@ -324,12 +330,12 @@ function Documents() {
                       <h3 className="text-sm font-medium text-gray-900"> documents processed </h3>
                       <p className="text-xs text-gray-500">Processed on: {new Date(doc.timestamp).toLocaleString()}</p>
                     </div>
-                    <button
+                    {/* <button
                       onClick={() => handleDeleteRow(doc.id)}
                       className="text-red-500 hover:text-red-700"
                     >
                       Delete
-                    </button>
+                    </button> */}
                   </div>
                   {/* Document metadata display */}
                 </div>

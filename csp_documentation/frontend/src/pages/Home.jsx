@@ -25,7 +25,7 @@ function Home() {
           </Link>
           
           <Link to="/settings" className="hover:text-gray-200">
-            <button className="button-secondary">
+            <button className="button-primary">
               Configure Templates
             </button>
           </Link>

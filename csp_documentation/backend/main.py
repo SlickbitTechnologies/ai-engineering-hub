@@ -363,8 +363,11 @@ async def delete_metadata(document_url: str):
         # Decode the URL properly
         document_url = unquote(document_url)
         
-        # Delete the metadata
+        # Delete from metadata storage
         metadata_storage.delete_metadata(document_url)
+        
+        # Delete from Excel file
+        excel_generator.delete_metadata(document_url)
         
         return {"message": "Metadata deleted successfully"}
     except Exception as e:
