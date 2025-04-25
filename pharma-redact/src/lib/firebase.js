@@ -227,6 +227,9 @@ export const uploadDocument = async (file, userId, progressCallback = null) => {
               fileType: file.type,
               status: 'pending',
               url: downloadURL,
+              filePath: storageRef.fullPath,      // Add storage path
+              downloadUrl: downloadURL,           // Add download URL
+              contentType: file.type,             // Add content type
               createdAt: new Date()
             });
             
@@ -238,6 +241,9 @@ export const uploadDocument = async (file, userId, progressCallback = null) => {
               fileType: file.type,
               status: 'pending',
               url: downloadURL,
+              filePath: storageRef.fullPath,      // Include in returned object
+              downloadUrl: downloadURL,           // Include in returned object
+              contentType: file.type,             // Include in returned object
               createdAt: new Date()
             });
           } catch (error) {

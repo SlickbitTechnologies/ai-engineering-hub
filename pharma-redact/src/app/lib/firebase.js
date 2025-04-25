@@ -321,13 +321,69 @@ export const uploadFile = async (userId, file) => {
     type: file.type,
     size: file.size,
     path: snapshot.ref.fullPath,
+    filePath: snapshot.ref.fullPath,
     url: downloadURL,
+    downloadUrl: downloadURL,
+    contentType: file.type
   };
 };
 
 export const deleteFile = async (filePath) => {
   const fileRef = ref(storage, filePath);
   return deleteObject(fileRef);
+};
+
+/**
+ * Delete a document and its associated file
+ * @param {string} documentId - The document ID
+ * @param {string} userId - The user ID (for security verification)
+ * @returns {Promise<boolean>} - A promise that resolves with true if deletion was successful
+ */
+export const deleteDocument = async (documentId, userId) => {
+  try {
+    console.log(`[app/lib/firebase.js] Deleting document: ${documentId} for user: ${userId}`);
+    
+    if (!documentId || !userId) {
+      console.error('[app/lib/firebase.js] documentId and userId are required');
+      throw new Error('documentId and userId are required');
+    }
+
+    // First get the document to check ownership and get the storage URL
+    const document = await getDocumentById(documentId);
+    
+    if (!document) {
+      console.error(`[app/lib/firebase.js] Document with ID ${documentId} not found`);
+      throw new Error(`Document with ID ${documentId} not found`);
+    }
+    
+    // Security check - verify this document belongs to the user
+    if (document.userId !== userId) {
+      console.error('[app/lib/firebase.js] Document ownership verification failed');
+      throw new Error('You do not have permission to delete this document');
+    }
+
+    // Delete from Firestore
+    const docRef = doc(db, 'documents', documentId);
+    await deleteDoc(docRef);
+    console.log(`[app/lib/firebase.js] Document deleted from Firestore: ${documentId}`);
+    
+    // Delete from Storage if filePath exists
+    if (document.filePath || document.path || document.url) {
+      try {
+        const filePath = document.filePath || document.path || document.url;
+        await deleteFile(filePath);
+        console.log(`[app/lib/firebase.js] Document file deleted from storage: ${filePath}`);
+      } catch (storageError) {
+        // Log but don't fail if storage deletion fails
+        console.error('[app/lib/firebase.js] Error deleting from storage:', storageError);
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error(`[app/lib/firebase.js] Error deleting document ${documentId}:`, error);
+    throw error;
+  }
 };
 
 export { auth, db, storage, googleProvider }; 

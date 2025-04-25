@@ -252,8 +252,7 @@ export default function Documents() {
   }
 
   if (!authLoading && !user) {
-    console.log('Documents page: No authenticated user, redirecting to login');
-    router.push('/auth');
+    console.log('Documents page: No authenticated user, showing loading state');
     return (
       <div className="min-h-screen flex items-center justify-center flex-col">
         <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-chateau-green-600 mb-4"></div>
