@@ -164,9 +164,5 @@ const RedactionSettings = () => {
     </motion.div>
   );
 };
-          </TabsContent>
-        </Tabs>
-      </motion.div>
-    </motion.div>
-  );
-};
+
+export default RedactionSettings;

@@ -182,6 +182,15 @@ export default function Documents() {
   const handleFileChange = (event) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
+      
+      // Check file size - 5MB maximum (5 * 1024 * 1024 bytes)
+      const maxSizeInBytes = 5 * 1024 * 1024;
+      if (file.size > maxSizeInBytes) {
+        setUploadError(`File size exceeds 5MB limit. Please select a smaller file.`);
+        setSelectedFile(null);
+        return;
+      }
+      
       setSelectedFile(file);
       setUploadError('');
     }
@@ -192,6 +201,13 @@ export default function Documents() {
     if (!selectedFile) {
       console.log('Upload aborted - No file selected');
       setUploadError('Please select a file first');
+      return;
+    }
+    
+    // Double-check file size before upload
+    const maxSizeInBytes = 5 * 1024 * 1024;
+    if (selectedFile.size > maxSizeInBytes) {
+      setUploadError(`File size exceeds 5MB limit. Please select a smaller file.`);
       return;
     }
     
@@ -206,10 +222,41 @@ export default function Documents() {
     setUploadProgress(0);
     
     try {
-      // Use the uploadDocument function from firebase.js
+      // Create a smoother progress simulation
+      let progressInterval;
+      const simulateProgress = () => {
+        setUploadProgress(prev => {
+          // Calculate next progress value:
+          // - Move quickly to 20%
+          // - Slow down between 20-80%
+          // - Pause at 80% until actual completion
+          if (prev < 20) return prev + 5;
+          if (prev < 80) return prev + 2;
+          return prev;
+        });
+      };
+      
+      // Start progress simulation
+      progressInterval = setInterval(simulateProgress, 300);
+      
+      // Use the uploadDocument function from firebase.js with modified progress callback
       const result = await uploadDocument(selectedFile, user.uid, (progress) => {
-        setUploadProgress(progress);
+        // Update UI with actual progress when it exceeds our simulation
+        // or when it reaches 100%
+        if (progress > uploadProgress || progress === 100) {
+          setUploadProgress(progress);
+          
+          // Clear interval when actual upload is complete
+          if (progress === 100 && progressInterval) {
+            clearInterval(progressInterval);
+          }
+        }
       });
+      
+      // Clear progress interval if it's still running
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
       
       console.log('Upload complete:', result);
       setUploadState('success');
@@ -441,12 +488,12 @@ export default function Documents() {
                     <div className="mb-4">
                       <div className="flex justify-between text-sm mb-1">
                         <span>Uploading...</span>
-                        <span>{uploadProgress}%</span>
+                        <span>{Math.round(uploadProgress)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2.5">
                         <div 
                           className="bg-chateau-green-600 h-2.5 rounded-full transition-all duration-300" 
-                          style={{ width: `${uploadProgress}%` }}
+                          style={{ width: `${Math.round(uploadProgress)}%` }}
                         ></div>
                       </div>
                     </div>
@@ -515,7 +562,7 @@ export default function Documents() {
                               <p className="text-gray-500">or drag and drop</p>
                             </div>
                             <p className="text-xs text-gray-500 mt-2">
-                              PDF, DOC, DOCX up to 10MB
+                              PDF, DOCX up to 5MB
                             </p>
                           </>
                         )}
