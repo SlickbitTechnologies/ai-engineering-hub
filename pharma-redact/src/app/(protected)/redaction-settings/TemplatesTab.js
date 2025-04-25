@@ -541,5 +541,3 @@ const TemplatesTab = () => {
     </div>
   );
 };
-
-export default TemplatesTab; 

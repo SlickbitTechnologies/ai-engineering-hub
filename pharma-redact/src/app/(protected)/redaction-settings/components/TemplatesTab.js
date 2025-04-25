@@ -41,7 +41,7 @@ import {
   createTemplate,
   updateTemplate,
   deleteTemplate,
-  getUserRules
+  getUserRedactionRules
 } from "../../../lib/firebase";
 
 // Animation variants
@@ -124,7 +124,7 @@ export default function TemplatesTab({ userId }) {
       // Fetch both templates and rules (for rule selection)
       const [userTemplates, userRules] = await Promise.all([
         getUserTemplates(userId),
-        getUserRules(userId)
+        getUserRedactionRules(userId)
       ]);
       
       setTemplates(userTemplates);
