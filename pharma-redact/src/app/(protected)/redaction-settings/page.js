@@ -36,13 +36,20 @@ const RedactionSettings = () => {
     setInitError(null);
     
     try {
+      // Call the updated initializeUserData function that no longer creates templates
       await initializeUserData(user.uid);
-      setInitSuccess(true);
-      // Show success for 3 seconds
-      setTimeout(() => setInitSuccess(false), 3000);
+      
+      // Show info message instead of success
+      setInitError("Automatic template creation is disabled. Please create your templates and rules manually.");
+      
+      // Don't show success message
+      setInitSuccess(false);
+      
+      // Show message for longer (8 seconds)
+      setTimeout(() => setInitError(null), 8000);
     } catch (error) {
-      console.error("Error initializing data:", error);
-      setInitError("Failed to initialize sample data. Please try again.");
+      console.error("Error:", error);
+      setInitError("Please create your templates and rules manually through the interface.");
       // Show error for 5 seconds
       setTimeout(() => setInitError(null), 5000);
     } finally {
@@ -93,10 +100,11 @@ const RedactionSettings = () => {
           onClick={handleInitializeData} 
           disabled={initializing}
           isLoading={initializing}
+          variant="outline"
           className="flex items-center gap-2"
         >
           <Database className="h-4 w-4" />
-          <span>Initialize Sample Data</span>
+          <span>Create Rules & Templates</span>
         </Button>
       </motion.div>
 
@@ -108,7 +116,7 @@ const RedactionSettings = () => {
           className="mb-4"
         >
           <Alert className="bg-green-50 border-green-200 text-green-800">
-            <AlertDescription>Sample rules and templates created successfully!</AlertDescription>
+            <AlertDescription>Operation complete.</AlertDescription>
           </Alert>
         </motion.div>
       )}
@@ -120,7 +128,7 @@ const RedactionSettings = () => {
           exit={{ opacity: 0 }}
           className="mb-4"
         >
-          <Alert variant="destructive">
+          <Alert className="bg-blue-50 border-blue-200 text-blue-800">
             <AlertDescription>{initError}</AlertDescription>
           </Alert>
         </motion.div>
@@ -157,4 +165,4 @@ const RedactionSettings = () => {
   );
 };
 
-export default RedactionSettings; 
+export default RedactionSettings;

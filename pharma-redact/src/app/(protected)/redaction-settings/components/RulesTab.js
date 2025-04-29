@@ -42,10 +42,10 @@ import {
   TooltipTrigger,
 } from "../../../../components/ui/tooltip";
 import {
-  getUserRules,
-  createRule,
-  updateRule,
-  deleteRule
+  getUserRedactionRules,
+  createRedactionRule as createRule,
+  updateRedactionRule as updateRule,
+  deleteRedactionRule as deleteRule
 } from "../../../lib/firebase";
 
 // Animation variants
@@ -133,7 +133,7 @@ export default function RulesTab({ userId }) {
     setError(null);
     
     try {
-      const userRules = await getUserRules(userId);
+      const userRules = await getUserRedactionRules(userId);
       setRules(userRules);
       setFilteredRules(userRules);
     } catch (err) {

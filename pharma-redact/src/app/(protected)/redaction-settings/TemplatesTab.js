@@ -3,14 +3,13 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Edit, Trash2, Copy, Info, List, FileText, Check, X } from "lucide-react";
-import { useAuth } from "../../lib/AuthContext";
+import { useAuth } from '../../../app/lib/AuthContext';
+import { getUserRedactionRules, deleteTemplate } from '../../../app/lib/firebase';
 import { 
-  createTemplate, 
   getUserTemplates, 
-  updateTemplate, 
-  deleteTemplate,
-  getUserRedactionRules
-} from "../../lib/firebase";
+  createTemplate, 
+  updateTemplate
+} from '../../../app/lib/redactionEngine';
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Textarea } from "../../../components/ui/textarea";
@@ -68,6 +67,17 @@ const TemplatesTab = () => {
         getUserTemplates(user.uid),
         getUserRedactionRules(user.uid)
       ]);
+      
+      // Log templates with their rules
+      console.log(`Fetched ${fetchedTemplates.length} templates and ${fetchedRules.length} rules`);
+      fetchedTemplates.forEach(template => {
+        const hasRules = template.rules && Array.isArray(template.rules) && template.rules.length > 0;
+        console.log(`Template ${template.id} - ${template.name}:`, 
+          hasRules ? `Contains ${template.rules.length} rules` : "No rules attached",
+          template.ruleIds ? `Has ${template.ruleIds.length} ruleIds` : "No ruleIds"
+        );
+      });
+      
       setTemplates(fetchedTemplates);
       setRules(fetchedRules);
     } catch (err) {
@@ -112,14 +122,21 @@ const TemplatesTab = () => {
     setError(null);
     
     try {
-      await createTemplate(user.uid, formData);
+      console.log("Creating template with data:", formData);
+      console.log("Selected rule IDs:", formData.ruleIds);
+      
+      // Log the available rules to verify they exist
+      console.log("Available rules:", rules.map(rule => ({ id: rule.id, name: rule.name })));
+      
+      const templateRef = await createTemplate(user.uid, formData);
+      console.log("Template created successfully:", templateRef.id);
       fetchData();
       setIsAddDialogOpen(false);
       resetForm();
       showSuccessMessage("Template created successfully");
     } catch (err) {
       console.error("Error creating template:", err);
-      setError("Failed to create template. Please try again.");
+      setError("Failed to create template. Please try again: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -148,7 +165,9 @@ const TemplatesTab = () => {
     setError(null);
     
     try {
+      console.log("Updating template with ID:", currentTemplate.id, "and data:", formData);
       await updateTemplate(currentTemplate.id, formData);
+      console.log("Template updated successfully");
       fetchData();
       setIsEditDialogOpen(false);
       resetForm();
@@ -173,7 +192,7 @@ const TemplatesTab = () => {
     setError(null);
     
     try {
-      await deleteTemplate(currentTemplate.id, user.uid);
+      await deleteTemplate(currentTemplate.id);
       fetchData();
       setIsDeleteDialogOpen(false);
       showSuccessMessage("Template deleted successfully");
@@ -186,6 +205,14 @@ const TemplatesTab = () => {
   };
 
   const getTemplateRules = (template) => {
+    // First check if the template already has rules attached
+    if (template.rules && Array.isArray(template.rules) && template.rules.length > 0) {
+      console.log(`Using ${template.rules.length} pre-loaded rules from template ${template.id}`);
+      return template.rules;
+    }
+    
+    // Fall back to filtering from separately loaded rules
+    console.log(`Template ${template.id} has no pre-loaded rules, filtering from separately loaded rules`);
     return rules.filter(rule => template.ruleIds?.includes(rule.id)) || [];
   };
 
@@ -514,5 +541,3 @@ const TemplatesTab = () => {
     </div>
   );
 };
-
-export default TemplatesTab; 
