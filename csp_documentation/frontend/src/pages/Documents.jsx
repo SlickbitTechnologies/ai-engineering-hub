@@ -22,7 +22,10 @@ function Documents() {
   const [currentDocument, setCurrentDocument] = useState(null);
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState('');
   const [currentStage, setCurrentStage] = useState('');
-
+  const [processTime, setProcessTime] = useState({
+    start: '',
+    end: ''
+  })
   // Load metadata from backend on component mount
   useEffect(() => {
     const loadMetadata = async () => {
@@ -85,6 +88,12 @@ function Documents() {
       alert('Please select a template and enter a document URL');
       return;
     }
+
+    // Set the start time
+    setProcessTime((prev) => ({
+      ...prev,
+      start: new Date().toISOString(),
+    }));
 
     startLoading('Processing document...');
     setCurrentStage('Initializing document processing...');
@@ -155,6 +164,13 @@ function Documents() {
       console.error('Error processing document:', error);
       setError(error.message || 'Failed to process document');
     } finally {
+
+      // Set the end time
+      setProcessTime((prev) => ({
+        ...prev,
+        end: new Date().toISOString(),
+      }));
+
       setTimeout(() => {
         stopLoading();
         setCurrentStage('');
@@ -314,7 +330,6 @@ function Documents() {
             </div>
           </div>
         </div>
-
         {documents.length > 0 && (
           <div className="mt-8">
             <h2 className="section-title mb-4">Processed Documents</h2>
@@ -330,7 +345,9 @@ function Documents() {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <h3 className="text-sm font-medium text-gray-900"> documents processed </h3>
-                      <p className="text-xs text-gray-500">Processed on: {new Date(doc.timestamp).toLocaleString()}</p>
+                      {/* <p className="text-xs text-gray-500">Processed on: {new Date(doc.timestamp).toLocaleString()}</p> */}
+                      <p className="text-xs text-gray-500">Start time:  {processTime.start}</p>
+                      <p className="text-xs text-gray-500">End time:  {processTime.end}</p>
                     </div>
                   </div>
                 </div>
