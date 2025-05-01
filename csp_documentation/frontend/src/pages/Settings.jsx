@@ -3,6 +3,7 @@ import { useTemplates } from '../context/TemplateContext';
 import '../styles/global.css';
 
 const url = 'https://slickbit-ai-valut-redact.onrender.com';
+// const url = 'http://localhost:8000';
 
 function Settings() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -295,7 +296,7 @@ function Settings() {
         setMetadata(loadedMetadata);
       } catch (error) {
         console.error('Error loading data:', error);
-        alert('There was an error loading the data. Please try again.');
+        // alert('There was an error loading the data. Please try again.');
       }
     };
 

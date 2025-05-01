@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useTemplates } from '../context/TemplateContext';
+import { useLoading } from '../context/LoadingContext';
 import '../styles/global.css';
 
 const url = 'https://slickbit-ai-valut-redact.onrender.com';
+// const url = 'http://localhost:8000';
 
 function Documents() {
   const { templates } = useTemplates();
+  const { startLoading, stopLoading, updateProgress, progress, loadingMessage } = useLoading();
   const [documentUrl, setDocumentUrl] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -14,11 +17,11 @@ function Documents() {
   const [excelPath, setExcelPath] = useState(localStorage.getItem('lastExcelPath') || '');
   const [isEditing, setIsEditing] = useState(false);
   const [editingRow, setEditingRow] = useState(null);
-  const [processedData, setProcessedData] = useState(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [documents, setDocuments] = useState([]);
   const [currentDocument, setCurrentDocument] = useState(null);
-  const [progress, setProgress] = useState(0);
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState('');
+  const [currentStage, setCurrentStage] = useState('');
 
   // Load metadata from backend on component mount
   useEffect(() => {
@@ -38,6 +41,19 @@ function Documents() {
 
     loadMetadata();
   }, []);
+
+  // Calculate estimated time remaining
+  useEffect(() => {
+    if (progress > 0 && progress < 100) {
+      const totalTime = 20 * 60; // 20 minutes in seconds
+      const remainingTime = Math.round((totalTime * (100 - progress)) / 100);
+      const minutes = Math.floor(remainingTime / 60);
+      const seconds = remainingTime % 60;
+      setEstimatedTimeRemaining(`${minutes}m ${seconds}s`);
+    } else {
+      setEstimatedTimeRemaining('');
+    }
+  }, [progress]);
 
   const handleTemplateChange = (e) => {
     const templateId = e.target.value;
@@ -64,36 +80,18 @@ function Documents() {
     }
   };
 
-  const handleCancelProcessing = () => {
-    if (window.confirm('Are you sure you want to cancel processing?')) {
-      setIsProcessing(false);
-      setProgress(0);
-      setError('Processing cancelled by user');
-    }
-  };
-
   const handleProcessDocument = async () => {
     if (!selectedTemplateId || !documentUrl) {
       alert('Please select a template and enter a document URL');
       return;
     }
 
-    setIsProcessing(true);
+    startLoading('Processing document...');
+    setCurrentStage('Initializing document processing...');
     setError(null);
-    setProgress(0);
 
     try {
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 1000);
-
+      setCurrentStage('Sending document for processing...');
       const response = await fetch(`${url}/process-document?document_url=${encodeURIComponent(documentUrl)}&template_id=${encodeURIComponent(selectedTemplateId)}`, {
         method: 'POST',
         headers: {
@@ -101,21 +99,18 @@ function Documents() {
         }
       });
 
-      clearInterval(progressInterval);
-
       if (!response.ok) {
         const errorData = await response.json();
         const errorMessage = errorData.detail || 'Failed to process document';
         throw new Error(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
       }
-
-      setProgress(95);
-
       const data = await response.json();
       
       if (!data || typeof data !== 'object' || !data.metadata) {
         throw new Error('Invalid response format from server');
       }
+
+      setCurrentStage('Processing document data...');
 
       // Create new document entry
       const newDocument = {
@@ -130,9 +125,8 @@ function Documents() {
       setDocuments(prev => [...prev, newDocument]);
       setCurrentDocument(newDocument);
 
-      setProgress(98);
-
       // Generate/update Excel file
+      setCurrentStage('Generating Excel file...');
       try {
         const excelResponse = await fetch(`${url}/generate-excel`, {
           method: 'POST',
@@ -150,19 +144,21 @@ function Documents() {
           const excelData = await excelResponse.json();
           setExcelPath(`output/extracted_data_${selectedTemplateId}.xlsx`);
           localStorage.setItem('lastExcelPath', `output/extracted_data_${selectedTemplateId}.xlsx`);
+          setCurrentStage('Processing complete!');
+          updateProgress(100);
         }
       } catch (excelError) {
         console.error('Error generating Excel:', excelError);
       }
 
-      setProgress(100);
-
     } catch (error) {
       console.error('Error processing document:', error);
       setError(error.message || 'Failed to process document');
     } finally {
-      setIsProcessing(false);
-      setProgress(0);
+      setTimeout(() => {
+        stopLoading();
+        setCurrentStage('');
+      }, 2000); // Keep the progress bar visible for 2 seconds after completion
     }
   };
 
@@ -171,14 +167,6 @@ function Documents() {
       window.open(`${url}/download-excel?template_id=${encodeURIComponent(selectedTemplateId)}`, '_blank');
     }
   };
-  <a
-  href={`${url}/download-excel?template_id=${encodeURIComponent(selectedTemplateId)}`}
-  target="_blank"
-  rel="noopener noreferrer"
->
-  Download Excel
-</a>
-
 
   const handleEditRow = (index) => {
     setIsEditing(true);
@@ -286,8 +274,6 @@ function Documents() {
                   </option>
                 ))}
               </select>
-             
-
             </div>
 
             {error && (
@@ -296,25 +282,37 @@ function Documents() {
               </div>
             )}
 
-            <div className="flex justify-end">
-              <a href="sharepoint_url"></a>
+            <div className="flex justify-between items-center space-x-6">
+              <div style={{display:'flex', left: 0}}>
+                {progress > 0 && (
+                <div className="flex-1 max-w-md">
+                  <div className="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>{currentStage}</span>
+                    <span>{progress.toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="h-2.5 rounded-full transition-all duration-300" 
+                      style={{ width: `${progress}%`, backgroundColor:'#0098B3' }}
+                    ></div>
+                  </div>
+                  {estimatedTimeRemaining && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Estimated time remaining: {estimatedTimeRemaining}
+                    </div>
+                  )}
+                </div>
+              )}
+              </div>
               <button
                 onClick={handleProcessDocument}
-                disabled={isProcessing || !documentUrl || !selectedTemplateId}
+                disabled={progress > 0 || !documentUrl || !selectedTemplateId}
                 className="button-primary"
               >
-                {isProcessing ? 'Processing...' : 'Process Document'}
+                {progress > 0 ? 'Processing...' : 'Process Document'}
               </button>
             </div>
-
-            {isProcessing && (
-              <div className="mt-2 text-sm text-blue-600">
-                This document processing may take some time. Please wait or come back later.
-              </div>
-            )}
-           
           </div>
-          {/* <div><a  target="_blank"   href="https://slickbitai.sharepoint.com/sites/regulatory-docs/Shared%20Documents/Forms/AllItems.aspx">click here to view the excel file</a></div> */}
         </div>
 
         {documents.length > 0 && (
@@ -334,19 +332,11 @@ function Documents() {
                       <h3 className="text-sm font-medium text-gray-900"> documents processed </h3>
                       <p className="text-xs text-gray-500">Processed on: {new Date(doc.timestamp).toLocaleString()}</p>
                     </div>
-                    {/* <button
-                      onClick={() => handleDeleteRow(doc.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      Delete
-                    </button> */}
                   </div>
-                  {/* Document metadata display */}
                 </div>
               ))}
             </div>
             
-            {/* Add Download Excel Button */}
             <div className="mt-4 flex justify-end">
               <button
                 onClick={handleDownloadExcel}
