@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTemplates } from '../context/TemplateContext';
 import '../styles/global.css';
 
-const url = 'https://slickbit-ai-valut-redact.onrender.com';
+const url = 'https://slickbit-ai-csp.onrender.com';
 // const url = 'http://localhost:8000';
 
 function Settings() {
