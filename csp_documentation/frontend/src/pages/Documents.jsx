@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTemplates } from '../context/TemplateContext';
 import '../styles/global.css';
 
-const url = 'http://localhost:8000';
+const url = 'https://slickbit-ai-valut-redact.onrender.com';
 
 function Documents() {
   const { templates } = useTemplates();
