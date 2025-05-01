@@ -176,12 +176,12 @@ async def process_document(document_url: str, template_id: str):
     try:
         logger.info(f"Processing document(s) with template ID: {template_id}")
         
-        # Process the document(s)
-        all_metadata = document_processor.process_documents(document_url, template_id)
+        # Process the document(s) asynchronously
+        all_metadata = await document_processor.process_documents(document_url, template_id)
         
         # Add each document's metadata to Excel file
         for metadata in all_metadata:
-            excel_path = excel_generator.add_metadata(metadata, document_url)
+            excel_path = excel_generator.add_metadata(metadata, document_url, template_id)
         
         return {
             "status": "success",
@@ -198,6 +198,10 @@ async def generate_excel(request: Request):
         data = await request.json()
         metadata = data.get('metadata', {})
         document_url = data.get('document_url', '')
+        template_id = data.get('template_id', '')
+        
+        if not template_id:
+            raise HTTPException(status_code=400, detail="Template ID is required")
         
         # Handle both list and dict metadata
         if isinstance(metadata, list):
@@ -209,10 +213,10 @@ async def generate_excel(request: Request):
             metadata = metadata_dict
         
         # Add metadata to Excel generator
-        excel_generator.add_metadata(metadata, document_url)
+        excel_generator.add_metadata(metadata, document_url, template_id)
         
         # Generate/update Excel file
-        excel_path = excel_generator.generate_excel()
+        excel_path = excel_generator.generate_excel(template_id)
         
         return {"excel_path": excel_path}
     except Exception as e:
@@ -220,9 +224,9 @@ async def generate_excel(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/download-excel")
-async def download_excel():
+async def download_excel(template_id: str):
     try:
-        excel_path = excel_generator.get_current_excel_path()
+        excel_path = excel_generator.get_current_excel_path(template_id)
         if not excel_path or not os.path.exists(excel_path):
             raise HTTPException(status_code=404, detail="Excel file not found")
             
@@ -355,7 +359,7 @@ async def get_metadata_by_url(document_url: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/metadata/{document_url:path}")
-async def delete_metadata(document_url: str):
+async def delete_metadata(document_url: str, template_id: str):
     """
     Delete metadata for a specific document URL.
     """
@@ -367,7 +371,7 @@ async def delete_metadata(document_url: str):
         metadata_storage.delete_metadata(document_url)
         
         # Delete from Excel file
-        excel_generator.delete_metadata(document_url)
+        excel_generator.delete_metadata(document_url, template_id)
         
         return {"message": "Metadata deleted successfully"}
     except Exception as e:

@@ -17,7 +17,7 @@ function Settings() {
   const [showFieldVerification, setShowFieldVerification] = useState(false);
   const [metadata, setMetadata] = useState([]);
   const fileInputRef = useRef(null);
-
+  console.log(templates, 'templatessss')
   const handleAddField = () => {
     setFields([...fields, { name: '', description: '' }]);
   };
@@ -346,7 +346,7 @@ function Settings() {
                   <tr className="text-left">
                     <th className="pb-2 table-header">Template Name</th>
                     <th className="pb-2 table-header">Fields</th>
-                    <th className="pb-2 table-header">Last Modified</th>
+                    <th className="pb-2 table-header"></th>
                     <th className="pb-2 table-header">Actions</th>
                   </tr>
                 </thead>

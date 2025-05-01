@@ -35,7 +35,7 @@ class DocumentProcessor:
         if not gemini_api_key:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         genai.configure(api_key=gemini_api_key)
-        self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+        self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
         
         # Initialize template context
         self.template_context = TemplateContext()
@@ -57,13 +57,37 @@ class DocumentProcessor:
                 logger.warning("SharePoint service not configured. Please set up SharePoint credentials.")
                 return []
                 
-            # Use the SharePoint service to get files
-            files = self.sharepoint_service.get_files()
-            
-            return [{
-                'url': file['url'],
-                'name': file['name']
-            } for file in files]
+            # Extract the folder path from the Graph API URL
+            if 'graph.microsoft.com' in folder_url:
+                try:
+                    # Extract the folder path from the URL
+                    # Example URL: https://graph.microsoft.com/v1.0/sites/.../drive/root:/Regulatory IDMP Documents
+                    parts = folder_url.split('/drive/root:/')
+                    if len(parts) > 1:
+                        folder_path = parts[1]
+                        # Remove any trailing parameters or slashes
+                        folder_path = folder_path.split(':/')[0]  # Remove any :/children or similar
+                        folder_path = folder_path.rstrip('/')
+                        
+                        logger.info(f"Extracted folder path: {folder_path}")
+                        
+                        # Use the SharePoint service to get files from the specific folder
+                        files = self.sharepoint_service.get_files(folder_path)
+                        
+                        return [{
+                            'url': file['url'],
+                            'name': file['name']
+                        } for file in files]
+                    else:
+                        logger.error("Invalid Graph API URL format")
+                        return []
+                        
+                except Exception as e:
+                    logger.error(f"Error parsing Graph API URL: {str(e)}")
+                    return []
+            else:
+                logger.error("Invalid SharePoint URL format")
+                return []
             
         except Exception as e:
             logger.error(f"Error getting SharePoint files: {str(e)}")
@@ -143,7 +167,95 @@ class DocumentProcessor:
             logger.error(f"Failed to extract text from document: {str(e)}")
             raise
 
-    def process_document(self, document_url: str, template_id: str) -> dict:
+    async def process_documents(self, url: str, template_id: str) -> List[Dict]:
+        """
+        Process one or more documents based on the URL type.
+        
+        Args:
+            url (str): URL of the document or SharePoint folder
+            template_id (str): ID of the template to use for processing
+            
+        Returns:
+            List[Dict]: List of metadata for all processed documents
+        """
+        try:
+            url_type = self._get_url_type(url)
+            all_metadata = []
+            failed_documents = []
+            
+            if url_type == 'sharepoint':
+                # Initialize SharePoint client
+                self._initialize_sharepoint(url)
+                
+                # Get all files from the SharePoint folder
+                files = self._get_sharepoint_files(url)
+                if not files:
+                    raise ValueError("No files found in the SharePoint folder")
+                
+                logger.info(f"Found {len(files)} files to process")
+                
+                # Process each document asynchronously
+                total_files = len(files)
+                processed_files = 0
+                
+                for file in files:
+                    try:
+                        logger.info(f"Processing file {processed_files + 1}/{total_files}: {file['name']}")
+                        
+                        # Process each document
+                        metadata = await self.process_document(file['url'], template_id)
+                        
+                        # Add document URL to metadata
+                        metadata['Document URL'] = file['url']
+                        
+                        # Add to list of all metadata
+                        all_metadata.append(metadata)
+                        
+                        # Update progress
+                        processed_files += 1
+                        progress = (processed_files / total_files) * 100
+                        logger.info(f"Progress: {progress:.2f}% ({processed_files}/{total_files} files processed)")
+                        
+                        # Log success
+                        logger.info(f"Successfully processed document: {file['name']}")
+                        
+                    except Exception as e:
+                        logger.error(f"Error processing SharePoint file {file['name']}: {str(e)}")
+                        failed_documents.append({
+                            'name': file['name'],
+                            'url': file['url'],
+                            'error': str(e)
+                        })
+                        continue
+                        
+            else:  # Single document
+                try:
+                    metadata = await self.process_document(url, template_id)
+                    metadata['Document URL'] = url
+                    all_metadata.append(metadata)
+                    logger.info(f"Successfully processed document from URL: {url}")
+                except Exception as e:
+                    logger.error(f"Error processing document: {str(e)}")
+                    failed_documents.append({
+                        'name': os.path.basename(url),
+                        'url': url,
+                        'error': str(e)
+                    })
+            
+            # Log summary of processing
+            logger.info(f"Total documents processed: {len(all_metadata)}")
+            if failed_documents:
+                logger.warning(f"Failed to process {len(failed_documents)} documents:")
+                for doc in failed_documents:
+                    logger.warning(f"- {doc['name']}: {doc['error']}")
+            
+            return all_metadata
+            
+        except Exception as e:
+            logger.error(f"Error processing documents: {str(e)}")
+            raise
+
+    async def process_document(self, document_url: str, template_id: str) -> dict:
         """
         Process a document and extract metadata using fields from the selected template.
         
@@ -178,8 +290,8 @@ class DocumentProcessor:
             file_path = self.download_document(document_url)
             
             try:
-                # Extract text
-                text = self.extract_text(file_path)
+                # Extract text asynchronously
+                text = await self.extract_text_async(file_path)
                 if not text.strip():
                     raise ValueError("No text could be extracted from the document")
                 
@@ -213,6 +325,47 @@ class DocumentProcessor:
         except Exception as e:
             logger.error(f"Failed to process document: {str(e)}")
             raise ValueError(f"Failed to process document: {str(e)}")
+
+    async def extract_text_async(self, file_path: str) -> str:
+        """
+        Extract text from a PDF file asynchronously.
+        
+        Args:
+            file_path (str): Path to the PDF file
+            
+        Returns:
+            str: Extracted text
+        """
+        try:
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"File not found: {file_path}")
+                
+            # Check if file is a PDF
+            if not file_path.lower().endswith('.pdf'):
+                raise ValueError("Only PDF files are supported")
+                
+            text = ""
+            with open(file_path, 'rb') as file:
+                pdf_reader = PdfReader(file)
+                total_pages = len(pdf_reader.pages)
+                
+                for page_num, page in enumerate(pdf_reader.pages, 1):
+                    # Extract text from current page
+                    page_text = page.extract_text()
+                    text += page_text + "\n"
+                    
+                    # Log progress every 10 pages
+                    if page_num % 10 == 0 or page_num == total_pages:
+                        progress = (page_num / total_pages) * 100
+                        logger.info(f"Text extraction progress: {progress:.2f}% ({page_num}/{total_pages} pages processed)")
+            
+            if not text.strip():
+                raise ValueError("No text could be extracted from the PDF")
+                
+            return text
+        except Exception as e:
+            logger.error(f"Failed to extract text from document: {str(e)}")
+            raise
 
     def _generate_prompt(self, text: str, fields: List[Dict]) -> str:
         """
@@ -385,73 +538,3 @@ CRITICAL INSTRUCTIONS:
             logger.error(f"Error parsing response: {str(e)}")
             logger.error(f"Original response: {response}")
             return {}  # Return empty dict instead of raising error 
-
-    def process_documents(self, url: str, template_id: str) -> List[Dict]:
-        """
-        Process one or more documents based on the URL type.
-        
-        Args:
-            url (str): URL of the document or SharePoint folder
-            template_id (str): ID of the template to use for processing
-            
-        Returns:
-            List[Dict]: List of metadata for all processed documents
-        """
-        try:
-            url_type = self._get_url_type(url)
-            all_metadata = []
-            
-            if url_type == 'sharepoint':
-                files = self._get_sharepoint_files(url)
-                if not files:
-                    raise ValueError("No PDF files found in the SharePoint folder or SharePoint service not configured")
-                    
-                for file in files:
-                    try:
-                        # Process each document
-                        metadata = self.process_document(file['url'], template_id)
-                        
-                        # Add document URL to metadata
-                        metadata['Document URL'] = file['url']
-                        
-                        # Add to list of all metadata
-                        all_metadata.append(metadata)
-                        
-                        # Log success
-                        logger.info(f"Successfully processed document: {file['name']}")
-                        logger.info(f"Extracted metadata: {json.dumps(metadata, indent=2)}")
-                        
-                    except Exception as e:
-                        logger.error(f"Error processing SharePoint file {file['name']}: {str(e)}")
-                        continue
-                        
-            else:  # Single document
-                metadata = self.process_document(url, template_id)
-                metadata['Document URL'] = url
-                all_metadata.append(metadata)
-                logger.info(f"Successfully processed document from URL: {url}")
-                logger.info(f"Extracted metadata: {json.dumps(metadata, indent=2)}")
-            
-            # Store all metadata in Excel at once
-            try:
-                from services.excel_generator import ExcelGenerator
-                excel_generator = ExcelGenerator()
-                
-                # Add all metadata to Excel in one go
-                for metadata in all_metadata:
-                    file_name = os.path.basename(metadata['Document URL'])
-                    excel_generator.add_metadata(metadata, file_name)
-                
-                # Generate the Excel file only once with all metadata
-                excel_path = excel_generator.generate_excel()
-                logger.info(f"Successfully stored all metadata in Excel file: {excel_path}")
-                
-            except Exception as e:
-                logger.error(f"Error storing metadata in Excel: {str(e)}")
-                raise
-            
-            return all_metadata
-            
-        except Exception as e:
-            logger.error(f"Error processing documents: {str(e)}")
-            raise 

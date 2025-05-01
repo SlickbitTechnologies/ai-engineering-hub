@@ -141,14 +141,15 @@ function Documents() {
           },
           body: JSON.stringify({
             metadata: data.metadata,
-            document_url: documentUrl
+            document_url: documentUrl,
+            template_id: selectedTemplateId
           })
         });
 
         if (excelResponse.ok) {
           const excelData = await excelResponse.json();
-          setExcelPath('output/extracted_data.xlsx');
-          localStorage.setItem('lastExcelPath', 'output/extracted_data.xlsx');
+          setExcelPath(`output/extracted_data_${selectedTemplateId}.xlsx`);
+          localStorage.setItem('lastExcelPath', `output/extracted_data_${selectedTemplateId}.xlsx`);
         }
       } catch (excelError) {
         console.error('Error generating Excel:', excelError);
@@ -166,10 +167,18 @@ function Documents() {
   };
 
   const handleDownloadExcel = () => {
-    if (excelPath) {
-      window.open(`${url}/download-excel?path=${encodeURIComponent(excelPath)}`, '_blank');
+    if (excelPath && selectedTemplateId) {
+      window.open(`${url}/download-excel?template_id=${encodeURIComponent(selectedTemplateId)}`, '_blank');
     }
   };
+  <a
+  href={`${url}/download-excel?template_id=${encodeURIComponent(selectedTemplateId)}`}
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  Download Excel
+</a>
+
 
   const handleEditRow = (index) => {
     setIsEditing(true);
@@ -189,12 +198,12 @@ function Documents() {
   const handleDeleteRow = async (docId) => {
     if (window.confirm('Are you sure you want to delete this document?')) {
       try {
-        // Find the document URL
+        // Find the document URL and template ID
         const docToDelete = documents.find(doc => doc.id === docId);
         if (!docToDelete) return;
 
         // Delete from backend
-        const response = await fetch(`${url}/metadata/${encodeURIComponent(docToDelete.url)}`, {
+        const response = await fetch(`${url}/metadata/${encodeURIComponent(docToDelete.url)}?template_id=${encodeURIComponent(docToDelete.templateId)}`, {
           method: 'DELETE'
         });
 
@@ -213,8 +222,9 @@ function Documents() {
           setCurrentDocument(null);
         }
 
-        // Clear Excel path if no documents left
-        if (documents.length <= 1) {
+        // Clear Excel path if no documents left for this template
+        const remainingDocsForTemplate = documents.filter(doc => doc.templateId === docToDelete.templateId).length;
+        if (remainingDocsForTemplate <= 1) {
           setExcelPath('');
           localStorage.removeItem('lastExcelPath');
         }
@@ -244,27 +254,6 @@ function Documents() {
           <h1 className="page-title">Documents</h1>
           <p className="page-description">Process documents and extract metadata</p>
         </div>
-
-        {isProcessing && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl flex flex-col items-center">
-              <div className="relative">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0098B3] mb-4"></div>
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                  <span className="text-sm font-medium text-[#0098B3]">{progress}%</span>
-                </div>
-              </div>
-              <p className="text-gray-700">Processing documents...</p>
-              <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
-              <button
-                onClick={handleCancelProcessing}
-                className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
 
         <div className="card">
           <div className="space-y-4">
@@ -308,6 +297,7 @@ function Documents() {
             )}
 
             <div className="flex justify-end">
+              <a href="sharepoint_url"></a>
               <button
                 onClick={handleProcessDocument}
                 disabled={isProcessing || !documentUrl || !selectedTemplateId}
@@ -316,12 +306,26 @@ function Documents() {
                 {isProcessing ? 'Processing...' : 'Process Document'}
               </button>
             </div>
+
+            {isProcessing && (
+              <div className="mt-2 text-sm text-blue-600">
+                This document processing may take some time. Please wait or come back later.
+              </div>
+            )}
+           
           </div>
+          {/* <div><a  target="_blank"   href="https://slickbitai.sharepoint.com/sites/regulatory-docs/Shared%20Documents/Forms/AllItems.aspx">click here to view the excel file</a></div> */}
         </div>
 
         {documents.length > 0 && (
           <div className="mt-8">
             <h2 className="section-title mb-4">Processed Documents</h2>
+            <a
+              href="https://slickbitai.sharepoint.com/sites/regulatory-docs/Shared%20Documents/Forms/AllItems.aspx"
+              target="_blank"
+              style={{ color: 'blue', textDecoration: 'underline' }}>
+              Click here to view the Excel file
+            </a>
             <div className="space-y-4">
               {documents.map((doc) => (
                 <div key={doc.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">

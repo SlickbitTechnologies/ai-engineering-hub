@@ -127,7 +127,7 @@ class SharePointService:
 
     def get_files(self, folder_path: Optional[str] = None) -> List[Dict]:
         """
-        Get all PDF files from a SharePoint folder.
+        Get all PDF files from a SharePoint folder using pagination.
         
         Args:
             folder_path (str, optional): Custom folder path. Defaults to "Regulatory IDMP Documents".
@@ -148,19 +148,30 @@ class SharePointService:
             folder_path = folder_path or "Regulatory IDMP Documents"
             files_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{folder_path}:/children"
             
-            response = requests.get(files_url, headers=headers)
-            response.raise_for_status()
+            all_files = []
+            while files_url:
+                response = requests.get(files_url, headers=headers)
+                response.raise_for_status()
+                
+                data = response.json()
+                files = data.get('value', [])
+                all_files.extend([
+                    {
+                        'url': f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{file['id']}/content",
+                        'name': file['name'],
+                        'size': file.get('size', 0),
+                        'last_modified': file.get('lastModifiedDateTime')
+                    }
+                    for file in files if file['name'].lower().endswith('.pdf')
+                ])
+                
+                # Get the next page URL if it exists
+                files_url = data.get('@odata.nextLink')
+                if files_url:
+                    logger.info(f"Fetching next page of files. Total files so far: {len(all_files)}")
             
-            files = response.json().get('value', [])
-            return [
-                {
-                    'url': f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{file['id']}/content",
-                    'name': file['name'],
-                    'size': file.get('size', 0),
-                    'last_modified': file.get('lastModifiedDateTime')
-                }
-                for file in files if file['name'].lower().endswith('.pdf')
-            ]
+            logger.info(f"Retrieved {len(all_files)} PDF files from SharePoint folder")
+            return all_files
             
         except Exception as e:
             logger.error(f"Error getting SharePoint files: {str(e)}")
@@ -291,4 +302,73 @@ class SharePointService:
             
         except Exception as e:
             logger.error(f"Error processing folder documents: {str(e)}")
+            raise
+
+    def upload_file(self, file_content: bytes, file_name: str, folder_path: str) -> str:
+        """
+        Upload a file to a SharePoint folder.
+        
+        Args:
+            file_content (bytes): The file content to upload
+            file_name (str): Name of the file
+            folder_path (str): Path to the SharePoint folder
+            
+        Returns:
+            str: URL of the uploaded file
+        """
+        try:
+            # Validate inputs
+            if not file_content:
+                raise ValueError("File content cannot be empty")
+            if not file_name:
+                raise ValueError("File name cannot be empty")
+            if not folder_path:
+                raise ValueError("Folder path cannot be empty")
+
+            # Get access token and site ID
+            access_token = self._get_access_token()
+            site_id = self._get_site_id()
+            
+            # Log the upload attempt
+            logger.info(f"Attempting to upload file '{file_name}' to folder '{folder_path}'")
+            logger.info(f"File size: {len(file_content)} bytes")
+            
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'application/octet-stream'
+            }
+            
+            # Construct the upload URL
+            upload_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/root:/{folder_path}/{file_name}:/content"
+            logger.info(f"Upload URL: {upload_url}")
+            
+            # Upload the file
+            response = requests.put(upload_url, headers=headers, data=file_content)
+            
+            # Log response details
+            logger.info(f"Upload response status: {response.status_code}")
+            logger.info(f"Upload response headers: {response.headers}")
+            
+            # Check response status
+            if response.status_code == 201 or response.status_code == 200:
+                # Get the file URL
+                file_data = response.json()
+                file_url = file_data.get('webUrl')
+                
+                if file_url:
+                    logger.info(f"File uploaded successfully to SharePoint: {file_url}")
+                    return file_url
+                else:
+                    error_msg = "No webUrl in response"
+                    logger.error(error_msg)
+                    logger.error(f"Response content: {response.text}")
+                    raise ValueError(error_msg)
+            else:
+                error_msg = f"Upload failed with status {response.status_code}: {response.text}"
+                logger.error(error_msg)
+                raise requests.exceptions.HTTPError(error_msg)
+            
+        except Exception as e:
+            error_msg = f"Error uploading file to SharePoint: {str(e)}"
+            logger.error(error_msg)
             raise
