@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { ArrowRight, Globe, FileText, Headphones, Languages, FileType, History } from 'lucide-react';
+import { ArrowRight, Globe, FileText, Headphones, Languages, FileType, History, Youtube } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/app/components/ui/Card';
 import Link from 'next/link';
@@ -15,6 +15,14 @@ const featuresData = [
     iconColor: 'text-[#7CAA38]',
     bgColor: 'bg-[#ECFAD6]/80 dark:bg-[#3D5321]/70',
     href: '/web-scrape',
+  },
+  {
+    title: 'YouTube Summarizer',
+    description: 'Get instant AI summaries, highlights and transcripts from YouTube videos.',
+    icon: Youtube,
+    iconColor: 'text-[#7CAA38]',
+    bgColor: 'bg-[#ECFAD6]/80 dark:bg-[#3D5321]/70',
+    href: '/youtube-summarize',
   },
   {
     title: 'PDF Upload',

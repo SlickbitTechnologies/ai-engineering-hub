@@ -93,6 +93,24 @@ export default function AuthPage() {
     if (modeParam === 'signup') {
       setAuthMode('signup');
     }
+
+    // Check for auth_redirect cookie and show toast message
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) {
+        const cookieValue = parts.pop()?.split(';').shift();
+        return cookieValue;
+      }
+      return null;
+    };
+    
+    const redirectMessage = getCookie('auth_redirect');
+    if (redirectMessage) {
+      setToast({ message: redirectMessage, type: 'error' });
+      // Remove the cookie
+      document.cookie = 'auth_redirect=; path=/; max-age=0';
+    }
   }, []);
 
   // Check if user is already logged in

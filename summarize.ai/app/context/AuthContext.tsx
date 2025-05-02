@@ -3,6 +3,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { listenToAuthChanges, signOutUser } from '@/app/firebase/auth';
 import { useRouter } from 'next/navigation';
+import { useDispatch } from 'react-redux';
+import { fetchUserQuota } from '@/app/redux/features/quotaSlice';
+import { AppDispatch } from '@/app/redux/store';
 
 interface AuthUser {
   uid: string;
@@ -28,6 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const dispatch = useDispatch<AppDispatch>();
 
   // Setup auth state listener
   useEffect(() => {
@@ -38,11 +42,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = listenToAuthChanges((authUser) => {
       setUser(authUser);
       setIsLoading(false);
+      
+      // Fetch user quota when auth state changes to authenticated
+      if (authUser) {
+        dispatch(fetchUserQuota(authUser.uid));
+        
+        // Also try to fetch from the API for the most up-to-date quota
+        fetch('/api/quota-status')
+          .then(response => {
+            if (response.ok) {
+              return response.json();
+            }
+            throw new Error('Failed to fetch quota status');
+          })
+          .then(data => {
+            if (data.quota) {
+              // We'll let the Redux thunk handle this data
+              console.log('Fetched initial quota status:', data.quota);
+            }
+          })
+          .catch(error => {
+            console.error('Error fetching initial quota:', error);
+          });
+      }
     });
     
     // Cleanup listener on unmount
     return () => unsubscribe();
-  }, []);
+  }, [dispatch]);
 
   // Sign out function
   const handleSignOut = async () => {

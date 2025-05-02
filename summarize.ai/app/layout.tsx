@@ -3,6 +3,7 @@ import { Montserrat } from 'next/font/google'
 import './globals.css'
 import ReduxProvider from './redux/provider'
 import { AuthProvider } from './context/AuthContext'
+import { Toaster } from 'react-hot-toast'
 
 const montserrat = Montserrat({ 
   subsets: ['latin'], 
@@ -49,6 +50,7 @@ export default function RootLayout({
         <ReduxProvider>
           <AuthProvider>
             {children}
+            <Toaster position="top-center" />
           </AuthProvider>
         </ReduxProvider>
       </body>

@@ -16,18 +16,23 @@ import {
   User,
   Settings,
   HelpCircle,
-  LogOut
+  LogOut,
+  Youtube
 } from 'lucide-react';
 import { cn } from '@/app/lib/utils';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import ThemeToggle from '@/app/components/ThemeToggle';
 import { signOutUser } from '@/app/firebase/auth';
 import { useSelector } from 'react-redux';
+import QuotaProgressBar from '@/app/components/QuotaProgressBar';
+import { toast } from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const { scrollY } = useScroll();
+  const router = useRouter();
   
   // Get authentication state from Redux store
   const { isAuthenticated, displayName } = useSelector((state: any) => state.user);
@@ -58,6 +63,13 @@ export default function Sidebar() {
       icon: Globe,
       color: 'text-green-600',
       active: pathname === '/web-scrape'
+    },
+    {
+      href: '/youtube-summarize',
+      label: 'YouTube Summarizer',
+      icon: Youtube,
+      color: 'text-green-500',
+      active: pathname === '/youtube-summarize'
     },
     {
       href: '/pdf',
@@ -171,6 +183,11 @@ export default function Sidebar() {
         </motion.button>
       </div>
       
+      {/* Show quota progress bar for authenticated users */}
+      {isAuthenticated && !collapsed && (
+        <QuotaProgressBar />
+      )}
+      
       {/* Main Navigation with Simplified Parallax */}
       <motion.div 
         className="flex-1 overflow-y-auto py-6 px-3 modern-scrollbar will-change-transform"
@@ -267,6 +284,8 @@ export default function Sidebar() {
                 onClick={async () => {
                   try {
                     await signOutUser();
+                    toast.success("You've been logged out.");
+                    router.push('/auth');
                   } catch (error) {
                     console.error('Error signing out:', error);
                   }

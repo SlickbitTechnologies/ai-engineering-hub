@@ -18,6 +18,17 @@ interface AuthUser {
     displayName: string | null;
 }
 
+// Helper function to set authentication cookie
+const setAuthCookie = (user: User | null) => {
+    if (user) {
+        // Set a cookie for server-side auth checking with middleware
+        document.cookie = `auth_session=${user.uid}; path=/; max-age=2592000; SameSite=Strict`; // 30 days
+    } else {
+        // Remove the cookie when signing out
+        document.cookie = 'auth_session=; path=/; max-age=0';
+    }
+};
+
 // Sign up with email and password
 export const signUpWithEmail = async (email: string, password: string, displayName: string): Promise<AuthUser> => {
     try {
@@ -26,6 +37,9 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
 
         // Update the user's profile with the provided display name
         await updateProfile(user, { displayName });
+
+        // Set authentication cookie
+        setAuthCookie(user);
 
         // Update Redux store
         store.dispatch(setUser({
@@ -59,6 +73,9 @@ export const signInWithEmail = async (email: string, password: string): Promise<
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
+
+        // Set authentication cookie
+        setAuthCookie(user);
 
         // Update Redux store
         store.dispatch(setUser({
@@ -94,6 +111,9 @@ export const signInWithGoogle = async (): Promise<AuthUser> => {
         const userCredential = await signInWithPopup(auth, provider);
         const user = userCredential.user;
 
+        // Set authentication cookie
+        setAuthCookie(user);
+
         // Update Redux store
         store.dispatch(setUser({
             email: user.email || '',
@@ -124,6 +144,9 @@ export const signOutUser = async (): Promise<void> => {
     try {
         await firebaseSignOut(auth);
 
+        // Remove authentication cookie
+        setAuthCookie(null);
+
         // Update Redux store
         store.dispatch(signOut());
     } catch (error: any) {
@@ -147,6 +170,9 @@ export const listenToAuthChanges = (callback: (user: AuthUser | null) => void): 
                 displayName: user.displayName
             });
 
+            // Set authentication cookie
+            setAuthCookie(user);
+
             // Update Redux store
             store.dispatch(setUser({
                 email: user.email || '',
@@ -154,6 +180,10 @@ export const listenToAuthChanges = (callback: (user: AuthUser | null) => void): 
             }));
         } else {
             callback(null);
+
+            // Remove authentication cookie
+            setAuthCookie(null);
+
             // User is signed out
             store.dispatch(signOut());
         }

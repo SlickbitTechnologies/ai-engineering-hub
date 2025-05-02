@@ -2,10 +2,10 @@
 
 import { AuthGuard } from '@/app/components/AuthGuard';
 
-export default function WebScrapeLayout({
+export default function HistoryLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return <AuthGuard>{children}</AuthGuard>;
 } 
