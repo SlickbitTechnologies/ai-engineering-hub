@@ -1,11 +1,15 @@
 'use client';
 
+// Dynamic directive for Vercel deployment
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useRef } from 'react';
 import MainLayout from '../components/MainLayout';
 import { FileTextIcon, UploadIcon, SparklesIcon, FileIcon, AlertCircleIcon } from 'lucide-react';
 import { saveSummary } from '../firebase/history';
 import { getCurrentUser } from '../firebase/auth';
 import { Toaster, toast } from 'react-hot-toast';
+import { useFeatureQuota } from '@/app/hooks/useFeatureQuota';
 
 export default function PdfSummarizePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -18,6 +22,9 @@ export default function PdfSummarizePage() {
   const [extractedText, setExtractedText] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Use our feature quota hook
+  const { checkQuotaAvailable, incrementQuota } = useFeatureQuota('pdfSummarize');
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -80,6 +87,10 @@ export default function PdfSummarizePage() {
     if (!file) return;
 
     try {
+      // Check if quota is available first
+      const hasQuota = await checkQuotaAvailable();
+      if (!hasQuota) return;
+      
       // Cancel any ongoing request
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -154,6 +165,9 @@ export default function PdfSummarizePage() {
       if (data.summary) {
         setSummary(data.summary);
         setProgress(100);
+        
+        // Increment quota after successful summarization
+        await incrementQuota();
         
         // Save to history if user is logged in
         const user = getCurrentUser();

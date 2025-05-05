@@ -5,6 +5,7 @@ import { useDispatch } from 'react-redux';
 import { setQuota } from '@/app/redux/features/quotaSlice';
 import { useAuth } from '@/app/context/AuthContext';
 import { AppDispatch } from '@/app/redux/store';
+import { authFetch } from '@/app/lib/authFetch';
 
 /**
  * A hook that periodically refreshes the quota status from the server
@@ -22,7 +23,7 @@ export const useQuotaRefresh = (intervalMs = 10000) => {
 
         try {
             console.log('Refreshing quota status manually for user:', user.uid);
-            const response = await fetch(`/api/quota-status?userId=${user.uid}`);
+            const response = await authFetch(`/api/quota-status`);
 
             if (response.ok) {
                 const data = await response.json();

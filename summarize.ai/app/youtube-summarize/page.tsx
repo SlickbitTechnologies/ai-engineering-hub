@@ -1,5 +1,8 @@
 'use client';
 
+// Dynamic directive for Vercel deployment
+export const dynamic = 'force-dynamic';
+
 import { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { PlayCircle, AlertCircle, Copy, RefreshCw, Send, X, Youtube, Clock, Info, Download, Share2, Bookmark, MessageSquare, ChevronDown, ArrowRight, HelpCircle, Sparkles, Brain, FileText, Shield, Users, Clock3, Trash2 } from 'lucide-react';
@@ -241,7 +244,7 @@ export default function YouTubeSummarizerPage() {
                   disabled={isLoading}
                   leftIcon={isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
                 >
-                  Summarize
+                      Summarize
                 </Button>
               </div>
               {urlError && (
@@ -730,7 +733,7 @@ export default function YouTubeSummarizerPage() {
                                         className={`max-w-[85%] rounded-2xl p-4 ${
                                       message.role === 'user' 
                                             ? 'bg-[#B6D87E] text-[#283618] font-medium' 
-                                            : 'bg-[#F8FBF0] dark:bg-[#2F3B20] text-gray-800 dark:text-[#D4E8AE]'
+                                            : ' dark:bg-[#2F3B20] text-gray-800 dark:text-[#D4E8AE]'
                                         }`}
                                       >
                                         {message.role === 'user' ? (

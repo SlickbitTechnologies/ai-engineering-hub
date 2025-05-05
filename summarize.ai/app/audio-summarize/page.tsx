@@ -1,5 +1,8 @@
 'use client';
 
+// Dynamic directive for Vercel deployment
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useRef } from 'react';
 import { 
   Mic, 
@@ -21,6 +24,7 @@ import { cn } from '../lib/utils';
 import { saveSummary } from '../firebase/history';
 import { getCurrentUser } from '../firebase/auth';
 import { Toaster, toast } from 'react-hot-toast';
+import { useFeatureQuota } from '@/app/hooks/useFeatureQuota';
 
 export default function AudioSummarizePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -36,6 +40,9 @@ export default function AudioSummarizePage() {
   const [stage, setStage] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Use our feature quota hook
+  const { checkQuotaAvailable, incrementQuota } = useFeatureQuota('audioSummarize');
 
   const supportedFormats = [
     'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 
@@ -96,6 +103,10 @@ export default function AudioSummarizePage() {
     if (!file) return;
     
     try {
+      // Check if quota is available first
+      const hasQuota = await checkQuotaAvailable();
+      if (!hasQuota) return;
+      
       // Cancel any ongoing request
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -158,6 +169,9 @@ export default function AudioSummarizePage() {
         setTranscript(data.transcript);
         setSummary(data.summary);
         setProgress(100);
+        
+        // Increment quota after successful summarization
+        await incrementQuota();
         
         // Save to history if user is logged in
         const user = getCurrentUser();

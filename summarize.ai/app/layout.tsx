@@ -16,6 +16,8 @@ export const metadata: Metadata = {
   description: 'A multi-functional tool designed to generate quick summaries from websites, PDFs, audio files, and text, with instant translation services.',
 }
 
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({
   children,
 }: {

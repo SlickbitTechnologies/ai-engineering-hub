@@ -18,6 +18,8 @@ const PROTECTED_ROUTES = [
 // Public routes that should always be accessible
 const PUBLIC_ROUTES = ['/', '/login', '/signup', '/auth'];
 
+// This middleware ensures that routes requiring dynamic data
+// are properly handled with server-side rendering
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
@@ -63,16 +65,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
 }
 
-// Configure which paths the middleware runs on
+// Specify which routes to run the middleware on
 export const config = {
-    matcher: [
-        /*
-         * Match all request paths except:
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
-         * - public folder
-         */
-        '/((?!_next/static|_next/image|favicon.ico|public).*)',
-    ],
+    // Apply to all routes except for assets, _next, and api routes
+    matcher: ['/((?!_next/static|_next/image|images|assets|favicon.ico|sw.js).*)'],
 }; 

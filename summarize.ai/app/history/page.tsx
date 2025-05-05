@@ -1,5 +1,8 @@
 'use client';
 
+// Dynamic directive for Vercel deployment
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect } from 'react';
 import MainLayout from '../components/MainLayout';
 import { 
