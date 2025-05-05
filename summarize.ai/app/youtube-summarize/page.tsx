@@ -237,15 +237,11 @@ export default function YouTubeSummarizerPage() {
                 </div>
                 <Button 
                   type="submit" 
-                      className="bg-[#9AC556] hover:bg-[#B6D87E] text-[#283618] font-medium shrink-0 shadow-md text-center"
+                  className="bg-[#9AC556] hover:bg-[#B6D87E] text-[#283618] font-medium shrink-0 shadow-md"
                   disabled={isLoading}
+                  leftIcon={isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
                 >
-                  {isLoading ? (
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <PlayCircle className="w-4 h-4 mr-2" />
-                  )}
-                      Summarize
+                  Summarize
                 </Button>
               </div>
               {urlError && (

@@ -12,7 +12,11 @@ import { useQuotaRefresh } from '@/app/hooks/useQuotaRefresh';
 import toast from 'react-hot-toast';
 import { AlertTriangle } from 'lucide-react';
 
-const QuotaProgressBar = () => {
+interface QuotaProgressBarProps {
+  isCollapsed?: boolean;
+}
+
+const QuotaProgressBar = ({ isCollapsed = false }: QuotaProgressBarProps) => {
   const dispatch = useDispatch<AppDispatch>();
   const { user, isLoading } = useAuth();
   const { used, limit, loading } = useSelector((state: RootState) => state.quota);
@@ -90,24 +94,33 @@ const QuotaProgressBar = () => {
     return null;
   }
 
+  // Simplified display for collapsed sidebar
+  if (isCollapsed) {
+    return (
+      <div className="quota-container w-full px-2 mt-1">
+        <div className="progress-bar-bg">
+          <Progress 
+            value={percentage} 
+            className="h-2 bg-muted/50" 
+            indicatorClassName={`progress-bar-fill ${color} transition-all duration-500`}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="quota-container w-full px-4 mt-3">
+    <div className="quota-container w-full px-2">
       <div className="flex justify-between items-center mb-2">
         <p className="quota-label text-sm text-muted-foreground">
-          <span className="font-medium">Requests:</span> {used} / {limit} today
+          <span className="font-medium">Requests:</span> {used} / {limit}
         </p>
         {used >= limit ? (
           <span className="text-xs text-red-500 font-medium">Limit reached</span>
         ) : remaining === 1 ? (
           <span className="text-xs text-yellow-500 font-medium">1 left</span>
         ) : (
-          <button 
-            onClick={handleManualRefresh} 
-            className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-            title="Refresh quota"
-          >
-            ↻
-          </button>
+        <></>
         )}
       </div>
       <div className="progress-bar-bg">
@@ -117,22 +130,22 @@ const QuotaProgressBar = () => {
           indicatorClassName={`progress-bar-fill ${color} transition-all duration-500`}
         />
       </div>
-      {used >= limit && (
+      {used >= limit && !isCollapsed && (
         <motion.div
           initial={{ opacity: 0, y: 5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-2 text-xs text-muted-foreground text-center"
+          className="mt-1 text-xs text-muted-foreground text-center"
         >
-          Come back tomorrow for 10 more requests
+          Come back tomorrow
         </motion.div>
       )}
-      {remaining === 1 && !(used >= limit) && (
+      {remaining === 1 && !(used >= limit) && !isCollapsed && (
         <motion.div
           initial={{ opacity: 0, y: 5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-2 text-xs text-yellow-500 text-center"
+          className="mt-1 text-xs text-yellow-500 text-center"
         >
-          Only 1 request remaining today
+          Last request for today
         </motion.div>
       )}
     </div>

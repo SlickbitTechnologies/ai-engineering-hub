@@ -1,20 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth, db } from '@/app/firebase/firebase';
+import { db } from '@/app/firebase/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { verifyIdToken } from '@/app/lib/firebaseAdmin';
 
 // Set the constant for the new quota limit
 const QUOTA_LIMIT = 10; // Default quota limit
 
-export async function GET(req: Request) {
+export async function GET(request: NextRequest) {
     try {
-        // Extract user ID from the request (e.g., from authentication token)
-        const url = new URL(req.url);
-        const userId = url.searchParams.get('userId');
+        // Get the Authorization header
+        const authHeader = request.headers.get('Authorization');
 
-        if (!userId) {
-            console.error('Quota status request missing userId parameter');
-            return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.log('Authentication failed: No valid authorization header found');
+            return NextResponse.json(
+                { error: 'User not authenticated', message: 'No valid authorization header found' },
+                { status: 401 }
+            );
         }
+
+        // Extract and verify the token
+        const token = authHeader.split('Bearer ')[1];
+        const decodedToken = await verifyIdToken(token);
+
+        if (!decodedToken) {
+            console.log('Authentication failed: Token verification failed');
+            return NextResponse.json(
+                { error: 'Invalid authentication token', message: 'Token could not be verified' },
+                { status: 401 }
+            );
+        }
+
+        const userId = decodedToken.uid;
+        console.log('Getting quota status for authenticated user:', userId);
 
         // Reference to the user's quota document
         const userQuotaRef = doc(db, 'quotas', userId);

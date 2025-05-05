@@ -160,6 +160,50 @@ export const getCurrentUser = (): User | null => {
     return auth.currentUser;
 };
 
+/**
+ * Get the ID token for the current user
+ * @param forceRefresh Whether to force a token refresh
+ * @returns The ID token string or null if not authenticated
+ */
+export const getIdToken = async (forceRefresh: boolean = true): Promise<string | null> => {
+    try {
+        const user = getCurrentUser();
+        if (!user) {
+            console.error('Cannot get ID token - user is not authenticated');
+            return null;
+        }
+
+        console.log('Getting ID token for user:', user.uid);
+
+        // Always force refresh to ensure token is fresh
+        const token = await user.getIdToken(true);
+
+        if (!token) {
+            console.error('Failed to get ID token - returned empty');
+            return null;
+        }
+
+        // Validate token format
+        if (token.length < 50) {
+            console.error('ID token appears invalid - too short:', token.length);
+            return null;
+        }
+
+        console.log('Successfully retrieved ID token:');
+        console.log('- Length:', token.length);
+        console.log('- First 10 chars:', token.substring(0, 10) + '...');
+        console.log('- Last 10 chars:', '...' + token.substring(token.length - 10));
+
+        return token;
+    } catch (error) {
+        console.error('Error getting ID token:', error);
+        if (error instanceof Error) {
+            console.error('Error details:', error.message);
+        }
+        return null;
+    }
+};
+
 // Listen for auth state changes
 export const listenToAuthChanges = (callback: (user: AuthUser | null) => void): (() => void) => {
     return onAuthStateChanged(auth, (user) => {

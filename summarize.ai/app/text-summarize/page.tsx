@@ -20,6 +20,8 @@ import { saveSummary } from '../firebase/history';
 import { getCurrentUser } from '../firebase/auth';
 import { Toaster, toast } from 'react-hot-toast';
 import { AuthGuard } from '../components/AuthGuard';
+import { auth } from '../firebase/firebase';
+import { getIdToken } from '../firebase/auth';
 
 export default function TextSummarizePage() {
   const [text, setText] = useState('');
@@ -88,11 +90,24 @@ export default function TextSummarizePage() {
       setStage('Processing text...');
       
       try {
+        // Get authentication token - ensure user is authenticated
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          throw new Error('You must be logged in to use this feature');
+        }
+        
+        // Use the getIdToken function from our auth module
+        const token = await getIdToken(true); // Force token refresh
+        if (!token) {
+          throw new Error('Failed to get authentication token');
+        }
+        
         // Call the API endpoint
         const response = await fetch('/api/text-summarize', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({ 
             text,

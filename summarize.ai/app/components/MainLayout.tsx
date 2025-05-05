@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
+import Header from './Header';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
+import { cn } from '@/app/lib/utils';
 
 export default function MainLayout({
   children,
@@ -10,6 +12,7 @@ export default function MainLayout({
   children: React.ReactNode
 }) {
   const [mounted, setMounted] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { scrollY } = useScroll();
   
   // Simplify parallax transforms with optimized ranges
@@ -28,6 +31,10 @@ export default function MainLayout({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
 
   return (
     <div className="relative min-h-screen bg-background overflow-x-hidden">
@@ -73,17 +80,29 @@ export default function MainLayout({
         </>
       )}
       
-      <div className="flex">
+      {/* Header - fixed at top */}
+      <Header toggleSidebar={toggleSidebar} />
+      
+      <div className="flex pt-16"> {/* Add padding-top to account for fixed header */}
         {/* Sidebar - fixed on the left */}
-        <div className="fixed top-0 left-0 z-40 h-screen">
-          <Sidebar />
+        <div className={cn(
+          "fixed top-16 left-0 z-40 h-[calc(100vh-4rem)]",
+          sidebarCollapsed ? "lg:block hidden" : "block"
+        )}>
+          <Sidebar 
+            collapsed={sidebarCollapsed} 
+            setCollapsed={setSidebarCollapsed} 
+          />
         </div>
         
         {/* Main content area */}
         <AnimatePresence mode="wait">
           {mounted && (
             <motion.main 
-              className="flex-1 ml-[280px] min-h-screen overflow-x-hidden"
+              className={cn(
+                "flex-1 min-h-screen overflow-x-hidden",
+                sidebarCollapsed ? "ml-0 lg:ml-[80px]" : "ml-0 lg:ml-[280px]"
+              )}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
@@ -104,9 +123,27 @@ export default function MainLayout({
                 className="py-8 px-6 mt-16 text-center text-sm text-muted-foreground border-t border-border/30 relative z-10"
               >
                 <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div className="flex items-center">
+                    <a 
+                      href="https://www.slickbit.ai" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      aria-label="Visit Slickbit website"
+                      className="flex items-center justify-center mr-2"
+                    >
+                      <img 
+                        src="/images/slickbitLogo.png" 
+                        alt="Slickbit – Product Owner" 
+                        className="w-6 h-6 object-contain" 
+                        style={{ 
+                          filter: 'drop-shadow(0px 0px 1px rgba(0,0,0,0.2))'
+                        }}
+                      />
+                    </a>
                   <p className="opacity-75">
-                    © {new Date().getFullYear()} Summarize.AI. All rights reserved.
+                      © {new Date().getFullYear()} Slickbit.AI All rights reserved.
                   </p>
+                  </div>
                   <div className="flex items-center gap-6">
                     <motion.a 
                       href="#" 

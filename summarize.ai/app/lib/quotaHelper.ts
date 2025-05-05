@@ -1,6 +1,7 @@
 import { store } from '@/app/redux/store';
 import { setQuota } from '@/app/redux/features/quotaSlice';
 import { showQuotaExceededToast } from '@/app/components/QuotaExceededToast';
+import { authFetch } from './authFetch';
 
 /**
  * Updates the quota state in Redux based on API response
@@ -83,7 +84,9 @@ export const quotaAwareFetch = async (
     onQuotaExceeded?: () => void
 ): Promise<Response> => {
     console.log(`Making quota-aware fetch to ${url}`);
-    const response = await fetch(url, options);
+
+    // Use authFetch to ensure authentication is included
+    const response = await authFetch(url, options);
 
     try {
         const responseClone = response.clone();
@@ -107,7 +110,8 @@ export const quotaAwareFetch = async (
                 console.log('No quota info in response, trying to refresh quota...');
                 // Try to refresh quota from the quota status endpoint
                 try {
-                    const quotaResponse = await fetch('/api/quota-status');
+                    // Use authFetch for quota-status endpoint as well
+                    const quotaResponse = await authFetch('/api/quota-status');
                     if (quotaResponse.ok) {
                         const quotaData = await quotaResponse.json();
                         if (quotaData.quota) {

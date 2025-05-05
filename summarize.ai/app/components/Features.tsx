@@ -9,7 +9,7 @@ import Link from 'next/link';
 
 const featuresData = [
   {
-    title: 'Web Scraper',
+    title: 'Web Summarizer',
     description: 'Extract and summarize content from any web page with a single click.',
     icon: Globe,
     iconColor: 'text-[#7CAA38]',
@@ -25,7 +25,7 @@ const featuresData = [
     href: '/youtube-summarize',
   },
   {
-    title: 'PDF Upload',
+    title: 'PDF Summarizer',
     description: 'Upload PDF documents and get concise summaries of their content.',
     icon: FileText,
     iconColor: 'text-[#7CAA38]',
@@ -33,7 +33,7 @@ const featuresData = [
     href: '/pdf',
   },
   {
-    title: 'Audio Transcription',
+    title: 'Audio Summarizer',
     description: 'Convert audio files into text and generate summaries automatically.',
     icon: Headphones,
     iconColor: 'text-[#7CAA38]',
@@ -41,7 +41,7 @@ const featuresData = [
     href: '/audio',
   },
   {
-    title: 'Text Input',
+    title: 'Text Summarizer',
     description: 'Paste any text and get an AI-powered summary in seconds.',
     icon: FileType,
     iconColor: 'text-[#7CAA38]',
@@ -55,14 +55,6 @@ const featuresData = [
     iconColor: 'text-[#7CAA38]',
     bgColor: 'bg-[#ECFAD6]/80 dark:bg-[#3D5321]/70',
     href: '/translate',
-  },
-  {
-    title: 'History',
-    description: 'Access your past summaries and organize your research.',
-    icon: History,
-    iconColor: 'text-[#7CAA38]',
-    bgColor: 'bg-[#ECFAD6]/80 dark:bg-[#3D5321]/70',
-    href: '/history',
   },
 ];
 
