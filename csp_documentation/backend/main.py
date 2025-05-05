@@ -175,17 +175,28 @@ async def process_document(document_url: str, template_id: str):
     """
     try:
         logger.info(f"Processing document(s) with template ID: {template_id}")
-        
+
+        # Get the list of files to process (names and urls)
+        files_to_process = document_processor.get_files_to_process(document_url)
+        total_documents = len(files_to_process)
+        current_document = files_to_process[0]['name'] if files_to_process else None
+
         # Process the document(s) asynchronously
         all_metadata = await document_processor.process_documents(document_url, template_id)
         
-        # Add each document's metadata to Excel file
+        # Add each document's metadata to Excel file and collect sharepoint_url
+        sharepoint_url = None
         for metadata in all_metadata:
-            excel_path = excel_generator.add_metadata(metadata, document_url, template_id)
+            result = excel_generator.add_metadata(metadata, document_url, template_id)
+            if isinstance(result, dict) and result.get('sharepoint_url'):
+                sharepoint_url = result['sharepoint_url']
         
         return {
             "status": "success",
             "metadata": all_metadata,
+            "total_documents": total_documents,
+            "current_document": current_document,
+            "sharepoint_url": sharepoint_url,
             "message": f"Processed {len(all_metadata)} document(s) successfully. Use /download-excel to download the Excel file."
         }
     except Exception as e:
@@ -291,8 +302,11 @@ async def upload_template_fields(file: UploadFile = File(...)):
         # Validate required columns
         required_columns = ['name', 'description']
         missing_columns = [col for col in required_columns if col not in df.columns]
-        if missing_columns:
-            error_msg = f"Missing required columns: {', '.join(missing_columns)}"
+        if missing_columns or len(df.columns) < 2:
+            error_msg = (
+                "The uploaded file must have exactly two columns named 'name' and 'description'. "
+                f"Found columns: {df.columns.tolist()}"
+            )
             logger.error(error_msg)
             raise HTTPException(
                 status_code=400,

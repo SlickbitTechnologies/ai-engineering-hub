@@ -164,33 +164,51 @@ class ExcelGenerator:
 
     def _sanitize_column_name(self, column_name: str) -> str:
         """Sanitize column name to be valid for Excel."""
-        # First, handle special cases for template-specific columns
-        if '[' in column_name or ']' in column_name:
-            # Remove any content within square brackets and the brackets themselves
-            column_name = re.sub(r'\[.*?\]', '', column_name)
-        
-        # Remove any characters that are not letters, numbers, or spaces
-        sanitized = re.sub(r'[^a-zA-Z0-9\s]', '', column_name)
-        
-        # Replace multiple spaces with single space
-        sanitized = re.sub(r'\s+', ' ', sanitized).strip()
-        
-        # Replace spaces with underscores
-        sanitized = sanitized.replace(' ', '_')
-        
-        # Ensure the name starts with a letter
-        if sanitized and not sanitized[0].isalpha():
-            sanitized = 'C_' + sanitized
-        
-        # Ensure the name is not empty
-        if not sanitized:
-            sanitized = 'Column'
+        try:
+            # Handle None or empty values
+            if not column_name:
+                return "Column"
+                
+            # Convert to string if not already
+            column_name = str(column_name)
             
-        # Ensure the name is not too long (Excel has a limit)
-        if len(sanitized) > 31:
-            sanitized = sanitized[:31]
+            # First, handle special cases for template-specific columns
+            if '[' in column_name or ']' in column_name:
+                # Extract content between square brackets if it exists
+                import re
+                bracket_content = re.findall(r'\[(.*?)\]', column_name)
+                if bracket_content:
+                    column_name = '_'.join(bracket_content)
+                else:
+                    # Remove brackets if no content between them
+                    column_name = column_name.replace('[', '').replace(']', '')
             
-        return sanitized
+            # Remove any characters that are not letters, numbers, or spaces
+            sanitized = ''.join(c for c in column_name if c.isalnum() or c.isspace())
+            
+            # Replace multiple spaces with single space
+            sanitized = ' '.join(sanitized.split())
+            
+            # Replace spaces with underscores
+            sanitized = sanitized.replace(' ', '_')
+            
+            # Ensure the name starts with a letter
+            if sanitized and not sanitized[0].isalpha():
+                sanitized = 'C_' + sanitized
+            
+            # Ensure the name is not empty
+            if not sanitized:
+                sanitized = 'Column'
+                
+            # Ensure the name is not too long (Excel has a limit)
+            if len(sanitized) > 31:
+                sanitized = sanitized[:31]
+                
+            return sanitized
+            
+        except Exception as e:
+            logger.error(f"Error sanitizing column name '{column_name}': {str(e)}")
+            return "Column"  # Return a safe default value
 
     def generate_excel(self, template_id: str) -> Dict[str, str]:
         """Generate Excel file with all metadata for a specific template."""
@@ -272,48 +290,41 @@ class ExcelGenerator:
                 sharepoint_service = SharePointService()
                 
                 # Get the folder path from the first document's URL
+                doc_url = None
                 if template_metadata and 'Document URL' in template_metadata[0]:
                     doc_url = template_metadata[0]['Document URL']
+                elif template_metadata and 'webUrl' in template_metadata[0]:
+                    doc_url = template_metadata[0]['webUrl']
+                else:
+                    for doc in template_metadata:
+                        for key in doc:
+                            if isinstance(doc[key], str) and 'graph.microsoft.com' in doc[key]:
+                                doc_url = doc[key]
+                                break
+                        if doc_url:
+                            break
+                if doc_url:
                     logger.info(f"Processing document URL: {doc_url}")
-                    
                     if 'graph.microsoft.com' in doc_url:
-                        # Extract folder path from URL
                         if '/drive/root:/' in doc_url:
                             try:
-                                # Get the full path after /drive/root:/
                                 full_path = doc_url.split('/drive/root:/')[1]
-                                logger.info(f"Extracted full path: {full_path}")
-                                
-                                # Remove any :/children or other parameters
                                 folder_path = full_path.split(':/')[0]
-                                logger.info(f"Initial folder path: {folder_path}")
-                                
-                                # Clean up the path
                                 folder_path = folder_path.rstrip('/')
-                                
-                                # Handle special characters in folder names
                                 if '%20' in folder_path:
                                     folder_path = folder_path.replace('%20', ' ')
-                                
-                                # Validate the folder path
                                 if not folder_path:
                                     raise ValueError("Empty folder path extracted from URL")
-                                
                                 logger.info(f"Final SharePoint folder path: {folder_path}")
-                                
-                                # Read the file content
                                 with open(excel_path, 'rb') as file:
                                     file_content = file.read()
                                     file_name = os.path.basename(excel_path)
-                                    
-                                    # Verify file content
                                     if not file_content:
                                         logger.error("Excel file content is empty")
                                     else:
                                         logger.info(f"File size: {len(file_content)} bytes")
                                         logger.info(f"Attempting to upload Excel file to SharePoint folder: {folder_path}")
                                         try:
-                                            # Upload to the exact folder from the URL
                                             sharepoint_url = sharepoint_service.upload_file(file_content, file_name, folder_path)
                                             if sharepoint_url:
                                                 logger.info(f"Excel file uploaded successfully to SharePoint: {sharepoint_url}")

@@ -182,6 +182,8 @@ class DocumentProcessor:
             url_type = self._get_url_type(url)
             all_metadata = []
             failed_documents = []
+            MAX_FILE_SIZE_MB = 5
+            MAX_PAGES = 180
             
             if url_type == 'sharepoint':
                 # Initialize SharePoint client
@@ -201,24 +203,36 @@ class DocumentProcessor:
                 for file in files:
                     try:
                         logger.info(f"Processing file {processed_files + 1}/{total_files}: {file['name']}")
-                        
+                        # Download the document to check size and pages
+                        file_path = self.download_document(file['url'])
+                        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+                        num_pages = 0
+                        try:
+                            with open(file_path, 'rb') as f:
+                                pdf_reader = PdfReader(f)
+                                num_pages = len(pdf_reader.pages)
+                        except Exception as e:
+                            logger.warning(f"Could not read PDF pages for {file['name']}: {str(e)}")
+                        if file_size_mb > MAX_FILE_SIZE_MB or num_pages > MAX_PAGES:
+                            logger.warning(f"Skipping {file['name']} (size: {file_size_mb:.2f} MB, pages: {num_pages}) - exceeds limits.")
+                            if os.path.exists(file_path):
+                                os.remove(file_path)
+                            processed_files += 1
+                            continue
                         # Process each document
                         metadata = await self.process_document(file['url'], template_id)
-                        
                         # Add document URL to metadata
                         metadata['Document URL'] = file['url']
-                        
                         # Add to list of all metadata
                         all_metadata.append(metadata)
-                        
                         # Update progress
                         processed_files += 1
                         progress = (processed_files / total_files) * 100
                         logger.info(f"Progress: {progress:.2f}% ({processed_files}/{total_files} files processed)")
-                        
                         # Log success
                         logger.info(f"Successfully processed document: {file['name']}")
-                        
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
                     except Exception as e:
                         logger.error(f"Error processing SharePoint file {file['name']}: {str(e)}")
                         failed_documents.append({
@@ -227,13 +241,29 @@ class DocumentProcessor:
                             'error': str(e)
                         })
                         continue
-                        
             else:  # Single document
                 try:
-                    metadata = await self.process_document(url, template_id)
-                    metadata['Document URL'] = url
-                    all_metadata.append(metadata)
-                    logger.info(f"Successfully processed document from URL: {url}")
+                    # Download the document to check size and pages
+                    file_path = self.download_document(url)
+                    file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+                    num_pages = 0
+                    try:
+                        with open(file_path, 'rb') as f:
+                            pdf_reader = PdfReader(f)
+                            num_pages = len(pdf_reader.pages)
+                    except Exception as e:
+                        logger.warning(f"Could not read PDF pages for {url}: {str(e)}")
+                    if file_size_mb > MAX_FILE_SIZE_MB or num_pages > MAX_PAGES:
+                        logger.warning(f"Skipping {url} (size: {file_size_mb:.2f} MB, pages: {num_pages}) - exceeds limits.")
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                    else:
+                        metadata = await self.process_document(url, template_id)
+                        metadata['Document URL'] = url
+                        all_metadata.append(metadata)
+                        logger.info(f"Successfully processed document from URL: {url}")
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
                 except Exception as e:
                     logger.error(f"Error processing document: {str(e)}")
                     failed_documents.append({
@@ -241,16 +271,13 @@ class DocumentProcessor:
                         'url': url,
                         'error': str(e)
                     })
-            
             # Log summary of processing
             logger.info(f"Total documents processed: {len(all_metadata)}")
             if failed_documents:
                 logger.warning(f"Failed to process {len(failed_documents)} documents:")
                 for doc in failed_documents:
                     logger.warning(f"- {doc['name']}: {doc['error']}")
-            
             return all_metadata
-            
         except Exception as e:
             logger.error(f"Error processing documents: {str(e)}")
             raise
@@ -538,3 +565,19 @@ CRITICAL INSTRUCTIONS:
             logger.error(f"Error parsing response: {str(e)}")
             logger.error(f"Original response: {response}")
             return {}  # Return empty dict instead of raising error 
+
+    def get_files_to_process(self, url: str) -> list:
+        """
+        Return a list of files (dicts with 'name' and 'url') to process for a given SharePoint folder URL.
+        """
+        url_type = self._get_url_type(url)
+        if url_type == 'sharepoint':
+            self._initialize_sharepoint(url)
+            files = self._get_sharepoint_files(url)
+            return files
+        else:
+            # Single document
+            return [{
+                'name': os.path.basename(url),
+                'url': url
+            }] 

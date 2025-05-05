@@ -315,6 +315,13 @@ function Settings() {
           <p className="page-description">Configure document templates for metadata extraction</p>
         </div>
 
+        {/* Show upload error if present */}
+        {uploadError && (
+          <div className="error-message" style={{ color: 'red', marginBottom: '1rem' }}>
+            {uploadError}
+          </div>
+        )}
+
         {!showCreateForm ? (
           <div className="card">
             <div className="flex justify-between items-center mb-4">
@@ -524,11 +531,11 @@ function Settings() {
                             accept=".csv,.xlsx,.xls"
                             className="hidden"
                           />
-                          {uploadError && (
+                          {/* {uploadError && (
                             <div className="absolute top-full left-0 mt-1 text-red-500 text-xs max-w-xs">
                               {uploadError}
                             </div>
-                          )}
+                          )} */}
                         </div>
                       </div>
                     </div>

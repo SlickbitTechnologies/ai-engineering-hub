@@ -5,18 +5,24 @@ const LoadingContext = createContext();
 export const LoadingProvider = ({ children }) => {
   const [progress, setProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('');
+  const [elapsedTime, setElapsedTime] = useState(0);
   const progressInterval = useRef(null);
+  const timerInterval = useRef(null);
   const startTime = useRef(null);
   const estimatedDuration = 20 * 60 * 1000; // 20 minutes in milliseconds
 
   const startLoading = (message = 'Loading...') => {
     setProgress(0);
     setLoadingMessage(message);
+    setElapsedTime(0);
     startTime.current = Date.now();
     
     // Clear any existing interval
     if (progressInterval.current) {
       clearInterval(progressInterval.current);
+    }
+    if (timerInterval.current) {
+      clearInterval(timerInterval.current);
     }
 
     // Start simulated progress
@@ -25,6 +31,10 @@ export const LoadingProvider = ({ children }) => {
       const simulatedProgress = Math.min(95, (elapsed / estimatedDuration) * 100);
       setProgress(simulatedProgress);
     }, 1000); // Update every second
+    // Start timer
+    timerInterval.current = setInterval(() => {
+      setElapsedTime(prev => prev + 1);
+    }, 1000);
   };
 
   const updateProgress = (value) => {
@@ -36,9 +46,18 @@ export const LoadingProvider = ({ children }) => {
       clearInterval(progressInterval.current);
       progressInterval.current = null;
     }
+    if (timerInterval.current) {
+      clearInterval(timerInterval.current);
+      timerInterval.current = null;
+    }
     setProgress(0);
     setLoadingMessage('');
+    // Do not reset elapsedTime here so it can be displayed after processing
     startTime.current = null;
+  };
+
+  const resetElapsedTime = () => {
+    setElapsedTime(0);
   };
 
   // Cleanup on unmount
@@ -46,6 +65,9 @@ export const LoadingProvider = ({ children }) => {
     return () => {
       if (progressInterval.current) {
         clearInterval(progressInterval.current);
+      }
+      if (timerInterval.current) {
+        clearInterval(timerInterval.current);
       }
     };
   }, []);
@@ -56,7 +78,9 @@ export const LoadingProvider = ({ children }) => {
       loadingMessage, 
       startLoading, 
       stopLoading,
-      updateProgress 
+      updateProgress,
+      elapsedTime,
+      resetElapsedTime
     }}>
       {children}
     </LoadingContext.Provider>

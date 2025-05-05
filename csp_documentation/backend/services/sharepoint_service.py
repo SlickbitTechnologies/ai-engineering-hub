@@ -152,7 +152,6 @@ class SharePointService:
             while files_url:
                 response = requests.get(files_url, headers=headers)
                 response.raise_for_status()
-                
                 data = response.json()
                 files = data.get('value', [])
                 all_files.extend([
@@ -164,7 +163,6 @@ class SharePointService:
                     }
                     for file in files if file['name'].lower().endswith('.pdf')
                 ])
-                
                 # Get the next page URL if it exists
                 files_url = data.get('@odata.nextLink')
                 if files_url:

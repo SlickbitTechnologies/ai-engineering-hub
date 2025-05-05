@@ -8,7 +8,7 @@ const url = 'https://slickbit-ai-csp.onrender.com';
 
 function Documents() {
   const { templates } = useTemplates();
-  const { startLoading, stopLoading, updateProgress, progress, loadingMessage } = useLoading();
+  const { startLoading, stopLoading, updateProgress, progress, loadingMessage, setProgress, elapsedTime } = useLoading();
   const [documentUrl, setDocumentUrl] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -25,7 +25,14 @@ function Documents() {
   const [processTime, setProcessTime] = useState({
     start: '',
     end: ''
-  })
+  });
+  const [totalDocuments, setTotalDocuments] = useState(0);
+  const [currentDocumentName, setCurrentDocumentName] = useState('');
+  const [timerActive, setTimerActive] = useState(false);
+  const [processingComplete, setProcessingComplete] = useState(false);
+  const [foundDocumentNames, setFoundDocumentNames] = useState([]);
+  const [sharepointUrl, setSharepointUrl] = useState('');
+
   // Load metadata from backend on component mount
   useEffect(() => {
     const loadMetadata = async () => {
@@ -48,15 +55,43 @@ function Documents() {
   // Calculate estimated time remaining
   useEffect(() => {
     if (progress > 0 && progress < 100) {
-      const totalTime = 20 * 60; // 20 minutes in seconds
-      const remainingTime = Math.round((totalTime * (100 - progress)) / 100);
+      // Calculate time based on document size and complexity
+      const baseProcessingTime = 5 * 60; // 5 minutes base time in seconds
+      const processingTime = Math.max(
+        baseProcessingTime,
+        Math.min(baseProcessingTime * 2, baseProcessingTime + (progress * 3))
+      );
+      
+      const remainingTime = Math.round((processingTime * (100 - progress)) / 100);
       const minutes = Math.floor(remainingTime / 60);
       const seconds = remainingTime % 60;
-      setEstimatedTimeRemaining(`${minutes}m ${seconds}s`);
+      
+      // Format time string with leading zeros for better readability
+      const timeString = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+      setEstimatedTimeRemaining(timeString);
+      
+      // Update progress more frequently for smoother animation
+      const timer = setInterval(() => {
+        if (progress < 100) {
+          updateProgress(Math.min(progress + 0.5, 100));
+        }
+      }, 1000);
+      
+      return () => clearInterval(timer);
     } else {
       setEstimatedTimeRemaining('');
     }
-  }, [progress]);
+  }, [progress, updateProgress]);
+
+  useEffect(() => {
+    let timer;
+    if (timerActive && !processingComplete) {
+      timer = setInterval(() => {
+        // setElapsedTime(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [timerActive, processingComplete]);
 
   const handleTemplateChange = (e) => {
     const templateId = e.target.value;
@@ -92,8 +127,14 @@ function Documents() {
     // Set the start time
     setProcessTime((prev) => ({
       ...prev,
-      start: new Date().toISOString(),
+      start: new Date().toISOString().toLocaleString(),
     }));
+
+    setTimerActive(true);
+    // setElapsedTime(0);
+    setProcessingComplete(false);
+    setFoundDocumentNames([]);
+    updateProgress(0);
 
     startLoading('Processing document...');
     setCurrentStage('Initializing document processing...');
@@ -114,6 +155,11 @@ function Documents() {
         throw new Error(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
       }
       const data = await response.json();
+      
+      // Set document info from backend response
+      if (data.total_documents) setTotalDocuments(data.total_documents);
+      if (data.current_document) setCurrentDocumentName(data.current_document);
+      if (data.documents && Array.isArray(data.documents)) setFoundDocumentNames(data.documents.map(doc => doc.name));
       
       if (!data || typeof data !== 'object' || !data.metadata) {
         throw new Error('Invalid response format from server');
@@ -155,6 +201,9 @@ function Documents() {
           localStorage.setItem('lastExcelPath', `output/extracted_data_${selectedTemplateId}.xlsx`);
           setCurrentStage('Processing complete!');
           updateProgress(100);
+          setProcessingComplete(true);
+          setTimerActive(false);
+          if (data.sharepoint_url) setSharepointUrl(data.sharepoint_url);
         }
       } catch (excelError) {
         console.error('Error generating Excel:', excelError);
@@ -163,12 +212,14 @@ function Documents() {
     } catch (error) {
       console.error('Error processing document:', error);
       setError(error.message || 'Failed to process document');
+      setProcessingComplete(true);
+      setTimerActive(false);
     } finally {
 
       // Set the end time
       setProcessTime((prev) => ({
         ...prev,
-        end: new Date().toISOString(),
+        end: new Date().toISOString().toLocaleString(),
       }));
 
       setTimeout(() => {
@@ -246,6 +297,7 @@ function Documents() {
     setIsEditing(false);
     setEditingRow(null);
   };
+  
 
   return (
     <div className="page-container">
@@ -270,7 +322,7 @@ function Documents() {
                 value={documentUrl}
                 onChange={(e) => setDocumentUrl(e.target.value)}
                 className="form-input"
-                placeholder="Enter The sharepoint document URL"
+                placeholder="https://graph.microsoft.com/v1.0/sites/slickbitai.sharepoint.com,{site_id}/drive/root:/{document_name}"
               />
             </div>
 
@@ -303,7 +355,7 @@ function Documents() {
                 {progress > 0 && (
                 <div className="flex-1 max-w-md">
                   <div className="flex justify-between text-sm text-gray-600 mb-1">
-                    <span>{currentStage}</span>
+                    <span>Sending document for processing...</span>
                     <span>{progress.toFixed(1)}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2.5">
@@ -314,9 +366,33 @@ function Documents() {
                   </div>
                   {estimatedTimeRemaining && (
                     <div className="text-xs text-gray-500 mt-1">
-                      Estimated time remaining: {estimatedTimeRemaining}
+                      {/* Estimated time remaining: {estimatedTimeRemaining} */}
                     </div>
                   )}
+                  {progress > 0 && (
+          <>
+            {totalDocuments > 0 && (
+              <div className="text-sm text-gray-700 mb-1">
+                Found {totalDocuments} documents to process.
+              </div>
+            )}
+            {progress > 0 && totalDocuments > 0 && (
+              <div className="text-sm text-blue-700 mb-1">
+                Found {totalDocuments} documents to process.
+              </div>
+            )}
+            {/* {currentDocumentName && (
+              <div className="text-sm text-blue-700 mb-1">
+                Processing: {currentDocumentName}
+              </div>
+            )} */}
+            {progress > 0 && (
+              <div className="text-xs text-gray-500 mt-1">
+                Processing time: {Math.floor(elapsedTime / 60)}m {String(elapsedTime % 60).padStart(2, '0')}s
+              </div>
+            )}
+          </>
+        )}
                 </div>
               )}
               </div>
@@ -330,6 +406,16 @@ function Documents() {
             </div>
           </div>
         </div>
+        {foundDocumentNames.length > 0 && (
+          <div className="text-xs text-gray-600 mb-2">
+            <strong>Documents found to process:</strong>
+            <ul className="list-disc ml-6">
+              {foundDocumentNames.map((name, idx) => (
+                <li key={idx}>{name}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {documents.length > 0 && (
           <div className="mt-8">
             <h2 className="section-title mb-4">Processed Documents</h2>
@@ -339,6 +425,7 @@ function Documents() {
               style={{ color: 'blue', textDecoration: 'underline' }}>
               Click here to view the Excel file
             </a>
+         
             <div className="space-y-4">
               {documents.map((doc) => (
                 <div key={doc.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -346,8 +433,8 @@ function Documents() {
                     <div>
                       <h3 className="text-sm font-medium text-gray-900"> documents processed </h3>
                       {/* <p className="text-xs text-gray-500">Processed on: {new Date(doc.timestamp).toLocaleString()}</p> */}
-                      <p className="text-xs text-gray-500">Start time:  {processTime.start}</p>
-                      <p className="text-xs text-gray-500">End time:  {processTime.end}</p>
+                      {/* <p className="text-xs text-gray-500">Start time:  {processTime.start}</p>
+                      <p className="text-xs text-gray-500">End time:  {processTime.end}</p> */}
                     </div>
                   </div>
                 </div>
@@ -366,6 +453,18 @@ function Documents() {
                 <span>Download Excel</span>
               </button>
             </div>
+          </div>
+        )}
+        {sharepointUrl && (
+          <div className="mt-4">
+            <a
+              href={sharepointUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="button-primary"
+            >
+              Download Excel from SharePoint
+            </a>
           </div>
         )}
       </div>
