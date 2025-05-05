@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { checkAndUpdateQuota } from '@/app/lib/quotaMiddleware';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -30,6 +31,12 @@ const languageNames: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
     try {
+        // Check quota first
+        const quotaResult = await checkAndUpdateQuota(request);
+        if (quotaResult instanceof NextResponse) {
+            return quotaResult; // This is an error response
+        }
+
         // Get text and language info from request
         const { text, sourceLanguage, targetLanguage } = await request.json();
 
@@ -81,7 +88,13 @@ export async function POST(request: NextRequest) {
         // Extract translated text
         const translatedText = response.choices[0]?.message.content || '';
 
-        return NextResponse.json({ translatedText });
+        // Include quota information in the response if available
+        const quotaInfo = quotaResult?.quotaInfo;
+
+        return NextResponse.json({
+            translatedText,
+            quota: quotaInfo
+        });
 
     } catch (error) {
         console.error('Translation error:', error);

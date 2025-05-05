@@ -32,6 +32,7 @@ import debounce from 'lodash/debounce';
 import { saveSummary } from '../firebase/history';
 import { getCurrentUser } from '../firebase/auth';
 import { Toaster, toast } from 'react-hot-toast';
+import { quotaAwareFetch, updateQuotaFromResponse } from '@/app/lib/quotaHelper';
 
 // Define available languages
 const languages = [
@@ -204,10 +205,15 @@ export default function TranslatePage() {
       setStage('Detecting language first...');
       setProgress(5);
       try {
-        const response = await fetch('/api/detect-language', {
+        const response = await quotaAwareFetch('/api/detect-language', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: sourceText }),
+        }, () => {
+          // Handle quota exceeded
+          setIsTranslating(false);
+          setProgress(0);
+          setStage('');
         });
         
         if (response.ok) {
@@ -243,8 +249,8 @@ export default function TranslatePage() {
       setTimeout(() => setStage('Translating content...'), 800);
       setTimeout(() => setStage('Finalizing translation...'), 2000);
       
-      // Call translation API
-      const response = await fetch('/api/translate', {
+      // Call translation API with quota-aware fetch
+      const response = await quotaAwareFetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -252,6 +258,12 @@ export default function TranslatePage() {
           sourceLanguage: sourceLanguage === 'auto' ? detectedLanguage : sourceLanguage,
           targetLanguage,
         }),
+      }, () => {
+        // Handle quota exceeded
+        clearInterval(progressInterval);
+        setIsTranslating(false);
+        setProgress(0);
+        setStage('');
       });
       
       clearInterval(progressInterval);
@@ -265,6 +277,9 @@ export default function TranslatePage() {
       setTranslatedText(data.translatedText);
       setProgress(100);
       setStage('Translation completed');
+      
+      // Update quota from response
+      updateQuotaFromResponse(data);
       
       setTimeout(() => {
         setProgress(0);

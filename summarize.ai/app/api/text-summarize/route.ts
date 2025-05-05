@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { checkAndUpdateQuota } from '@/app/lib/quotaMiddleware';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -8,6 +9,12 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
     try {
+        // Check quota first
+        const quotaResult = await checkAndUpdateQuota(request);
+        if (quotaResult instanceof NextResponse) {
+            return quotaResult; // This is an error response
+        }
+
         // Get the text content from the request
         const { text, customPrompt } = await request.json();
 
@@ -39,16 +46,20 @@ export async function POST(request: NextRequest) {
 
         const summary = summaryResponse.choices[0]?.message.content || '';
 
-        // Return the summary
-        return NextResponse.json({ summary });
+        // Include quota information in the response if available
+        const quotaInfo = quotaResult?.quotaInfo;
+        console.log('Quota info from middleware:', quotaInfo);
+
+        // Return the summary with quota information
+        return NextResponse.json({
+            summary,
+            quota: quotaInfo || null
+        });
     } catch (error: any) {
         console.error('Text summarization error:', error);
 
         return NextResponse.json(
-            {
-                error: 'Failed to summarize text',
-                details: error.message || 'Unknown error'
-            },
+            { error: 'Failed to summarize text', message: error.message || 'Unknown error' },
             { status: 500 }
         );
     }

@@ -18,11 +18,21 @@ export interface SummaryItem {
     id?: string;
     title: string;
     content: string;
-    sourceType: 'web' | 'pdf' | 'audio' | 'text' | 'translation';
+    sourceType: 'web' | 'pdf' | 'audio' | 'text' | 'translation' | 'youtube';
     createdAt: number;
     originalText?: string;
     sourceUrl?: string;
     fileName?: string;
+}
+
+// Additional interface for history items from other features
+export interface HistoryItem {
+    userId: string;
+    type: string;
+    content: string;
+    timestamp: string;
+    title: string;
+    url?: string;
 }
 
 /**
@@ -41,6 +51,25 @@ export const saveSummary = async (summary: SummaryItem): Promise<string | null> 
         return docRef.id;
     } catch (error) {
         console.error('Error saving summary to history:', error);
+        return null;
+    }
+};
+
+/**
+ * Add an item to history (simplified method for various features)
+ */
+export const addToHistory = async (item: HistoryItem): Promise<string | null> => {
+    if (!item.userId) return null;
+
+    try {
+        const userHistoryRef = collection(db, 'users', item.userId, 'history');
+        const docRef = await addDoc(userHistoryRef, {
+            ...item,
+            createdAt: Date.now()
+        });
+        return docRef.id;
+    } catch (error) {
+        console.error('Error adding to history:', error);
         return null;
     }
 };
@@ -80,6 +109,37 @@ export const getSummaries = async (): Promise<SummaryItem[]> => {
 };
 
 /**
+ * Get all history items of a specific type
+ */
+export const getHistoryByType = async (type: string): Promise<any[]> => {
+    const user = getCurrentUser();
+    if (!user) return [];
+
+    try {
+        const userHistoryRef = collection(db, 'users', user.uid, 'history');
+        const q = query(
+            userHistoryRef,
+            where('type', '==', type),
+            orderBy('createdAt', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+
+        const historyItems: any[] = [];
+        querySnapshot.forEach((doc) => {
+            historyItems.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+
+        return historyItems;
+    } catch (error) {
+        console.error(`Error fetching ${type} history:`, error);
+        return [];
+    }
+};
+
+/**
  * Delete a specific summary
  */
 export const deleteSummary = async (summaryId: string): Promise<boolean> => {
@@ -91,6 +151,22 @@ export const deleteSummary = async (summaryId: string): Promise<boolean> => {
         return true;
     } catch (error) {
         console.error('Error deleting summary:', error);
+        return false;
+    }
+};
+
+/**
+ * Delete a history item
+ */
+export const deleteHistoryItem = async (itemId: string): Promise<boolean> => {
+    const user = getCurrentUser();
+    if (!user) return false;
+
+    try {
+        await deleteDoc(doc(db, 'users', user.uid, 'history', itemId));
+        return true;
+    } catch (error) {
+        console.error('Error deleting history item:', error);
         return false;
     }
 };

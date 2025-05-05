@@ -15,6 +15,7 @@ import { Button } from '@/app/components/ui/Button';
 import { Card, CardHeader, CardContent, CardFooter } from '@/app/components/ui/Card';
 import { WebScraperIllustration } from '@/app/components/ui/illustrations/FeatureIllustrations';
 import { cn } from '@/app/lib/utils';
+import { useFeatureQuota } from '@/app/hooks/useFeatureQuota';
 
 export default function WebScrapePage() {
   const [url, setUrl] = useState('');
@@ -25,6 +26,12 @@ export default function WebScrapePage() {
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<number>(0);
   const [copied, setCopied] = useState(false);
+  
+  // Use our feature quota hook
+  const { 
+    checkQuotaAvailable, 
+    incrementQuota 
+  } = useFeatureQuota('webScrape');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +50,12 @@ export default function WebScrapePage() {
       new URL(url);
     } catch (err) {
       setError('Please enter a valid URL');
+      return;
+    }
+    
+    // Check if quota is available before proceeding
+    const quotaAvailable = await checkQuotaAvailable();
+    if (!quotaAvailable) {
       return;
     }
     
@@ -81,6 +94,9 @@ export default function WebScrapePage() {
       if (response.ok) {
         setSummary(data.summary || '');
         setProgress(100);
+        
+        // Increment quota after successful summary
+        await incrementQuota();
       } else {
         setError(data.error || 'Failed to scrape and summarize the webpage');
       }
