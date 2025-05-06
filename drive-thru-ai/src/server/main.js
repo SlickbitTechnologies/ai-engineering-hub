@@ -4,7 +4,13 @@ import db from './db.js';
 
 const app = express();
 app.use(express.json());
-
+const images = [
+  'https://www.indianhealthyrecipes.com/wp-content/uploads/2016/02/veg-burger-recipe-1.jpg',
+  'https://girlheartfood.com/wp-content/uploads/2020/06/Crispy-Chicken-Burger-10.jpg',
+  'https://assets-jpcust.jwpsrv.com/thumbnails/4g3k91yy-720.jpg',
+  'https://static.india.com/wp-content/uploads/2024/03/chicken-curry.jpg',
+  'https://life-in-the-lofthouse.com/wp-content/uploads/2024/06/In-N-Out-Cheeseburger14_featuredimage-480x270.jpg'
+]
 // Menu Items Routes
 app.get("/api/menu-items", (req, res) => {
   db.all("SELECT * FROM menu_items", (err, rows) => {
@@ -12,8 +18,9 @@ app.get("/api/menu-items", (req, res) => {
       res.status(500).json({ error: err.message });
       return;
     }
-    const menuItems = rows.map((row) => ({
+    const menuItems = rows.map((row,i) => ({
       ...row,
+      image: images[i % images.length],
       customization: row.customization ? JSON.parse(row.customization) : []
     }));
     res.json(menuItems);
