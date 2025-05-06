@@ -190,7 +190,7 @@ const Sidebar = () => {
             backgroundColor: '#000',
           }}
         >
-          <img src={logo} alt="Slick Logo" style={{ width: '-webkit-fill-available', background:"black" }} />
+          <img src={logo} alt="Slick Logo" style={{ width: '-webkit-fill-available',  }} />
           <Box sx={{ 
             p: 2, 
             borderTop: '1px solid #EEE',
