@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         dispatch(fetchUserQuota(authUser.uid));
         
         // Also try to fetch from the API for the most up-to-date quota
-        fetch('/api/quota-status')
+        fetch(`/api/quota-status?userId=${authUser.uid}`)
           .then(response => {
             if (response.ok) {
               return response.json();

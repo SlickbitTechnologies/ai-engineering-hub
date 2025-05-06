@@ -31,7 +31,7 @@ export const fetchUserQuota = createAsyncThunk(
 
             // Try to fetch from API first (for latest status) with authenticated request
             try {
-                const response = await authFetch(`/api/quota-status`);
+                const response = await authFetch(`/api/quota-status?userId=${userId}`);
                 if (response.ok) {
                     const data = await response.json();
                     return {

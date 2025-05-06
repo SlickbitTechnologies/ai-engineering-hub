@@ -23,7 +23,7 @@ export const useQuotaRefresh = (intervalMs = 10000) => {
 
         try {
             console.log('Refreshing quota status manually for user:', user.uid);
-            const response = await authFetch(`/api/quota-status`);
+            const response = await authFetch(`/api/quota-status?userId=${user.uid}`);
 
             if (response.ok) {
                 const data = await response.json();
