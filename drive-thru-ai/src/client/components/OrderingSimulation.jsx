@@ -118,6 +118,8 @@ const OrderingSimulation = () => {
   const messagesContainerRef = useRef(null);
   const navigate = useNavigate();
   const [orderDetails, setOrderDetails] = useState(null)
+  const orderItemsRef = useRef(null);
+
   useEffect(() => {
     fetchMenuItems();
   }, []);
@@ -580,6 +582,19 @@ const OrderingSimulation = () => {
     }
   }, [messages]);
 
+  // Update useEffect for auto-scrolling
+  useEffect(() => {
+    if (orderItemsRef.current) {
+      const scrollToBottom = () => {
+        orderItemsRef.current.scrollTo({
+          top: orderItemsRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      };
+      scrollToBottom();
+    }
+  }, [orderItems, orderDetails]); // Add orderDetails to dependency array
+
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <motion.div
@@ -891,7 +906,9 @@ const OrderingSimulation = () => {
                       backgroundColor: 'rgba(0,0,0,0.25)',
                     },
                   },
-                }}>
+                }}
+                ref={orderItemsRef}
+                >
                   <AnimatePresence>
                     {orderItems?.map((item, index) => (
                       <motion.div

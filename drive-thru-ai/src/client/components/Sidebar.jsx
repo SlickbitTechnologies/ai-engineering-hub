@@ -190,12 +190,15 @@ const Sidebar = () => {
             backgroundColor: '#000',
           }}
         >
-          <img src={logo} alt="Slick Logo" style={{ width: '-webkit-fill-available',  }} />
           <Box sx={{ 
             p: 2, 
             borderTop: '1px solid #EEE',
-            textAlign: 'center'
+            // textAlign: 'center'
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
           }}>
+            <img src={logo} alt="Slick Logo" height={40} width={110}/>
             
             <Typography variant="caption" sx={{ color: '#2a3447' }}>
               © 2025 Drive-Thru System
