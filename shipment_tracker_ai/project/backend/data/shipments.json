@@ -1,0 +1,151 @@
+[
+  {
+    "id": "1",
+    "name": "Vaccine Delivery",
+    "origin": "Boston, MA",
+    "destination": "New York, NY",
+    "status": "in-transit",
+    "user_id": "1",
+    "createdAt": "2025-05-05T16:55:59.016855",
+    "estimatedDelivery": "2025-05-10T16:55:59.016855",
+    "currentTemperature": 5.2,
+    "minTemperature": 2.0,
+    "maxTemperature": 8.0,
+    "currentLocation": {
+      "lat": 40.7128,
+      "lng": -74.006,
+      "address": "Manhattan, NY"
+    },
+    "temperatureHistory": [
+      {
+        "timestamp": "2025-05-05T12:55:59.016855",
+        "value": 4.5
+      },
+      {
+        "timestamp": "2025-05-05T13:55:59.016855",
+        "value": 4.8
+      },
+      {
+        "timestamp": "2025-05-05T14:55:59.016855",
+        "value": 5.2
+      },
+      {
+        "timestamp": "2025-05-05T15:55:59.016855",
+        "value": 5.1
+      },
+      {
+        "timestamp": "2025-05-05T16:55:59.016855",
+        "value": 5.3
+      }
+    ],
+    "alerts": [
+      {
+        "id": "alert-1",
+        "type": "info",
+        "message": "Shipment has departed from Boston",
+        "timestamp": "2025-05-05T12:55:59.016855",
+        "location": "Boston, MA",
+        "read": true
+      }
+    ]
+  },
+  {
+    "id": "2",
+    "name": "Blood Samples Delivery",
+    "origin": "Chicago, IL",
+    "destination": "Milwaukee, WI",
+    "status": "in-transit",
+    "user_id": "1",
+    "createdAt": "2025-05-03T16:55:59.016855",
+    "estimatedDelivery": "2025-05-06T16:55:59.016855",
+    "currentTemperature": 3.8,
+    "minTemperature": 2.0,
+    "maxTemperature": 6.0,
+    "currentLocation": {
+      "lat": 42.5818,
+      "lng": -87.8286,
+      "address": "Kenosha, WI"
+    },
+    "temperatureHistory": [
+      {
+        "timestamp": "2025-05-05T06:55:59.016855",
+        "value": 4.0
+      },
+      {
+        "timestamp": "2025-05-05T08:55:59.016855",
+        "value": 3.8
+      },
+      {
+        "timestamp": "2025-05-05T10:55:59.016855",
+        "value": 3.9
+      },
+      {
+        "timestamp": "2025-05-05T12:55:59.016855",
+        "value": 3.7
+      },
+      {
+        "timestamp": "2025-05-05T14:55:59.016855",
+        "value": 3.8
+      }
+    ],
+    "alerts": []
+  },
+  {
+    "id": "3",
+    "name": "Organ Transport",
+    "origin": "Los Angeles, CA",
+    "destination": "San Francisco, CA",
+    "status": "delivered",
+    "user_id": "1",
+    "createdAt": "2025-04-28T16:55:59.016855",
+    "estimatedDelivery": "2025-04-29T16:55:59.016855",
+    "currentTemperature": 4.0,
+    "minTemperature": 2.0,
+    "maxTemperature": 6.0,
+    "currentLocation": {
+      "lat": 37.7749,
+      "lng": -122.4194,
+      "address": "San Francisco, CA"
+    },
+    "temperatureHistory": [
+      {
+        "timestamp": "2025-04-28T08:55:59.016855",
+        "value": 4.2
+      },
+      {
+        "timestamp": "2025-04-28T10:55:59.016855",
+        "value": 4.0
+      },
+      {
+        "timestamp": "2025-04-28T12:55:59.016855",
+        "value": 4.1
+      },
+      {
+        "timestamp": "2025-04-28T14:55:59.016855",
+        "value": 3.9
+      },
+      {
+        "timestamp": "2025-04-28T16:55:59.016855",
+        "value": 4.0
+      }
+    ],
+    "alerts": [
+      {
+        "id": "alert-1",
+        "type": "info",
+        "message": "Shipment has departed from Los Angeles",
+        "timestamp": "2025-04-28T08:55:59.016855",
+        "location": "Los Angeles, CA",
+        "read": true
+      },
+      {
+        "id": "alert-2",
+        "type": "info",
+        "message": "Shipment has been delivered successfully",
+        "timestamp": "2025-04-29T16:55:59.016855",
+        "location": "San Francisco, CA",
+        "read": false
+      }
+    ]
+  }
+]
