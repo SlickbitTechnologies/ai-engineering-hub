@@ -8,31 +8,43 @@ const QUOTA_LIMIT = 10; // Default quota limit
 
 export async function GET(request: NextRequest) {
     try {
-        // Get the Authorization header
-        const authHeader = request.headers.get('Authorization');
+        let userId;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            console.log('Authentication failed: No valid authorization header found');
-            return NextResponse.json(
-                { error: 'User not authenticated', message: 'No valid authorization header found' },
-                { status: 401 }
-            );
+        // Check for userId in query parameter first (backward compatibility)
+        const searchParams = request.nextUrl.searchParams;
+        const queryUserId = searchParams.get('userId');
+
+        if (queryUserId) {
+            // If userId is provided as a query parameter, use it directly
+            userId = queryUserId;
+            console.log('Using userId from query parameter:', userId);
+        } else {
+            // Otherwise, try to get it from the Authorization header
+            const authHeader = request.headers.get('Authorization');
+
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                console.log('Authentication failed: No valid authorization header found');
+                return NextResponse.json(
+                    { error: 'User not authenticated', message: 'No valid authorization header found' },
+                    { status: 401 }
+                );
+            }
+
+            // Extract and verify the token
+            const token = authHeader.split('Bearer ')[1];
+            const decodedToken = await verifyIdToken(token);
+
+            if (!decodedToken) {
+                console.log('Authentication failed: Token verification failed');
+                return NextResponse.json(
+                    { error: 'Invalid authentication token', message: 'Token could not be verified' },
+                    { status: 401 }
+                );
+            }
+
+            userId = decodedToken.uid;
+            console.log('Getting quota status for authenticated user:', userId);
         }
-
-        // Extract and verify the token
-        const token = authHeader.split('Bearer ')[1];
-        const decodedToken = await verifyIdToken(token);
-
-        if (!decodedToken) {
-            console.log('Authentication failed: Token verification failed');
-            return NextResponse.json(
-                { error: 'Invalid authentication token', message: 'Token could not be verified' },
-                { status: 401 }
-            );
-        }
-
-        const userId = decodedToken.uid;
-        console.log('Getting quota status for authenticated user:', userId);
 
         // Reference to the user's quota document
         const userQuotaRef = doc(db, 'quotas', userId);

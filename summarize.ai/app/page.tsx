@@ -1,5 +1,8 @@
 'use client';
 
+// Dynamic directive for Vercel deployment
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { ArrowRight, Clock, CheckCircle2, Sparkles } from 'lucide-react';
 import MainLayout from '@/app/components/MainLayout';

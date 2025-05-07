@@ -6,7 +6,7 @@ import RestaurantIcon from '@mui/icons-material/Restaurant';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import FastfoodIcon from '@mui/icons-material/Fastfood';
 import DriveEtaIcon from '@mui/icons-material/DriveEta';
-
+import logo from '../assets/logo.png'
 // Animation variants
 const sidebarVariants = {
   hidden: { x: -240 },
@@ -186,12 +186,17 @@ const Sidebar = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
+          sx={{
+            backgroundColor: '#000',
+          }}
         >
+          <img src={logo} alt="Slick Logo" style={{ width: '-webkit-fill-available',  }} />
           <Box sx={{ 
             p: 2, 
             borderTop: '1px solid #EEE',
             textAlign: 'center'
           }}>
+            
             <Typography variant="caption" sx={{ color: '#2a3447' }}>
               © 2025 Drive-Thru System
             </Typography>

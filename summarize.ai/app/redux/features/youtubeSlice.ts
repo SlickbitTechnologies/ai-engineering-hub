@@ -1,4 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { RootState } from '../store';
+import { fetchUserQuota } from './quotaSlice';
+import { authFetch } from '@/app/lib/authFetch';
 
 interface TranscriptSegment {
     startTime: number;
@@ -115,6 +118,37 @@ export const fetchTranscript = createAsyncThunk(
             dispatch(setProgress({ progress: 90, stage: 'Finalizing results...' }));
 
             const summaryData = await summaryResponse.json();
+
+            // Increment the quota after successful summary generation
+            try {
+                // Get the current user from Firebase Auth using authFetch
+                const authResp = await authFetch('/api/current-user');
+                if (authResp.ok) {
+                    const { uid } = await authResp.json();
+
+                    if (uid) {
+                        // Call the increment-quota API directly
+                        const quotaResponse = await authFetch('/api/increment-quota', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                userId: uid,
+                                feature: 'youtubeSummarize'
+                            }),
+                        });
+
+                        if (quotaResponse.ok) {
+                            // Refresh the quota in redux store
+                            await dispatch(fetchUserQuota(uid));
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to increment quota:', error);
+                // Continue anyway, don't block the summary
+            }
 
             // Complete progress
             dispatch(setProgress({ progress: 100, stage: 'Complete!' }));

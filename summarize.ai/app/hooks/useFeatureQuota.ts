@@ -3,6 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '@/app/redux/store';
 import { fetchUserQuota } from '@/app/redux/features/quotaSlice';
 import { useAuth } from '@/app/context/AuthContext';
+import { authFetch } from '@/app/lib/authFetch';
 import toast from 'react-hot-toast';
 
 type FeatureType =
@@ -81,7 +82,7 @@ export const useFeatureQuota = (feature: FeatureType) => {
         if (!user?.uid) return;
 
         try {
-            const response = await fetch('/api/increment-quota', {
+            const response = await authFetch('/api/increment-quota', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

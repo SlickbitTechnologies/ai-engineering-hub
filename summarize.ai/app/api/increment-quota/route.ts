@@ -1,14 +1,44 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/app/firebase/firebase';
 import { doc, getDoc, setDoc, updateDoc, increment as firestoreIncrement } from 'firebase/firestore';
+import { verifyIdToken } from '@/app/lib/firebaseAdmin';
 
 // Set the constant for the new quota limit
 const QUOTA_LIMIT = 10; // Default quota limit
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { userId, feature } = body;
+        let { userId, feature } = body;
+
+        // If userId is not in the body, try to get it from the auth header
+        if (!userId) {
+            // Get the Authorization header
+            const authHeader = req.headers.get('Authorization');
+
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                console.log('Authentication failed: No valid authorization header found');
+                return NextResponse.json(
+                    { error: 'User not authenticated', message: 'No valid authorization header or userId provided' },
+                    { status: 401 }
+                );
+            }
+
+            // Extract and verify the token
+            const token = authHeader.split('Bearer ')[1];
+            const decodedToken = await verifyIdToken(token);
+
+            if (!decodedToken) {
+                console.log('Authentication failed: Token verification failed');
+                return NextResponse.json(
+                    { error: 'Invalid authentication token', message: 'Token could not be verified' },
+                    { status: 401 }
+                );
+            }
+
+            userId = decodedToken.uid;
+            console.log('Using user ID from auth token:', userId);
+        }
 
         if (!userId) {
             console.error('Increment quota request missing userId parameter');

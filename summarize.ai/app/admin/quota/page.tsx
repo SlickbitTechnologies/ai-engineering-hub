@@ -135,7 +135,7 @@ export default function QuotaAdminPage() {
   }
 
   if (!isAdminUser) {
-    return <div className="p-8 text-center">You don't have permission to view this page.</div>;
+    return <div className="p-8 text-center">You don&apos;t have permission to view this page.</div>;
   }
 
   return (

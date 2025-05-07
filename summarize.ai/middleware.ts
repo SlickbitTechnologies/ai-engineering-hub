@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 
 // Protected routes that require authentication
 const PROTECTED_ROUTES = [
+    '/',  // Make the homepage protected
     '/text',
     '/text-summarize',
     '/pdf',
@@ -16,28 +17,29 @@ const PROTECTED_ROUTES = [
 ];
 
 // Public routes that should always be accessible
-const PUBLIC_ROUTES = ['/', '/login', '/signup', '/auth'];
+const PUBLIC_ROUTES = ['/login', '/signup', '/auth'];
 
+// This middleware ensures that routes requiring dynamic data
+// are properly handled with server-side rendering
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
-
-    // Check if the current path is a protected route
-    const isProtectedRoute = PROTECTED_ROUTES.some(route =>
-        pathname.startsWith(route)
-    );
-
-    // Skip middleware for public routes
-    if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
-        return NextResponse.next();
-    }
 
     // Skip middleware for API routes and static assets
     if (pathname.startsWith('/api') || pathname.includes('/_next') || pathname.includes('/favicon.ico')) {
         return NextResponse.next();
     }
 
+    // Skip middleware for public routes
+    if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
+        return NextResponse.next();
+    }
+
+    // Check if the current path is a protected route
+    const isProtectedRoute = PROTECTED_ROUTES.some(route =>
+        pathname.startsWith(route) || pathname === '/'
+    );
+
     // Check if user is authenticated by looking for the session cookie
-    // Firebase auth typically uses localStorage, but for middleware we rely on cookies
     const authCookie = request.cookies.get('auth_session')?.value;
 
     // If it's a protected route and user is not authenticated, redirect to auth
@@ -63,16 +65,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
 }
 
-// Configure which paths the middleware runs on
+// Specify which routes to run the middleware on
 export const config = {
-    matcher: [
-        /*
-         * Match all request paths except:
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
-         * - public folder
-         */
-        '/((?!_next/static|_next/image|favicon.ico|public).*)',
-    ],
+    // Apply to all routes except for assets, _next, and api routes
+    matcher: ['/((?!_next/static|_next/image|images|assets|favicon.ico|sw.js).*)'],
 }; 

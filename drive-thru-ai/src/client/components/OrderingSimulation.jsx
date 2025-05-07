@@ -1,30 +1,23 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Box,
-  Typography,
-  Paper,
-  IconButton,
+  Typography, IconButton,
   TextField,
   Card,
   CardContent,
   CardMedia,
-  Divider,
-  Fade,
-  Tooltip,
-  Chip,
+  Divider, Tooltip,
+  Chip
 } from '@mui/material';
 import MicIcon from '@mui/icons-material/Mic';
 import SendIcon from '@mui/icons-material/Send';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
-import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import axios from 'axios';
 import { keyframes } from '@mui/system';
 import Vapi from '@vapi-ai/web';
 import panCake from '../assets/panCake.png';
 import { motion, AnimatePresence } from 'framer-motion';
 import FastfoodIcon from '@mui/icons-material/Fastfood';
-import LocalDiningIcon from '@mui/icons-material/LocalDining';
-import DriveEtaIcon from '@mui/icons-material/DriveEta';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import Fuse from 'fuse.js';
 import { useNavigate } from 'react-router-dom';
@@ -124,7 +117,7 @@ const OrderingSimulation = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const messagesContainerRef = useRef(null);
   const navigate = useNavigate();
-
+  const [orderDetails, setOrderDetails] = useState(null)
   useEffect(() => {
     fetchMenuItems();
   }, []);
@@ -148,7 +141,8 @@ const OrderingSimulation = () => {
   }, [isSubmitted])
 
   const submitOrderList = async() => {
-    const response = await axios.post('/api/process-order', {items: orderItems});      
+    const response = await axios.post('/api/process-order', {items: orderItems});  
+    setOrderDetails(response.data)
   }
 
   const vapiClient = useRef(null);
@@ -959,6 +953,29 @@ const OrderingSimulation = () => {
                         </Box>
                       </motion.div>
                     ))}
+                    {
+                      orderDetails &&
+                      <motion.div
+                        variants={itemVariants}
+                        initial="hidden"
+                        animate="visible"
+                        exit={{ opacity: 0, y: -20 }}
+                      >
+                        <Box sx={{ 
+                          p: 2, 
+                          mt:3,
+                          borderBottom: '1px solid', 
+                          borderColor: 'divider',
+                          '&:hover': {
+                            bgcolor: 'rgba(0, 0, 0, 0.02)'
+                          }
+                        }}>
+                          <Typography variant="h6" color="primary">Order successfully placed</Typography>
+                          <Typography variant="body2" color="text.secondary">Your order number</Typography>
+                          <Typography variant="h4" color="text.secondary">#{orderDetails?.orderId}</Typography>
+                        </Box>
+                      </motion.div>
+                    }
                   </AnimatePresence>
                 </Box>
               )}
@@ -1089,7 +1106,7 @@ const OrderingSimulation = () => {
                         <CardMedia
                           component="img"
                           height="160"
-                          image={panCake}
+                          image={item.image}
                           alt={'Burger image'}
                           sx={{ objectFit: 'cover' }}
                         />

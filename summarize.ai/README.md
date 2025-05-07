@@ -108,48 +108,35 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ### Vercel Deployment
 
-To deploy the application to Vercel, follow these steps:
+For detailed deployment instructions, please refer to [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md).
+
+This application is configured for deployment on Vercel. Key points:
 
 1. **Environment Variables Setup**:
-   Make sure all environment variables are properly configured in Vercel:
-   - Go to your Vercel project dashboard
-   - Navigate to "Settings" → "Environment Variables"
-   - Add all variables from your `.env.local` file:
-     ```
-     # OpenAI API Keys
-     OPENAI_API_KEY=your_openai_api_key
-     
-     # Gemini API Keys
-     GEMINI_API_KEY=your_gemini_api_key
-     NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
-     
-     # Firebase Configuration
-     NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
-     NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
-     NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
-     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
-     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
-     NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
-     NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_firebase_measurement_id
-     ```
+   Make sure all Firebase environment variables are properly configured in Vercel:
+   - Firebase Client configuration for frontend
+   - Firebase Admin SDK credentials for backend API routes
+   - Ensure Firebase private key is formatted correctly with line breaks
 
 2. **Build Optimization**:
-   Recent changes to ensure successful deployment:
-   - Updated route configuration to use Next.js 14 App Router format
-   - Removed deprecated `serverActions` flag from `next.config.js`
-   - Updated API route configuration for better performance
-   - Fixed React hooks and ESLint issues
+   The app has been optimized for Vercel deployment with:
+   - Configuration in `vercel.json` for proper API route handling
+   - ESLint and TypeScript checking disabled during build
+   - Node.js and npm version requirements specified in package.json
 
-3. **Deployment Commands**:
-   ```
-   npm run build
-   npm run start
-   ```
+3. **Deployment Process**:
+   - Connect your GitHub repository to Vercel
+   - Configure all environment variables
+   - Deploy the application
+   - Verify API endpoints are working correctly after deployment
 
-4. **Limits and Considerations**:
-   - Free tier Vercel has a 4.5MB request size limit
-   - For handling larger files (like PDFs or audio), consider upgrading to a Pro plan
-   - Set appropriate timeout values for API routes that need more processing time
+4. **Troubleshooting Common Issues**:
+   If you encounter deployment issues, check:
+   - Firebase Admin credentials are correctly configured
+   - API routes are properly set up for server-side execution
+   - Check Vercel logs for specific error messages
+
+For Firebase setup instructions, please refer to [FIREBASE_SETUP_INSTRUCTIONS.md](./FIREBASE_SETUP_INSTRUCTIONS.md).
 
 ### Troubleshooting
 

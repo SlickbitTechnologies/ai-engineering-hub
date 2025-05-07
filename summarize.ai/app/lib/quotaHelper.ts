@@ -111,7 +111,7 @@ export const quotaAwareFetch = async (
                 // Try to refresh quota from the quota status endpoint
                 try {
                     // Use authFetch for quota-status endpoint as well
-                    const quotaResponse = await authFetch('/api/quota-status');
+                    const quotaResponse = await authFetch('/api/quota-status?userId=${user.uid}');
                     if (quotaResponse.ok) {
                         const quotaData = await quotaResponse.json();
                         if (quotaData.quota) {

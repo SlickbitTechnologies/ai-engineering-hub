@@ -5,7 +5,7 @@ import Sidebar from './components/Sidebar';
 import OrderingSimulation from './components/OrderingSimulation';
 import OrderDisplay from './components/OrderDisplay';
 import MenuManagement from './components/MenuManagement';
-
+import logo from './assets/logo.png'
 const theme = createTheme({
   palette: {
     primary: {
@@ -45,8 +45,10 @@ function App() {
               ml: '240px', // Same as sidebar width
               bgcolor: '#FFF',
               minHeight: '100vh',
+              position: 'relative',
             }}
           >
+            
             <Routes>
               <Route path="/" element={<OrderingSimulation />} />
               <Route path="/orders" element={<OrderDisplay />} />

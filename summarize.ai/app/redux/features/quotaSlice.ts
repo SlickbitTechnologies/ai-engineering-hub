@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/app/firebase/firebase';
 import { RootState } from '../store';
+import { authFetch } from '@/app/lib/authFetch';
 
 interface QuotaState {
     used: number;
@@ -28,9 +29,9 @@ export const fetchUserQuota = createAsyncThunk(
                 return rejectWithValue('User ID is required to fetch quota');
             }
 
-            // Try to fetch from API first (for latest status)
+            // Try to fetch from API first (for latest status) with authenticated request
             try {
-                const response = await fetch(`/api/quota-status?userId=${userId}`);
+                const response = await authFetch(`/api/quota-status?userId=${userId}`);
                 if (response.ok) {
                     const data = await response.json();
                     return {

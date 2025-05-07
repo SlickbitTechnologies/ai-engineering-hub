@@ -2,13 +2,20 @@
   "name": "summarize-ai",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "node scripts/optimize-for-vercel.js && next build",
     "start": "next start",
     "lint": "next lint",
     "verify-firebase": "node scripts/verify-firebase-credentials.js",
-    "clean-dev": "rimraf .next && next dev"
+    "verify-auth": "node scripts/verify-auth-flow.js",
+    "clean-dev": "rimraf .next && next dev",
+    "prepare-deploy": "node scripts/deploy-to-vercel.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",

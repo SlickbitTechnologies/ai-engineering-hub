@@ -517,7 +517,7 @@ const handleCustomizationChange = (index, field, value) => {
 
                         <Box sx={{ display: 'flex', gap: 3, mb: 2 }}>
                           <img 
-                            src={panCake} 
+                            src={item.image} 
                             alt={item.name}
                             style={{ 
                               width: '80px',
