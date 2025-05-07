@@ -358,158 +358,268 @@ function Settings() {
         initial="hidden"
         animate="visible"
         variants={containerVariants}
-        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"
+        className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12"
       >
         <motion.div variants={itemVariants} className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
           <p className="mt-2 text-gray-600">Configure document templates for metadata extraction</p>
         </motion.div>
 
-        {/* Full-width Template Creation Form */}
-        <motion.div variants={itemVariants} className="bg-white rounded-2xl shadow-xl p-12 border border-gray-100 w-full">
-          <h2 className="text-xl font-semibold text-blue-700 mb-6 flex items-center">
-            <DocumentTextIcon className="h-6 w-6 mr-2 text-blue-500" />
-            Create New Template
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Template Name</label>
-              <input
-                type="text"
-                value={templateName}
-                onChange={e => setTemplateName(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="e.g., Clinical Study Report Template"
-              />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left Side: Create New Template Form */}
+          <motion.div variants={itemVariants} className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+            <h2 className="text-xl font-semibold text-blue-700 mb-6 flex items-center">
+              <DocumentTextIcon className="h-6 w-6 mr-2 text-blue-500" />
+              {editingTemplate ? 'Edit Template' : 'Create New Template'}
+            </h2>
+            <div className="grid grid-cols-1 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Template Name</label>
+                <input
+                  type="text"
+                  value={templateName}
+                  onChange={e => setTemplateName(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="e.g., Clinical Study Report Template"
+                  style={{paddingLeft: '5px'}}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Description</label>
+                <textarea
+                  value={templateDescription}
+                  onChange={e => setTemplateDescription(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="Describe the purpose of this template..."
+                  style={{paddingLeft: '5px'}}
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
-              <textarea
-                value={templateDescription}
-                onChange={e => setTemplateDescription(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="Describe the purpose of this template..."
-              />
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-md font-semibold text-gray-800">Metadata Fields</h4>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={handleAddField}
+                  className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
+                >
+                  <PlusIcon className="h-5 w-5 mr-1" /> Add Field
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
+                >
+                  <ArrowDownTrayIcon className="h-5 w-5 mr-1" /> Import Fields
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".csv,.xlsx,.xls"
+                  className="hidden"
+                />
+              </div>
             </div>
-          </div>
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-md font-semibold text-gray-800">Metadata Fields</h4>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={handleAddField}
-                className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
-              >
-                <PlusIcon className="h-5 w-5 mr-1" /> Add Field
-              </button>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
-              >
-                <ArrowDownTrayIcon className="h-5 w-5 mr-1" /> Import Fields
-              </button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept=".csv,.xlsx,.xls"
-                className="hidden"
-              />
-            </div>
-          </div>
-          <motion.div layout className="space-y-4">
+            <motion.div layout className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
+              <AnimatePresence>
+                {fields.map((field, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    layout
+                    className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 rounded-lg p-4 border border-blue-100 relative"
+                  >
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">Field Name</label>
+                      <input
+                        type="text"
+                        value={field.name}
+                        onChange={e => handleFieldChange(idx, 'name', e.target.value)}
+                        className="mt-1 block w-full rounded-md border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        placeholder="e.g., Product Name"
+                        style={{paddingLeft: '5px'}}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">Description</label>
+                      <input
+                        type="text"
+                        value={field.description}
+                        onChange={e => handleFieldChange(idx, 'description', e.target.value)}
+                        className="mt-1 block w-full rounded-md border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        placeholder="e.g., Invented name, full product name"
+                        style={{paddingLeft: '5px'}}
+                      />
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleDeleteField(idx)}
+                      className="absolute top-2 right-2 text-gray-400 hover:text-red-500"
+                    >
+                      <TrashIcon className="h-5 w-5" />
+                    </motion.button>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
             <AnimatePresence>
-              {fields.map((field, idx) => (
+              {uploadError && (
                 <motion.div
-                  key={idx}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  layout
-                  className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 rounded-lg p-4 border border-blue-100 relative"
+                  className="bg-red-50 rounded-lg p-4 mt-4 flex items-center"
                 >
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700">Field Name</label>
-                    <input
-                      type="text"
-                      value={field.name}
-                      onChange={e => handleFieldChange(idx, 'name', e.target.value)}
-                      className="mt-1 block w-full rounded-md border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                      placeholder="e.g., Product Name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700">Description</label>
-                    <input
-                      type="text"
-                      value={field.description}
-                      onChange={e => handleFieldChange(idx, 'description', e.target.value)}
-                      className="mt-1 block w-full rounded-md border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                      placeholder="e.g., Invented name, full product name"
-                    />
-                  </div>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => handleDeleteField(idx)}
-                    className="absolute top-2 right-2 text-gray-400 hover:text-red-500"
-                  >
-                    <TrashIcon className="h-5 w-5" />
-                  </motion.button>
+                  <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mr-2" />
+                  <span className="text-sm text-red-700">{uploadError}</span>
                 </motion.div>
-              ))}
+              )}
+              {showFieldVerification && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="bg-blue-50 rounded-lg p-4 mt-4"
+                >
+                  <h4 className="font-semibold mb-2">Verify Imported Fields ({uploadedFields.length})</h4>
+                  <div className="max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                    {uploadedFields.map((field, i) => (
+                      <div key={i} className="p-2 bg-white rounded border border-gray-200 mb-2">
+                        <div className="text-sm font-medium text-gray-900">{field.name}</div>
+                        <div className="text-xs text-gray-500">{field.description}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end space-x-2">
+                    <button
+                      onClick={handleRejectUploadedFields}
+                      className="text-sm text-gray-600 hover:text-gray-900"
+                    >Cancel</button>
+                    <button
+                      onClick={handleAcceptUploadedFields}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >Use These Fields</button>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
+            <div className="flex space-x-4 mt-6">
+              {editingTemplate && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleResetForm}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Cancel
+                </motion.button>
+              )}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleSaveTemplate}
+                className="flex-1 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                {editingTemplate ? 'Update Template' : 'Save Template'}
+              </motion.button>
+            </div>
           </motion.div>
-          <AnimatePresence>
-            {uploadError && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="bg-red-50 rounded-lg p-4 mt-4 flex items-center"
-              >
-                <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mr-2" />
-                <span className="text-sm text-red-700">{uploadError}</span>
-              </motion.div>
-            )}
-            {showFieldVerification && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="bg-blue-50 rounded-lg p-4 mt-4"
-              >
-                <h4 className="font-semibold mb-2">Verify Imported Fields ({uploadedFields.length})</h4>
-                <div className="max-h-40 overflow-y-auto space-y-2 mb-4">
-                  {uploadedFields.map((field, i) => (
-                    <div key={i} className="p-2 bg-white rounded border border-gray-200">
-                      <div className="text-sm font-medium text-gray-900">{field.name}</div>
-                      <div className="text-xs text-gray-500">{field.description}</div>
-                    </div>
+
+          {/* Right Side: Template List */}
+          <motion.div variants={itemVariants} className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+            <h2 className="text-xl font-semibold text-blue-700 mb-6 flex items-center">
+              <Cog6ToothIcon className="h-6 w-6 mr-2 text-blue-500" />
+              Existing Templates
+            </h2>
+
+            {templates.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                No templates found. Create your first template to get started.
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
+                <AnimatePresence>
+                  {templates.map((template) => (
+                    <motion.div
+                      key={template.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      whileHover={{ scale: 1.01 }}
+                      className="bg-gray-50 rounded-lg p-4 border border-gray-200"
+                    >
+                      <div className="flex justify-between">
+                        <div className="flex-1 mr-4">
+                          <h3 className="font-medium text-gray-900">{template.name}</h3>
+                          <p className="text-sm text-gray-500 mt-1 line-clamp-2">{template.description}</p>
+                          <div className="mt-2 text-xs text-gray-500">
+                            {template.metadataFields?.length || 0} fields defined
+                          </div>
+                        </div>
+                        <div className="flex flex-col space-y-2">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleEditTemplate(template)}
+                            className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-xs font-medium"
+                          >
+                            Edit
+                          </motion.button>
+                          {/* <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleCopyTemplate(template)}
+                            className="px-3 py-1 bg-green-50 hover:bg-green-100 text-green-700 rounded text-xs font-medium"
+                          >
+                            Copy
+                          </motion.button> */}
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleDeleteTemplate(template.id)}
+                            className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded text-xs font-medium"
+                          >
+                            Delete
+                          </motion.button>
+                        </div>
+                      </div>
+                    </motion.div>
                   ))}
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <button
-                    onClick={handleRejectUploadedFields}
-                    className="text-sm text-gray-600 hover:text-gray-900"
-                  >Cancel</button>
-                  <button
-                    onClick={handleAcceptUploadedFields}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                  >Use These Fields</button>
-                </div>
-              </motion.div>
+                </AnimatePresence>
+              </div>
             )}
-          </AnimatePresence>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleSaveTemplate}
-            className="mt-6 w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            Save Template
-          </motion.button>
-        </motion.div>
+          </motion.div>
+        </div>
       </motion.div>
+
+      {/* Add global scrollbar styles */}
+      <style jsx global>{`
+        /* Custom Scrollbar Styles */
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: rgba(0, 0, 0, 0.2);
+          border-radius: 20px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background-color: rgba(0, 0, 0, 0.3);
+        }
+        
+        /* For Firefox */
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+        }
+      `}</style>
     </div>
   );
 }
