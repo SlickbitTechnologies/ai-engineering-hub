@@ -118,9 +118,10 @@ export const quotaSlice = createSlice({
             state.error = null;
         },
         // Add a setQuota action to update state from API responses
-        setQuota: (state, action: PayloadAction<{ used: number; limit: number }>) => {
-            state.used = action.payload.used;
-            state.limit = action.payload.limit;
+        setQuota: (state, action: PayloadAction<{ used?: number; limit?: number }>) => {
+            // Safe assignment with fallbacks
+            state.used = action.payload.used ?? 0;  // Use nullish coalescing
+            state.limit = action.payload.limit ?? 10; // Use nullish coalescing
             state.date = new Date().toISOString().slice(0, 10); // Always use today
         },
     },
