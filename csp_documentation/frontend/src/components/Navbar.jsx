@@ -41,7 +41,7 @@ const Navbar = () => {
       initial="hidden"
       animate="visible"
       variants={navVariants}
-      className="bg-white shadow-lg fixed w-full z-50"
+      className="bg-[#0098B3] shadow-lg fixed w-full z-50"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
@@ -52,7 +52,7 @@ const Navbar = () => {
           >
             <Link to="/" className="flex items-center space-x-2">
               <DocumentTextIcon className="h-8 w-8 text-blue-600" />
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+              <span className="text-xl font-bold bg-white to-blue-800 bg-clip-text text-transparent ">
                 Meta-Doc Automator
               </span>
             </Link>

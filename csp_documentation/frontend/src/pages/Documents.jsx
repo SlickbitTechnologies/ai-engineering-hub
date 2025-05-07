@@ -468,9 +468,10 @@ function Documents() {
                   onClick={handleDownloadExcel}
                   className="px-4 py-2 rounded-md bg-[#0098B3] text-white font-medium hover:bg-[#007A92] transition-colors flex items-center"
                 >
-                  <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
+                  {/* <svg className="h-5 w-5 mr-2" fill="red" stroke="red" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+</svg> */}
+
                   Download Excel
                 </motion.button>
               </div>

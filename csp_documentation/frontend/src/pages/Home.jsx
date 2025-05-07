@@ -15,12 +15,14 @@ const features = [
   {
     icon: SparklesIcon,
     title: 'AI-Powered Processing',
-    description: 'Advanced AI algorithms for intelligent document analysis and processing'
+    description: 'Advanced AI algorithms for intelligent document analysis and processing',
+    
   },
   {
     icon: ClockIcon,
     title: 'Real-time Progress',
-    description: 'Track document processing status with detailed progress updates'
+    description: 'Track document processing status with detailed progress updates',
+    
   },
   {
     icon: ShieldCheckIcon,
@@ -70,7 +72,7 @@ const Home = () => {
             transition={{ delay: 0.2 }}
             className="text-4xl sm:text-5xl md:text-6xl font-bold text-gray-900 mb-6"
           >
-            <span className="bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+            <span className=" bg-[#0098B3] to-blue-800 bg-clip-text text-transparent hover:bg-[#007A92]">
               Meta-Doc Automator
             </span>
           </motion.h1>
@@ -97,7 +99,7 @@ const Home = () => {
             <Link to="/documents" className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <div className="bg-blue-50 p-3 rounded-lg">
-                  <DocumentTextIcon className="h-8 w-8 text-blue-600" />
+                  <DocumentTextIcon className="h-8 w-8" style={{ color: '#0098B3' }} />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Process Documents</h3>
@@ -116,7 +118,7 @@ const Home = () => {
             <Link to="/settings" className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <div className="bg-blue-50 p-3 rounded-lg">
-                  <Cog6ToothIcon className="h-8 w-8 text-blue-600" />
+                  <Cog6ToothIcon className="h-8 w-8 " style={{ color: '#0098B3' }} />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Configure Templates</h3>
@@ -141,7 +143,7 @@ const Home = () => {
               className="bg-white rounded-xl shadow-lg p-6 border border-gray-100"
             >
               <div className="bg-blue-50 p-3 rounded-lg w-fit mb-4">
-                <feature.icon className="h-6 w-6 text-blue-600" />
+                <feature.icon className="h-6 w-6 " style={{ color: '#0098B3' }} />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{feature.title}</h3>
               <p className="text-gray-600">{feature.description}</p>
