@@ -14,8 +14,8 @@ import {
   ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 
-// const url = 'https://slickbit-ai-csp.onrender.com';
-const url = 'http://localhost:8000';
+const url = 'https://slickbit-ai-csp.onrender.com';
+// const url = 'http://localhost:8000';
 
 function Settings() {
   const [showCreateForm, setShowCreateForm] = useState(false);

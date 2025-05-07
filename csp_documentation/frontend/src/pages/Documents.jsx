@@ -14,8 +14,8 @@ import {
 } from '@heroicons/react/24/outline';
 import '../styles/global.css';
 
-// const url = 'https://slickbit-ai-csp.onrender.com';
-const url = 'http://localhost:8000';
+const url = 'https://slickbit-ai-csp.onrender.com';
+// const url = 'http://localhost:8000';
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
