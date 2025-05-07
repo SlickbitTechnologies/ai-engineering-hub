@@ -39,7 +39,11 @@ export const showQuotaExceededToast = () => {
 };
 
 export const useQuotaCheck = () => {
-  const { used, limit } = useSelector((state: RootState) => state.quota);
+  const quotaState = useSelector((state: RootState) => state.quota);
+  
+  // Safe access of quota values with defaults
+  const used = quotaState?.used ?? 0;
+  const limit = quotaState?.limit ?? 10;
   
   const checkQuota = (): boolean => {
     if (used >= limit) {
