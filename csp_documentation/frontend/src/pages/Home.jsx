@@ -106,7 +106,7 @@ const Home = () => {
                   <p className="text-gray-600">Upload and process your documents</p>
                 </div>
               </div>
-              <ArrowRightIcon className="h-6 w-6 text-blue-600" />
+              <ArrowRightIcon className="h-6 w-6" style={{ color: '#0098B3' }} />
             </Link>
           </motion.div>
 
@@ -125,7 +125,7 @@ const Home = () => {
                   <p className="text-gray-600">Configure your preferences</p>
                 </div>
               </div>
-              <ArrowRightIcon className="h-6 w-6 text-blue-600" />
+              <ArrowRightIcon className="h-6 w-6" style={{ color: '#0098B3' }} />
             </Link>
           </motion.div>
         </motion.div>

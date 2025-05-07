@@ -51,7 +51,7 @@ const Navbar = () => {
             whileTap={{ scale: 0.95 }}
           >
             <Link to="/" className="flex items-center space-x-2">
-              <DocumentTextIcon className="h-8 w-8 text-blue-600" />
+              <DocumentTextIcon className="h-8 w-8" style={{color: 'white'}} />
               <span className="text-xl font-bold bg-white to-blue-800 bg-clip-text text-transparent ">
                 Meta-Doc Automator
               </span>
@@ -73,8 +73,8 @@ const Navbar = () => {
                     to={item.path}
                     className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                       isActive
-                        ? 'bg-blue-50 text-blue-600'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-blue-600'
+                        ? 'bg-blue-50 text-#0098B3-600'
+                        : 'text-#FFF-600 hover:bg-white-50 hover:text-#0098B3-600'
                     }`}
                   >
                     <item.icon className="h-5 w-5 mr-2" />

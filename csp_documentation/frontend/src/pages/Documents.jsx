@@ -364,7 +364,7 @@ function Documents() {
           animate={{ opacity: 1 }}
           className="mb-8"
         >
-          <h1 className="text-2xl font-semibold text-[#0098B3]">Documents</h1>
+          <h1 className="text-3xl font-bold text-[#0098B3]">Documents</h1>
           <p className="text-gray-600">Process documents and extract metadata</p>
         </motion.div>
 
