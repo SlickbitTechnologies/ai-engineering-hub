@@ -8,6 +8,7 @@ import {
   Bars3Icon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
+import Logo from '../assets/Slickbit-logo-white-bg.png';
 
 const navItems = [
   { path: '/', icon: HomeIcon, label: 'Home' },
@@ -45,10 +46,15 @@ const Navbar = () => {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
+             <Link to="https://slickbit.ai/" target="_blank" className="flex items-center space-x-2">
+              <img src={Logo} alt="Logo" style={{width: '120px', height: '40px'}} />
+            </Link>
+
           <motion.div 
             className="flex items-center"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            // style={{position: 'absolute', alignItems:'center', display:'flex', justifyContent:'center'}}
           >
             <Link to="/" className="flex items-center space-x-2">
               <DocumentTextIcon className="h-8 w-8" style={{color: 'white'}} />
