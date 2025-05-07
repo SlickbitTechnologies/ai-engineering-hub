@@ -2,12 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from '@/app/redux/store';
+import { RootState, AppDispatch } from '@/app/redux/store';
 import { motion } from 'framer-motion';
 import { fetchUserQuota } from '@/app/redux/features/quotaSlice';
 import { Progress } from '@/app/components/ui/Progress';
 import { useAuth } from '@/app/context/AuthContext';
-import { AppDispatch } from '@/app/redux/store';
 import { useQuotaRefresh } from '@/app/hooks/useQuotaRefresh';
 import toast from 'react-hot-toast';
 import { AlertTriangle } from 'lucide-react';
@@ -16,10 +15,24 @@ interface QuotaProgressBarProps {
   isCollapsed?: boolean;
 }
 
+// Safe quota selector that handles undefined state
+const safeQuotaSelector = (state: RootState) => {
+  // Check if state.quota exists before accessing its properties
+  if (!state.quota) {
+    return {
+      used: 0,
+      limit: 10,
+      loading: false
+    };
+  }
+  return state.quota;
+};
+
 const QuotaProgressBar = ({ isCollapsed = false }: QuotaProgressBarProps) => {
   const dispatch = useDispatch<AppDispatch>();
   const { user, isLoading } = useAuth();
-  const { used, limit, loading } = useSelector((state: RootState) => state.quota);
+  // Use the safe selector
+  const { used, limit, loading } = useSelector(safeQuotaSelector);
   const [color, setColor] = useState('bg-green-500');
   const [hasShownWarning, setHasShownWarning] = useState(false);
   const { refreshQuota } = useQuotaRefresh(15000); // less frequent refresh to reduce API calls
@@ -30,30 +43,49 @@ const QuotaProgressBar = ({ isCollapsed = false }: QuotaProgressBarProps) => {
   
   // Only fetch quota when we have a logged-in user
   useEffect(() => {
-    if (!isLoading && user?.uid) {
-      console.log('Fetching quota for user:', user.uid);
-      dispatch(fetchUserQuota(user.uid));
+    // Skip if not authenticated or still loading auth
+    if (isLoading || !user?.uid) {
+      return;
     }
+    
+    console.log('Fetching quota for user:', user.uid);
+    dispatch(fetchUserQuota(user.uid));
   }, [dispatch, user, isLoading]);
 
   // Only refresh when we have a logged-in user
   useEffect(() => {
-    if (!isLoading && user?.uid) {
-      console.log('Initial quota refresh for user:', user.uid);
-      refreshQuota();
-    }
-  }, [user, isLoading]);
-
-  useEffect(() => {
-    // Update color based on percentage used
-    if (percentage > 90) {
-      setColor('bg-red-500'); // #EF4444
-    } else if (percentage > 70) {
-      setColor('bg-yellow-500'); // #FBBF24
-    } else {
-      setColor('bg-green-500'); // #22C55E
+    // Skip if not authenticated or still loading auth
+    if (isLoading || !user?.uid) {
+      return;
     }
     
+    console.log('Initial quota refresh for user:', user.uid);
+    refreshQuota();
+  }, [user, isLoading, refreshQuota]);
+
+  // Update color based on usage
+  useEffect(() => {
+    // Skip if still loading
+    if (isLoading) {
+      return;
+    }
+    
+    // If no user, don't show any colored progress
+    if (!user) {
+      setColor('bg-gray-300');
+      return;
+    }
+    
+    if (percentage >= 90) {
+      setColor('bg-red-500');
+    } else if (percentage >= 70) {
+      setColor('bg-amber-500');
+    } else {
+      setColor('bg-green-500');
+    }
+  }, [percentage, isLoading, user]);
+
+  useEffect(() => {
     // Only show warnings when we have a user
     if (user && remaining === 1 && !hasShownWarning) {
       toast(

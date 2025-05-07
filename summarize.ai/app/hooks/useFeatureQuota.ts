@@ -5,6 +5,7 @@ import { fetchUserQuota } from '@/app/redux/features/quotaSlice';
 import { useAuth } from '@/app/context/AuthContext';
 import { authFetch } from '@/app/lib/authFetch';
 import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
 type FeatureType =
     | 'webScrape'
@@ -26,6 +27,7 @@ export const useFeatureQuota = (feature: FeatureType) => {
     const dispatch = useDispatch<AppDispatch>();
     const { used, limit, loading } = useSelector((state: RootState) => state.quota);
     const [isCheckingQuota, setIsCheckingQuota] = useState(false);
+    const router = useRouter();
 
     /**
      * Check if the user has available quota for an operation
@@ -33,7 +35,9 @@ export const useFeatureQuota = (feature: FeatureType) => {
      */
     const checkQuotaAvailable = useCallback(async (): Promise<boolean> => {
         if (!user?.uid) {
+            console.log('No authenticated user, redirecting to auth page');
             toast.error('Please log in to use this feature.');
+            router.push('/auth');
             return false;
         }
 
@@ -45,7 +49,7 @@ export const useFeatureQuota = (feature: FeatureType) => {
 
             // Get the latest quota from Redux store
             const state = (dispatch as any).getState() as RootState;
-            const currentQuota = state.quota;
+            const currentQuota = state.quota || { used: 0, limit: 10 }; // Safe fallback
 
             if (currentQuota.used >= currentQuota.limit) {
                 toast.error(`You've reached your daily limit of ${currentQuota.limit} requests. Please try again tomorrow.`, {
@@ -73,7 +77,7 @@ export const useFeatureQuota = (feature: FeatureType) => {
         } finally {
             setIsCheckingQuota(false);
         }
-    }, [user, dispatch]);
+    }, [user, dispatch, router]);
 
     /**
      * Increment the quota after a successful operation
