@@ -3,8 +3,8 @@ import { useTemplates } from '../context/TemplateContext';
 import { useLoading } from '../context/LoadingContext';
 import '../styles/global.css';
 
-const url = 'https://slickbit-ai-csp.onrender.com';
-// const url = 'http://localhost:8000';
+// const url = 'https://slickbit-ai-csp.onrender.com';
+const url = 'http://localhost:8000';
 
 function Documents() {
   const { templates } = useTemplates();
