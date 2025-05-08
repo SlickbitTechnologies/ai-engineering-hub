@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useShipments, Shipment } from '../contexts/ShipmentContext';
 import { useSettings } from '../contexts/SettingsContext';
 import LoadingSpinner from '../components/common/LoadingSpinner';
-import { Thermometer, MapPin, Truck, Calendar, Clock, FileText, MessageSquare } from 'lucide-react';
+import { Thermometer, MapPin, Truck, Calendar, Clock, FileText, MessageSquare, User, Building, Phone, Mail } from 'lucide-react';
 import { formatInTimeZone } from 'date-fns-tz';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import NotificationCenter from '../components/NotificationCenter';
@@ -125,7 +125,7 @@ const ShipmentDetailPage: React.FC = () => {
     fullTime: formatDateTime(point.timestamp, 'MMM d, h:mm a'),
     value: point.value
   }));
-  
+  console.log("SHIPMENT", shipment);
   const minTemp = minTemperatureThreshold;
   const maxTemp = maxTemperatureThreshold;
   
@@ -353,8 +353,8 @@ const ShipmentDetailPage: React.FC = () => {
                   <User className="h-5 w-5 text-cyan-600" />
                 </div>
                 <div>
-                  <h3 className="text-base font-medium text-gray-900">{shipment.contacts?.name || 'NA'}</h3>
-                  <p className="text-sm text-gray-500">{shipment.contacts?.role || 'NA'}</p>
+                  <h3 className="text-base font-medium text-gray-900">{shipment.senderContactName || 'NA'}</h3>
+                  <p className="text-sm text-gray-500">{shipment.designation || 'NA'}</p>
                 </div>
               </div>
               
@@ -364,7 +364,7 @@ const ShipmentDetailPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Organization</p>
-                  <p className="text-gray-900">{shipment.contacts?.organization || 'NA'}</p>
+                  <p className="text-gray-900">{shipment.organization || 'NA'}</p>
                 </div>
               </div>
               
@@ -374,7 +374,7 @@ const ShipmentDetailPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Phone Number</p>
-                  <p className="text-gray-900">{shipment.contacts?.phone || 'NA'}</p>
+                  <p className="text-gray-900">{shipment.phoneNumber   || 'NA'}</p>
                 </div>
               </div>
               
@@ -384,7 +384,7 @@ const ShipmentDetailPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Email</p>
-                  <p className="text-gray-900">{shipment.contacts?.email || 'NA'}</p>
+                  <p className="text-gray-900">{shipment.email || 'NA'}</p>
                 </div>
               </div>
             </div>
