@@ -392,6 +392,7 @@ export const ShipmentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         
         // Combine original data with our processed/normalized data
         const processedShipment: Shipment = {
+          ...shipment,
           id,
           number: shipment.number || `SH-${Math.floor(10000 + Math.random() * 90000)}`,
           status: ((shipment.status || 'in-transit') as string).toLowerCase() as 'in-transit' | 'delivered' | 'delayed',
