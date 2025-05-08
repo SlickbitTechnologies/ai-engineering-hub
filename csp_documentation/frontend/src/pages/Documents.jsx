@@ -1,10 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTemplates } from '../context/TemplateContext';
 import { useLoading } from '../context/LoadingContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  DocumentArrowUpIcon,
+  DocumentTextIcon,
+  ArrowPathIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ExclamationTriangleIcon,
+  DocumentArrowDownIcon,
+  DocumentMagnifyingGlassIcon
+} from '@heroicons/react/24/outline';
 import '../styles/global.css';
 
-// const url = 'https://slickbit-ai-csp.onrender.com';
-const url = 'http://localhost:8000';
+const url = 'https://slickbit-ai-csp.onrender.com';
+// const url = 'http://localhost:8000';
+
+const fadeIn = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -20 }
+};
+
+const slideIn = {
+  initial: { x: -20, opacity: 0 },
+  animate: { x: 0, opacity: 1 },
+  exit: { x: 20, opacity: 0 }
+};
 
 function Documents() {
   const { templates } = useTemplates();
@@ -32,6 +55,10 @@ function Documents() {
   const [processingComplete, setProcessingComplete] = useState(false);
   const [foundDocumentNames, setFoundDocumentNames] = useState([]);
   const [sharepointUrl, setSharepointUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Load metadata from backend on component mount
   useEffect(() => {
@@ -297,176 +324,177 @@ function Documents() {
     setIsEditing(false);
     setEditingRow(null);
   };
-  
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.3
+      }
+    }
+  };
+
+  const cardVariants = {
+    hidden: { opacity: 0, y: 30 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
+  };
+
+  const fadeIn = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { duration: 0.4 } }
+  };
 
   return (
-    <div className="page-container">
-      <div className="bg-pattern">
-        <div className="bg-pattern-inner"></div>
-      </div>
+    <div className="min-h-screen pt-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mb-8"
+        >
+          <h1 className="text-3xl font-bold text-[#0098B3]">Documents</h1>
+          <p className="text-gray-600">Process documents and extract metadata</p>
+        </motion.div>
 
-      <div className="content-container">
-        <div className="mb-4">
-          <h1 className="page-title">Documents</h1>
-          <p className="page-description">Process documents and extract metadata</p>
-        </div>
-
-        <div className="card">
-          <div className="space-y-4">
-            <div>
-              <label className="form-label">
-                Sharepoint URL
-              </label>
-              <input
-                type="text"
-                value={documentUrl}
-                onChange={(e) => setDocumentUrl(e.target.value)}
-                className="form-input"
-                placeholder="https://graph.microsoft.com/v1.0/sites/slickbitai.sharepoint.com,{site_id}/drive/root:/{document_name}"
-              />
-            </div>
-
-            <div>
-              <label className="form-label">
-                Select Template
-              </label>
-              <select
-                value={selectedTemplateId}
-                onChange={handleTemplateChange}
-                className="form-input"
-              >
-                <option value="">Select a template</option>
-                {templates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {error && (
-              <div className="error-message">
-                {error}
-              </div>
-            )}
-
-            <div className="flex justify-between items-center space-x-6">
-              <div style={{display:'flex', left: 0}}>
-                {progress > 0 && (
-                <div className="flex-1 max-w-md">
-                  <div className="flex justify-between text-sm text-gray-600 mb-1">
-                    <span>Sending document for processing...</span>
-                    <span>{progress.toFixed(1)}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2.5">
-                    <div 
-                      className="h-2.5 rounded-full transition-all duration-300" 
-                      style={{ width: `${progress}%`, backgroundColor:'#0098B3' }}
-                    ></div>
-                  </div>
-                  {estimatedTimeRemaining && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      {/* Estimated time remaining: {estimatedTimeRemaining} */}
-                    </div>
-                  )}
-                  {progress > 0 && (
-          <>
-            {totalDocuments > 0 && (
-              <div className="text-sm text-gray-700 mb-1">
-                Found {totalDocuments} documents to process.
-              </div>
-            )}
-            {progress > 0 && totalDocuments > 0 && (
-              <div className="text-sm text-blue-700 mb-1">
-                Found {totalDocuments} documents to process.
-              </div>
-            )}
-            {/* {currentDocumentName && (
-              <div className="text-sm text-blue-700 mb-1">
-                Processing: {currentDocumentName}
-              </div>
-            )} */}
-            {progress > 0 && (
-              <div className="text-xs text-gray-500 mt-1">
-                Processing time: {Math.floor(elapsedTime / 60)}m {String(elapsedTime % 60).padStart(2, '0')}s
-              </div>
-            )}
-          </>
-        )}
-                </div>
-              )}
-              </div>
-              <button
-                onClick={handleProcessDocument}
-                disabled={progress > 0 || !documentUrl || !selectedTemplateId}
-                className="button-primary"
-              >
-                {progress > 0 ? 'Processing...' : 'Process Document'}
-              </button>
-            </div>
+        <motion.div
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          className="bg-white rounded-lg shadow-md p-6 mb-8 border border-gray-200"
+        >
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sharepoint URL</label>
+            <input
+              type="text"
+              value={documentUrl}
+              onChange={e => setDocumentUrl(e.target.value)}
+              className="w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#0098B3] focus:border-[#0098B3]"
+              placeholder="https://graph.microsoft.com/v1.0/sites/slickbitai.sharepoint.com,{site_id}/drive/root:/{document_name}"
+            />
           </div>
-        </div>
-        {foundDocumentNames.length > 0 && (
-          <div className="text-xs text-gray-600 mb-2">
-            <strong>Documents found to process:</strong>
-            <ul className="list-disc ml-6">
-              {foundDocumentNames.map((name, idx) => (
-                <li key={idx}>{name}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {documents.length > 0 && (
-          <div className="mt-8">
-            <h2 className="section-title mb-4">Processed Documents</h2>
-            <a
-              href="https://slickbitai.sharepoint.com/sites/regulatory-docs/Shared%20Documents/Forms/AllItems.aspx"
-              target="_blank"
-              style={{ color: 'blue', textDecoration: 'underline' }}>
-              Click here to view the Excel file
-            </a>
-         
-            <div className="space-y-4">
-              {documents.map((doc) => (
-                <div key={doc.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-900"> documents processed </h3>
-                      {/* <p className="text-xs text-gray-500">Processed on: {new Date(doc.timestamp).toLocaleString()}</p> */}
-                      {/* <p className="text-xs text-gray-500">Start time:  {processTime.start}</p>
-                      <p className="text-xs text-gray-500">End time:  {processTime.end}</p> */}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={handleDownloadExcel}
-                className="button-primary"
-                disabled={!excelPath}
-              >
-                <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                <span>Download Excel</span>
-              </button>
-            </div>
-          </div>
-        )}
-        {sharepointUrl && (
-          <div className="mt-4">
-            <a
-              href={sharepointUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="button-primary"
+          
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Select Template</label>
+            <select
+              value={selectedTemplateId}
+              onChange={handleTemplateChange}
+              className="w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#0098B3] focus:border-[#0098B3] appearance-none"
             >
-              Download Excel from SharePoint
-            </a>
+              <option value="">Select a template</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>{template.name}</option>
+              ))}
+            </select>
           </div>
-        )}
+
+          {/* Progress UI - Only shown when processing */}
+          <AnimatePresence>
+            {progress > 0 && progress < 100 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-6"
+              >
+                <div className="text-sm text-gray-700 mb-1">Sending document for processing...{progress.toFixed(1)}%</div>
+                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-1">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ duration: 0.3 }}
+                    className="h-full bg-[#0098B3]"
+                  />
+                </div>
+                <div className="text-xs text-gray-500">Processing time: {Math.floor(elapsedTime / 60)}m {String(elapsedTime % 60).padStart(2, '0')}s</div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="flex justify-end">
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleProcessDocument}
+              disabled={progress > 0 || !documentUrl || !selectedTemplateId}
+              className="px-4 py-2 rounded-md bg-[#0098B3] text-white font-medium hover:bg-[#007A92] transition-colors"
+            >
+              {progress > 0 ? 'Processing...' : 'Process Document'}
+            </motion.button>
+          </div>
+        </motion.div>
+
+        {/* Processed Documents - Only shown after successful processing */}
+        <AnimatePresence>
+          {processingComplete && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="space-y-4"
+            >
+              <h2 className="text-xl font-semibold text-gray-900">Processed Documents</h2>
+
+              <a
+                href="https://slickbitai.sharepoint.com/sites/regulatory-docs/Shared%20Documents/Forms/AllItems.aspx"
+                target="_blank"
+                style={{ color: 'blue', textDecoration: 'underline' }}>
+                Click here to view the Excel file
+              </a>
+              
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="bg-gray-50 rounded-lg p-4 border border-gray-200"
+              >
+                {documents.length} documents processed
+              </motion.div>
+              
+              <div className="flex justify-end space-y-2">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleDownloadExcel}
+                  className="px-4 py-2 rounded-md bg-[#0098B3] text-white font-medium hover:bg-[#007A92] transition-colors flex items-center"
+                >
+                  {/* <svg className="h-5 w-5 mr-2" fill="red" stroke="red" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+</svg> */}
+
+                  Download Excel
+                </motion.button>
+              </div>
+              
+              {sharepointUrl && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="w-full"
+                >
+                  <a 
+                    href={sharepointUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="w-full block text-center px-4 py-2 rounded-md bg-[#0098B3] text-white font-medium hover:bg-[#007A92] transition-colors"
+                  >
+                    Download Excel from SharePoint
+                  </a>
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

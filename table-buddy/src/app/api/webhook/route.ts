@@ -73,7 +73,12 @@ const checkAvailability = async (args: any) => {
   // Check if date and time are in the past
   const requestedDateTime = new Date(`${date}T${time}`);
   const currentDateTime = new Date();
-  
+  const tables = await getTablesByCapacity(no_of_people);
+
+  if (tables.length === 0) {
+    console.log("No tables available. Returning error message.");
+    return `No tables available that can accommodate ${no_of_people} people.`;
+  }
   if (requestedDateTime < currentDateTime) {
     return "Sorry, you cannot make a reservation for a past date and time.";
   }
@@ -116,7 +121,7 @@ const checkAvailability = async (args: any) => {
   }
 
   // Get all available tables with sufficient capacity
-  const tables = await getTablesByCapacity(no_of_people);
+  
   
   // Get reservations for the given date and time, including those that might still be using the table
   const reservations = await getReservationsByDateAndTime(date,time,turnaroundTime);
@@ -288,7 +293,10 @@ const checkNextAvailableSlot = async (args: any) => {
 
   // Get all tables with sufficient capacity
   const tables = await getTablesByCapacity(no_of_people);
-
+  if (tables.length === 0) {
+    console.log("No tables available. Returning error message.");
+    return `No tables available that can accommodate ${no_of_people} people.`;
+  }
   // Function to check availability at a specific time
   const checkTimeSlot = async (checkTime: string) => {
     const reservations = await getReservationsByDateAndTime(date,checkTime,turnaroundTime);

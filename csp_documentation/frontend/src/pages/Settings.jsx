@@ -1,9 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTemplates } from '../context/TemplateContext';
 import '../styles/global.css';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Cog6ToothIcon,
+  DocumentTextIcon,
+  ArrowPathIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ExclamationTriangleIcon,
+  TrashIcon,
+  PlusIcon,
+  ArrowDownTrayIcon
+} from '@heroicons/react/24/outline';
 
-// const url = 'https://slickbit-ai-csp.onrender.com';
-const url = 'http://localhost:8000';
+const url = 'https://slickbit-ai-csp.onrender.com';
+// const url = 'http://localhost:8000';
 
 function Settings() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -18,6 +30,10 @@ function Settings() {
   const [showFieldVerification, setShowFieldVerification] = useState(false);
   const [metadata, setMetadata] = useState([]);
   const fileInputRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('general');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null);
+
   console.log(templates, 'templatessss')
   const handleAddField = () => {
     setFields([...fields, { name: '', description: '' }]);
@@ -303,339 +319,307 @@ function Settings() {
     loadData();
   }, []);
 
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveStatus(null);
+    
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setSaveStatus('success');
+    } catch (error) {
+      setSaveStatus('error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const tabs = [
+    { id: 'general', label: 'General Settings', icon: Cog6ToothIcon },
+    { id: 'templates', label: 'Document Templates', icon: DocumentTextIcon }
+  ];
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+  };
+
   return (
-    <div className="page-container">
-      <div className="bg-pattern">
-        <div className="bg-pattern-inner"></div>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white pt-20">
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={containerVariants}
+        className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12"
+      >
+        <motion.div variants={itemVariants} className="mb-8">
+          <h1 className="text-3xl font-bold text-[#0098B3]">Settings</h1>
+          <p className="mt-2 text-gray-600">Configure document templates for metadata extraction</p>
+        </motion.div>
 
-      <div className="content-container">
-        <div className="mb-4">
-          <h1 className="page-title">Settings</h1>
-          <p className="page-description">Configure document templates for metadata extraction</p>
-        </div>
-
-        {/* Show upload error if present */}
-        {uploadError && (
-          <div className="error-message" style={{ color: 'red', marginBottom: '1rem' }}>
-            {uploadError}
-          </div>
-        )}
-
-        {!showCreateForm ? (
-          <div className="card">
-            <div className="flex justify-between items-center mb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left Side: Create New Template Form */}
+          <motion.div variants={itemVariants} className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+            <h2 className="text-xl font-semibold text-blue-700 mb-6 flex items-center">
+              <DocumentTextIcon className="h-6 w-6 mr-2 text-blue-500" />
+              {editingTemplate ? 'Edit Template' : 'Create New Template'}
+            </h2>
+            <div className="grid grid-cols-1 gap-4 mb-4">
               <div>
-                <h2 className="section-title">Document Templates</h2>
-                <p className="section-description">Define metadata fields to extract from different document types</p>
+                <label className="block text-sm font-medium text-gray-700">Template Name</label>
+                <input
+                  type="text"
+                  value={templateName}
+                  onChange={e => setTemplateName(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="e.g., Clinical Study Report Template"
+                  style={{paddingLeft: '5px'}}
+                />
               </div>
-              <button 
-                onClick={() => setShowCreateForm(true)}
-                className="button-primary"
-              >
-                <svg className="small-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span>Create Template</span>
-              </button>
-            </div>
-
-            <div className="mb-4">
-              <nav className="flex space-x-4 border-b border-gray-100">
-                <button className="px-3 py-2 text-xs text-[#0098B3] border-b-2 border-[#0098B3] -mb-[1px]">All Templates</button>
-                {/* <button className="px-3 py-2 text-xs text-gray-500 hover:text-[#0098B3]">Clinical</button>
-                <button className="px-3 py-2 text-xs text-gray-500 hover:text-[#0098B3]">Regulatory</button> */}
-              </nav>
-            </div>
-
-            <div className="space-y-2">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-left">
-                    <th className="pb-2 table-header">Template Name</th>
-                    <th className="pb-2 table-header">Fields</th>
-                    <th className="pb-2 table-header"></th>
-                    <th className="pb-2 table-header">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {templates.map((template) => (
-                    <tr key={template.id} className="border-t border-gray-100">
-                      <td className="py-2.5">
-                        <div>
-                          <div className="table-cell-title">{template.name}</div>
-                          <div className="table-cell-description">{template.description}</div>
-                        </div>
-                      </td>
-                      <td className="py-2.5 table-cell">{template.fields} fields</td>
-                      <td className="py-2.5 table-cell">{template.lastModified}</td>
-                      <td className="py-2.5">
-                        <div className="flex space-x-2">
-                          <button 
-                            onClick={() => handleEditTemplate(template)}
-                            className="icon-button"
-                            title="Edit template"
-                          >
-                            <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button 
-                            onClick={() => handleCopyTemplate(template)}
-                            className="icon-button"
-                            title="Copy template"
-                          >
-                            <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteTemplate(template.id)}
-                            className="icon-button hover:text-red-500"
-                            title="Delete template"
-                          >
-                            <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="table-cell-description pt-2">
-                Total {templates.length} templates
-              </div>
-            </div>
-
-            {/* Add Metadata Viewer Section */}
-            {/* <div className="mt-8">
-              <h2 className="section-title mb-4">Stored Metadata</h2>
-              <div className="space-y-4">
-                <table className="w-full">
-                  <thead>
-                    <tr className="text-left">
-                      <th className="pb-2 table-header">NCT ID</th>
-                      <th className="pb-2 table-header">Template</th>
-                      <th className="pb-2 table-header">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {metadata.map((item, index) => (
-                      <tr key={index} className="border-t border-gray-100">
-                        <td className="py-2.5">
-                          <div className="table-cell-title">{item['NCT ID'] || '-'}</div>
-                        </td>
-                        <td className="py-2.5">
-                          <div className="table-cell-title">{item['Template'] || '-'}</div>
-                        </td>
-                        <td className="py-2.5">
-                          <div className="flex space-x-2">
-                            <button 
-                              onClick={() => handleEditMetadata(item)}
-                              className="icon-button"
-                              title="Edit metadata"
-                            >
-                              <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteMetadata(item['Document URL'])}
-                              className="icon-button hover:text-red-500"
-                              title="Delete metadata"
-                            >
-                              <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div> */}
-          </div>
-        ) : (
-          <div className="card">
-            <div className="mb-4">
-              <h2 className="section-title mb-1">Document Templates</h2>
-              <p className="section-description">Define metadata fields to extract from different document types</p>
-            </div>
-
-            <div className="space-y-4">
               <div>
-                <h3 className="section-title mb-3">
-                  {editingTemplate ? 'Edit Template' : 'Create New Template'}
-                </h3>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="form-label">
-                      Template Name
-                    </label>
-                    <input
-                      type="text"
-                      value={templateName}
-                      onChange={(e) => setTemplateName(e.target.value)}
-                      className="form-input"
-                      placeholder="e.g., Clinical Study Report Template"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="form-label">
-                      Description
-                    </label>
-                    <textarea
-                      value={templateDescription}
-                      onChange={(e) => setTemplateDescription(e.target.value)}
-                      className="form-input h-16"
-                      placeholder="Describe the purpose of this template..."
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="form-label">
-                        Metadata Fields
-                      </label>
-                      <div className="flex space-x-2">
-                        <button 
-                          onClick={handleAddField}
-                          className="text-[#0098B3] text-xs font-medium flex items-center space-x-1 hover:text-[#007A8F] transition-colors"
-                        >
-                          <svg className="small-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                          <span>Add Field</span>
-                        </button>
-                        <div className="relative">
-                          <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="text-[#0098B3] text-xs font-medium flex items-center space-x-1 hover:text-[#007A8F] transition-colors"
-                            disabled={isUploading}
-                          >
-                            <svg className="small-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                            </svg>
-                            <span>{isUploading ? 'Uploading...' : 'Import Fields'}</span>
-                          </button>
-                          <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileUpload}
-                            accept=".csv,.xlsx,.xls"
-                            className="hidden"
-                          />
-                          {/* {uploadError && (
-                            <div className="absolute top-full left-0 mt-1 text-red-500 text-xs max-w-xs">
-                              {uploadError}
-                            </div>
-                          )} */}
-                        </div>
-                      </div>
-                    </div>
-
-                    {showFieldVerification && (
-                      <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">
-                          Verify Imported Fields ({uploadedFields.length} fields)
-                        </h4>
-                        <div className="max-h-60 overflow-y-auto space-y-2 mb-4">
-                          {uploadedFields.map((field, index) => (
-                            <div key={index} className="p-2 bg-white rounded border border-gray-200">
-                              <div className="text-sm font-medium text-gray-900">{field.name}</div>
-                              <div className="text-xs text-gray-500">{field.description}</div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="flex justify-end space-x-2">
-                          <button
-                            onClick={handleRejectUploadedFields}
-                            className="text-sm text-gray-600 hover:text-gray-900"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={handleAcceptUploadedFields}
-                            className="text-sm text-[#0098B3] hover:text-[#007A8F] font-medium"
-                          >
-                            Use These Fields
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      {fields.map((field, index) => (
-                        <div key={index} className="relative grid grid-cols-2 gap-3 p-2 bg-gray-50 border border-gray-200 rounded">
-                          <div>
-                            <label className="form-label">
-                              Field Name
-                            </label>
-                            <input
-                              type="text"
-                              value={field.name}
-                              onChange={(e) => handleFieldChange(index, 'name', e.target.value)}
-                              className="form-input"
-                              placeholder="e.g., Study ID"
-                            />
-                          </div>
-                          <div>
-                            <label className="form-label">
-                              Description
-                            </label>
-                            <input
-                              type="text"
-                              value={field.description}
-                              onChange={(e) => handleFieldChange(index, 'description', e.target.value)}
-                              className="form-input"
-                              placeholder="e.g., Unique identifier for the study"
-                            />
-                          </div>
-                          <button
-                            onClick={() => handleDeleteField(index)}
-                            className="absolute top-2 right-2 icon-button hover:text-red-500"
-                          >
-                            <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <label className="block text-sm font-medium text-gray-700">Description</label>
+                <textarea
+                  value={templateDescription}
+                  onChange={e => setTemplateDescription(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="Describe the purpose of this template..."
+                  style={{paddingLeft: '5px'}}
+                />
               </div>
-
-              <div className="flex justify-between pt-3 border-t border-gray-100">
+            </div>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-md font-semibold text-gray-800">Metadata Fields</h4>
+              <div className="flex items-center space-x-4">
                 <button
-                  onClick={handleResetForm}
-                  className="button-secondary"
+                  onClick={handleAddField}
+                  className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
                 >
-                  <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  <span>Cancel</span>
+                  <PlusIcon className="h-5 w-5 mr-1" /> Add Field
                 </button>
-                <button 
-                  onClick={handleSaveTemplate}
-                  className="button-primary"
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
                 >
-                  <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                  </svg>
-                  <span>{editingTemplate ? 'Update Template' : 'Save Template'}</span>
+                  <ArrowDownTrayIcon className="h-5 w-5 mr-1" /> Import Fields
                 </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".csv,.xlsx,.xls"
+                  className="hidden"
+                />
               </div>
             </div>
-          </div>
-        )}
-      </div>
+            <motion.div layout className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
+              <AnimatePresence>
+                {fields.map((field, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    layout
+                    className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 rounded-lg p-4 border border-blue-100 relative"
+                  >
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">Field Name</label>
+                      <input
+                        type="text"
+                        value={field.name}
+                        onChange={e => handleFieldChange(idx, 'name', e.target.value)}
+                        className="mt-1 block w-full rounded-md border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        placeholder="e.g., Product Name"
+                        style={{paddingLeft: '5px'}}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">Description</label>
+                      <input
+                        type="text"
+                        value={field.description}
+                        onChange={e => handleFieldChange(idx, 'description', e.target.value)}
+                        className="mt-1 block w-full rounded-md border-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        placeholder="e.g., Invented name, full product name"
+                        style={{paddingLeft: '5px'}}
+                      />
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleDeleteField(idx)}
+                      className="absolute top-2 right-2 text-gray-400 hover:text-red-500"
+                    >
+                      <TrashIcon className="h-5 w-5" />
+                    </motion.button>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
+            <AnimatePresence>
+              {uploadError && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="bg-red-50 rounded-lg p-4 mt-4 flex items-center"
+                >
+                  <ExclamationTriangleIcon className="h-5 w-5 text-red-400 mr-2" />
+                  <span className="text-sm text-red-700">{uploadError}</span>
+                </motion.div>
+              )}
+              {showFieldVerification && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="bg-blue-50 rounded-lg p-4 mt-4"
+                >
+                  <h4 className="font-semibold mb-2">Verify Imported Fields ({uploadedFields.length})</h4>
+                  <div className="max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                    {uploadedFields.map((field, i) => (
+                      <div key={i} className="p-2 bg-white rounded border border-gray-200 mb-2">
+                        <div className="text-sm font-medium text-gray-900">{field.name}</div>
+                        <div className="text-xs text-gray-500">{field.description}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end space-x-2">
+                    <button
+                      onClick={handleRejectUploadedFields}
+                      className="text-sm text-gray-600 hover:text-gray-900"
+                    >Cancel</button>
+                    <button
+                      onClick={handleAcceptUploadedFields}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >Use These Fields</button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <div className="flex space-x-4 mt-6">
+              {editingTemplate && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleResetForm}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Cancel
+                </motion.button>
+              )}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleSaveTemplate}
+                className="flex-1 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                {editingTemplate ? 'Update Template' : 'Save Template'}
+              </motion.button>
+            </div>
+          </motion.div>
+
+          {/* Right Side: Template List */}
+          <motion.div variants={itemVariants} className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+            <h2 className="text-xl font-semibold text-blue-700 mb-6 flex items-center">
+              <Cog6ToothIcon className="h-6 w-6 mr-2 text-blue-500" />
+              Existing Templates
+            </h2>
+
+            {templates.length === 0 ? (
+              <div className="text-center py-6 text-gray-500">
+                No templates found. Create your first template to get started.
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
+                <AnimatePresence>
+                  {templates.map((template) => (
+                    <motion.div
+                      key={template.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      whileHover={{ scale: 1.01 }}
+                      className="bg-gray-50 rounded-lg p-4 border border-gray-200"
+                    >
+                      <div className="flex justify-between">
+                        <div className="flex-1 mr-4">
+                          <h3 className="font-medium text-gray-900">{template.name}</h3>
+                          <p className="text-sm text-gray-500 mt-1 line-clamp-2">{template.description}</p>
+                          <div className="mt-2 text-xs text-gray-500">
+                            {template.metadataFields?.length || 0} fields defined
+                          </div>
+                        </div>
+                        <div className="flex flex-col space-y-2">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleEditTemplate(template)}
+                            className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-xs font-medium"
+                          >
+                            Edit
+                          </motion.button>
+                          {/* <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleCopyTemplate(template)}
+                            className="px-3 py-1 bg-green-50 hover:bg-green-100 text-green-700 rounded text-xs font-medium"
+                          >
+                            Copy
+                          </motion.button> */}
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleDeleteTemplate(template.id)}
+                            className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded text-xs font-medium"
+                          >
+                            Delete
+                          </motion.button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+          </motion.div>
+        </div>
+      </motion.div>
+
+      {/* Add global scrollbar styles */}
+      <style jsx global>{`
+        /* Custom Scrollbar Styles */
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: rgba(0, 0, 0, 0.2);
+          border-radius: 20px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background-color: rgba(0, 0, 0, 0.3);
+        }
+        
+        /* For Firefox */
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+        }
+      `}</style>
     </div>
   );
 }

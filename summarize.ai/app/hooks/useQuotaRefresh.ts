@@ -42,16 +42,22 @@ export const useQuotaRefresh = (intervalMs = 10000) => {
         }
     };
 
-    // Refresh quota on mount and when user changes
+    // Refresh quota on mount and when user changes - only when authenticated
     useEffect(() => {
-        if (!isLoading && user) {
-            refreshQuota();
+        // Skip if still loading or no user
+        if (isLoading || !user) {
+            return;
         }
+
+        refreshQuota();
     }, [isLoading, user]);
 
-    // Set up periodic refresh
+    // Set up periodic refresh - only when authenticated
     useEffect(() => {
-        if (!user) return;
+        // Skip if no user
+        if (!user) {
+            return;
+        }
 
         const interval = setInterval(() => {
             refreshQuota();
