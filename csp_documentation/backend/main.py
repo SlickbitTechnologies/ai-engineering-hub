@@ -689,4 +689,23 @@ async def process_local_folder_pdfs(folder_path: str):
         raise
     except Exception as e:
         logger.error(f"Error in process_local_folder_pdfs: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/token-statistics")
+async def get_token_statistics():
+    """
+    Get token usage statistics for document processing.
+    
+    Returns:
+        dict: Token usage statistics including total tokens, documents processed,
+              documents exceeding limit, and tokens per minute
+    """
+    try:
+        stats = document_processor.get_token_statistics()
+        return {
+            "status": "success",
+            "statistics": stats
+        }
+    except Exception as e:
+        logger.error(f"Error getting token statistics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

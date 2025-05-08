@@ -10,3 +10,5 @@ pharma-redact/.env
 **/.env
 **/.env.*
 !**/.env.example
+/csp_documentation/backend/output
+/csp_documentation/backend/templates
