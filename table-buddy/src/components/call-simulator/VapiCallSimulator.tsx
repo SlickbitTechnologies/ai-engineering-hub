@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PhoneIcon, StopIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import Vapi from '@vapi-ai/web';
@@ -26,6 +26,7 @@ export default function VapiCallSimulator({showChat}:{showChat:boolean}) {
   const [callStatus, setCallStatus] = useState('');
   const [vapi, setVapi] = useState<Vapi | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Initialize Vapi SDK with environment variable
@@ -41,6 +42,12 @@ export default function VapiCallSimulator({showChat}:{showChat:boolean}) {
       }
     };
   }, [assistantId]);
+
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
 
   const getCurrentDateAndTime = () => {
     const now = new Date();
@@ -65,7 +72,7 @@ export default function VapiCallSimulator({showChat}:{showChat:boolean}) {
         throw new Error('Assistant ID is required');
       }
       
-      await vapi.start(effectiveAssistantId, { variableValues: { date, time } });
+      await vapi.start(effectiveAssistantId, { variableValues: { date, time,name:"Bella" } });
       
       setCallStatus('Call connected!');
       toast.success('Call simulator started successfully');
@@ -75,6 +82,7 @@ export default function VapiCallSimulator({showChat}:{showChat:boolean}) {
       });
       vapi.on("speech-end", () => {
         console.log("Assistant speech has ended.");
+        
       });
       vapi.on("call-start", () => {
         console.log("Call has started.");
@@ -170,6 +178,7 @@ export default function VapiCallSimulator({showChat}:{showChat:boolean}) {
                     </div>
                   </div>
                 ))}
+              <div ref={messagesEndRef} />
             </div>
           </div>
         )}

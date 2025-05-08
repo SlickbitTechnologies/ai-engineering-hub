@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import uuid
 import random
 import time
-from sample_data import generate_sample_data
+from sample_data import create_sample_data
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse, Gather
 
@@ -45,7 +45,7 @@ os.makedirs(os.path.dirname(USERS_FILE), exist_ok=True)
 
 # Initialize empty data files if they don't exist
 if not os.path.exists(SHIPMENTS_FILE):
-    shipments = generate_sample_data()
+    shipments = create_sample_data()
     with open(SHIPMENTS_FILE, 'w') as f:
         json.dump(shipments, f)
 
@@ -442,7 +442,6 @@ if __name__ == '__main__':
     
     # Create some sample data if none exists
     if len(get_shipments()) == 0:
-        from sample_data import create_sample_data
         create_sample_data()
         logger.info("Created sample data")
     
