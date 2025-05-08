@@ -362,18 +362,22 @@ export const ShipmentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         ];
         
         // Create journey points if missing
+        console.log(`Creating journey points for shipment ${shipment.departureTime} to ${shipment.estimatedDelivery}`);
+        const currentTimestamp = new Date().getTime();
+        const departureTime = new Date(shipment.departureTime || currentTimestamp).getTime();
+        const estimatedDelivery = new Date(shipment.estimatedDelivery || currentTimestamp + 7 * 24 * 60 * 60 * 1000).getTime();
         const journey = shipment.journey || [
           { 
             location: typeof shipment.origin === 'string' ? shipment.origin : shipment.origin?.city || 'Unknown', 
             timestamp: shipment.departureTime || new Date().toISOString(),
             temperature: parseFloat(shipment.currentTemperature || 5), 
-            status: 'completed' 
+            status:currentTimestamp < departureTime ? 'upcoming' : 'completed' 
           },
           { 
             location: typeof shipment.destination === 'string' ? shipment.destination : shipment.destination?.city || 'Unknown', 
             timestamp: shipment.estimatedDelivery || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), 
             temperature: 0, 
-            status: 'upcoming' 
+            status: currentTimestamp < estimatedDelivery ? 'upcoming' : 'completed'
           }
         ];
         
