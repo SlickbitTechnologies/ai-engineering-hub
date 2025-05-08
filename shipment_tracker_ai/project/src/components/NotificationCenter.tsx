@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Volume2, MessageSquare, Clock, Phone, AlertTriangle, Loader2 } from 'lucide-react';
+import { X, Phone, Loader2, Volume2 } from 'lucide-react';
 import { useShipments } from '../contexts/ShipmentContext';
 import { useSettings } from '../contexts/SettingsContext';
-import axios from 'axios';
 import { format } from 'date-fns';
+import { callApi } from '../services/api';
+import { Shipment } from '../types/shipment';
 
 interface NotificationCenterProps {
   isOpen: boolean;
@@ -25,12 +26,12 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
   const [callActive, setCallActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [callStatus, setCallStatus] = useState<string>('');
-  const [callHistory, setCallHistory] = useState<CallRecord[]>([]);
+  const [callHistory, setCallHistory] = useState<any[]>([]);
   const [callStartTime, setCallStartTime] = useState<Date | null>(null);
   const [recipientNumber, setRecipientNumber] = useState<string>(phoneNumber);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [rightTab, setRightTab] = useState<'chat' | 'history'>('history');
 
-  // Get all temperature alerts (unread, critical)
   const temperatureAlerts = useMemo(() => {
     return shipments.flatMap(shipment => 
       (shipment.alerts || [])
@@ -46,283 +47,214 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
     );
   }, [shipments]);
 
-  // Fetch call history on first load or when tab is switched
   useEffect(() => {
-    if (isOpen && activeTab === 'history') {
+    if (isOpen && rightTab === 'history') {
       fetchCallHistory();
     }
-  }, [isOpen, activeTab]);
+  }, [isOpen, rightTab]);
 
-  // Map Twilio status to our simplified status
+  if (!isOpen) return null;
+  if (isOpen) console.log('NotificationCenter is open');
+
+  const getCallUser = (call: any) => call.recipient || call.to || 'Unknown';
+  
   const mapCallStatus = (twilioStatus: string): 'completed' | 'failed' => {
     const completedStatuses = ['completed', 'successful', 'success', 'answered'];
     return completedStatuses.includes((twilioStatus || '').toLowerCase()) ? 'completed' : 'failed';
   };
 
-  // Fetch call history from backend
   const fetchCallHistory = async () => {
+    setLoading(true);
     try {
-      const response = await axios.get('/api/twilio/calls');
-      if (response.data && Array.isArray(response.data)) {
-        const formattedHistory: CallRecord[] = response.data.map((call: any) => ({
-          id: call.sid || `call-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-          recipient: call.to || 'Unknown',
-          timestamp: call.timestamp || new Date().toISOString(),
-          duration: parseInt(call.duration || '0', 10),
-          status: mapCallStatus(call.status || '')
-        }));
-        setCallHistory(formattedHistory);
-      } else {
-        setCallHistory([]);
-      }
+      const calls = await callApi.getCalls();
+      const mappedCalls = calls.map(call => ({ ...call, status: mapCallStatus(call.status) }));
+      setCallHistory(mappedCalls);
     } catch (error) {
-      console.error('Failed to fetch call history:', error);
-      setCallHistory([]);
+      console.error('Error fetching call history:', error);
+      setErrorMessage('Failed to fetch call history');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Handle making a call
-  const handleCall = async () => {
+  const handleCall = async (phoneNumberToCall: string, alertMessage?: string) => {
+    if (!phoneNumberToCall) {
+      setErrorMessage('Recipient phone number is required.');
+      return;
+    }
+    setLoading(true);
+    setCallActive(true);
+    setCallStartTime(new Date());
+    setErrorMessage('');
+    setCallStatus('Calling...');
     try {
-      setErrorMessage('');
-      if (!recipientNumber.trim()) {
-        setErrorMessage('Please enter a recipient phone number');
-        return;
-      }
-      setLoading(true);
-      setCallActive(true);
-      const startTime = new Date();
-      setCallStartTime(startTime);
-      // Create alert message with details
-      const alertMessage = temperatureAlerts.length > 0
-        ? `Alert from Cold Chain Monitor. ${temperatureAlerts.length} temperature excursions detected. ` +
-          temperatureAlerts.map(alert => 
-            `Shipment ${alert.shipmentNumber}: ${alert.message}`
-          ).join('. ')
-        : 'Alert from Cold Chain Monitor. System check requested.';
-      // Make API call to backend
-      const response = await axios.post('/api/twilio/call', {
-        to: recipientNumber,
-        message: alertMessage
-      });
-      if (response.data && response.data.success) {
-        setCallStatus(`Call connected to ${recipientNumber}`);
-      } else {
-        throw new Error(response.data?.error || 'Failed to connect call');
-      }
-      setLoading(false);
+      const call = await callApi.makeCall(phoneNumberToCall, alertMessage);
+      setCallStatus(call.status || 'Call initiated'); 
+      setCallHistory(prev => [{ ...call, status: mapCallStatus(call.status) }, ...prev]); 
     } catch (error) {
       console.error('Error making call:', error);
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to make call');
-      setLoading(false);
+      setErrorMessage('Failed to make call. Please check the number and try again.');
+      setCallStatus('Call Failed');
       setCallActive(false);
-      setCallStatus('');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Handle ending a call (UI only)
   const handleEndCall = () => {
     setCallActive(false);
-    setCallStatus(''); // Fix: do not set to null, use empty string
-    // Calculate call duration
-    if (callStartTime) {
-      const endTime = new Date();
-      const durationInSeconds = Math.floor((endTime.getTime() - callStartTime.getTime()) / 1000);
-      // Record the call in history
-      const newCallRecord: CallRecord = {
-        id: `call-${Date.now()}`,
-        recipient: recipientNumber || 'Unknown',
-        timestamp: callStartTime.toISOString(),
-        duration: durationInSeconds,
-        status: 'completed'
-      };
-      setCallHistory(prev => [newCallRecord, ...prev]);
-      setCallStartTime(null);
-      // Do not clear recipient number, keep it for next call
-    }
-    // Refresh call history
+    const callDuration = callStartTime ? Math.floor((new Date().getTime() - callStartTime.getTime()) / 1000) : 0;
+    setCallStatus(`Call Ended. Duration: ${formatCallDuration(callDuration)}`);
+    
+    const newCallRecord: CallRecord = {
+      id: `ended-call-${Date.now()}`,
+      recipient: recipientNumber || 'Unknown',
+      timestamp: callStartTime?.toISOString() || new Date().toISOString(),
+      duration: callDuration,
+      status: 'completed'
+    };
+    setCallStartTime(null);
     fetchCallHistory();
   };
 
-  // Format call duration as mm:ss
   const formatCallDuration = (seconds: number): string => {
+    if (isNaN(seconds) || seconds < 0) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Format call timestamp for display
   const formatCallTimestamp = (timestamp: string): string => {
-    const date = new Date(timestamp);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
+    try {
+      return format(new Date(timestamp), 'MMM d, h:mm a');
+    } catch (e) {
+      return 'Invalid date';
+    }
   };
 
-  if (!isOpen) return null;
+  const handleAlertCall = async (shipment: Shipment) => {
+    const alertMessage = `Alert: Shipment ${shipment.id} has temperature issues. Current temperature: ${shipment.currentTemperature}°C`;
+    await handleCall(shipment.recipientPhone, alertMessage);
+  };
 
   return (
-    <div className={`fixed inset-0 overflow-hidden ${isOpen ? '' : 'hidden'}`}>
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose} />
-        <div className="fixed inset-y-0 right-0 pl-10 max-w-full flex">
-          <div className="w-screen max-w-md">
-            <div className="h-full flex flex-col bg-white shadow-xl">
-              <div className="px-4 py-6 bg-cyan-700 sm:px-6">
-                <div className="flex items-start justify-between">
-                  <h2 className="text-lg font-medium text-white">Notifications</h2>
-                  <div className="ml-3 h-7 flex items-center">
-                    <button
-                      type="button"
-                      className="bg-cyan-700 rounded-md text-cyan-200 hover:text-white focus:outline-none focus:ring-2 focus:ring-white"
-                      onClick={onClose}
-                    >
-                      <span className="sr-only">Close panel</span>
-                      <X className="h-6 w-6" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                <div className="px-4 py-6 sm:px-6">
-                  {/* Temperature Alerts */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-gray-900">Temperature Alerts</h3>
-                    {temperatureAlerts.length > 0 ? (
-                      <div className="space-y-4">
-                        {temperatureAlerts.map(alert => (
-                          <div
-                            key={alert.id}
-                            className="bg-red-50 border-l-4 border-red-400 p-4"
-                          >
-                            <div className="flex">
-                              <div className="flex-shrink-0">
-                                <AlertTriangle className="h-5 w-5 text-red-400" />
-                              </div>
-                              <div className="ml-3">
-                                <p className="text-sm text-red-700">
-                                  <span className="font-medium">Shipment {alert.shipmentNumber}:</span> {alert.message}
-                                </p>
-                                <p className="mt-1 text-sm text-red-600">
-                                  Location: {alert.location}
-                                </p>
-                                <p className="mt-1 text-sm text-red-600">
-                                  Time: {format(new Date(alert.timestamp), 'MMM d, h:mm a')}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500">No temperature alerts</p>
-                    )}
-                  </div>
-                  {/* Call Controls */}
-                  <div className="mt-8 space-y-4">
-                    <h3 className="text-lg font-medium text-gray-900">Send Alert Call</h3>
-                    <div>
-                      <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                        Recipient Phone Number
-                      </label>
-                      <div className="mt-1">
-                        <input
-                          type="tel"
-                          name="phone"
-                          id="phone"
-                          className="shadow-sm focus:ring-cyan-500 focus:border-cyan-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                          placeholder="+1 (123) 456-7890"
-                          value={recipientNumber}
-                          onChange={(e) => setRecipientNumber(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    {errorMessage && (
-                      <div className="rounded-md bg-red-50 p-4">
-                        <div className="flex">
-                          <div className="flex-shrink-0">
-                            <X className="h-5 w-5 text-red-400" />
-                          </div>
-                          <div className="ml-3">
-                            <p className="text-sm text-red-700">{errorMessage}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      className={`w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
-                        loading || callActive
-                          ? 'bg-gray-400 cursor-not-allowed'
-                          : 'bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500'
-                      }`}
-                      onClick={handleCall}
-                      disabled={loading || callActive}
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                          Connecting...
-                        </>
-                      ) : callActive ? (
-                        <>
-                          <Phone className="-ml-1 mr-2 h-4 w-4" />
-                          Call Active
-                        </>
-                      ) : (
-                        <>
-                          <Phone className="-ml-1 mr-2 h-4 w-4" />
-                          Send Alert Call
-                        </>
-                      )}
-                    </button>
-                    {callActive && callStartTime && (
-                      <div className="text-sm text-gray-500 text-center">
-                        Call started at {format(callStartTime, 'h:mm:ss a')}
-                      </div>
-                    )}
-                    {callStatus && (
-                      <div className="text-sm text-gray-500 text-center">
-                        {callStatus}
-                      </div>
-                    )}
-                  </div>
-                  {/* Call History Tab */}
-                  {activeTab === 'history' && (
-                    <div className="mt-8">
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">Call History</h3>
-                      {callHistory.length > 0 ? (
-                        <ul className="divide-y divide-gray-200">
-                          {callHistory.map(call => (
-                            <li key={call.id} className="py-3 flex justify-between items-center">
-                              <div>
-                                <p className="text-sm font-medium text-gray-900">{call.recipient}</p>
-                                <p className="text-xs text-gray-500">{formatCallTimestamp(call.timestamp)}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className={`text-sm ${call.status === 'completed' ? 'text-green-600' : 'text-red-600'}`}>{call.status === 'completed' ? 'Completed' : 'Failed'}</p>
-                                {call.status === 'completed' && (
-                                  <p className="text-xs text-gray-500">Duration: {formatCallDuration(call.duration)}</p>
-                                )}
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <div className="text-sm text-gray-500">No call history available</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white p-4 sm:p-6 md:p-8">
+      <div className="w-full max-w-5xl mx-auto flex flex-col sm:flex-row gap-6 bg-white rounded-xl shadow-2xl overflow-hidden h-full max-h-[90vh]">
+        <div className="flex-1 bg-gray-50 rounded-l-xl p-6 sm:p-8 flex flex-col items-center justify-center border-r border-gray-200 min-w-[300px] sm:min-w-[400px]">
+          <h2 className="text-xl sm:text-2xl font-semibold mb-6 sm:mb-8 text-gray-800">Voice Call Interface</h2>
+          
+          {!callActive && (
+            <div className="w-full max-w-xs mb-6">
+              <label htmlFor="recipientPhone" className="block text-sm font-medium text-gray-700 mb-1">Recipient Phone</label>
+              <input 
+                type="tel" 
+                id="recipientPhone"
+                value={recipientNumber}
+                onChange={(e) => setRecipientNumber(e.target.value)}
+                placeholder="+1234567890"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm"
+              />
             </div>
+          )}
+
+          {errorMessage && (
+            <div className="w-full max-w-xs mb-4 p-3 bg-red-100 text-red-700 rounded-md text-sm">
+              {errorMessage}
+            </div>
+          )}
+
+          {!callActive ? (
+            <>
+              <div className="text-gray-500 text-base mb-2">No active call</div>
+              <Volume2 className="w-16 h-16 sm:w-20 sm:h-20 text-gray-300 mb-3 sm:mb-4" />
+              <div className="text-gray-400 text-sm mb-6 sm:mb-8">Press "Start Call" to begin</div>
+              <button
+                type="button"
+                className="flex items-center gap-2 px-6 py-3 sm:px-8 sm:py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-md text-base sm:text-lg font-semibold shadow-md transition-colors duration-150"
+                onClick={() => handleCall(recipientNumber)}
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin"/> : <Phone className="w-5 h-5" />} 
+                {loading ? 'Calling...' : 'Start Call'}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="text-gray-700 text-base sm:text-lg mb-2">Call in progress with: {recipientNumber}</div>
+              <Volume2 className="w-16 h-16 sm:w-20 sm:h-20 text-cyan-500 mb-3 sm:mb-4 animate-pulse" />
+              {callStartTime && (
+                <div className="text-gray-600 text-sm mb-2">
+                  Call Status: <span className="font-medium">{callStatus}</span>
+                </div>
+              )}
+              <button
+                type="button"
+                className="flex items-center gap-2 px-6 py-3 sm:px-8 sm:py-3 bg-red-600 hover:bg-red-700 text-white rounded-md text-base sm:text-lg font-semibold shadow-md transition-colors duration-150 mt-4"
+                onClick={handleEndCall}
+                disabled={loading && callStatus.includes('Calling')}
+              >
+                End Call
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="w-full sm:w-[380px] md:w-[420px] bg-white rounded-r-xl flex flex-col overflow-hidden">
+          <div className="px-4 pt-4 sm:px-6 sm:pt-6">
+            <div className="flex border-b border-gray-200">
+              <button
+                className={`flex-1 py-2 px-1 text-sm font-medium text-center -mb-px border-b-2 ${rightTab === 'chat' ? 'border-cyan-500 text-cyan-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                onClick={() => setRightTab('chat')}
+              >
+                Chat Transcript
+              </button>
+              <button
+                className={`flex-1 py-2 px-1 text-sm font-medium text-center -mb-px border-b-2 ${rightTab === 'history' ? 'border-cyan-500 text-cyan-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                onClick={() => setRightTab('history')}
+              >
+                Call History
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            {rightTab === 'history' && (
+              <div className="space-y-3">
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3">Call Logs</h3>
+                {loading && callHistory.length === 0 && <Loader2 className="w-6 h-6 text-gray-400 animate-spin mx-auto my-4"/>}
+                {!loading && callHistory.length === 0 && (
+                  <p className="text-gray-500 text-sm text-center py-4">No call history available.</p>
+                )}
+                {callHistory.map((call, idx) => (
+                  <div key={call.id || call.sid || idx} className="bg-gray-50 rounded-lg p-3 border border-gray-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium text-gray-800 text-sm truncate" title={getCallUser(call)}>{getCallUser(call)}</span>
+                      <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${call.status === 'completed' ? 'bg-green-100 text-green-700' : call.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{call.status}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      <div>Time: {formatCallTimestamp(call.dateCreated || call.timestamp)}</div>
+                      <div>Duration: {formatCallDuration(call.duration)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {rightTab === 'chat' && (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-gray-400 text-sm">Chat transcript feature coming soon.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      <button
+        className="absolute top-4 right-4 sm:top-6 sm:right-6 text-gray-400 hover:text-gray-600 transition-colors z-50 p-1 bg-white rounded-full shadow"
+        onClick={onClose}
+        aria-label="Close notification center"
+      >
+        <X className="w-6 h-6 sm:w-7 sm:w-7" />
+      </button>
     </div>
   );
 };

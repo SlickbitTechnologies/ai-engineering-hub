@@ -15,7 +15,6 @@ interface AuthContextType {
   loading: boolean;
   register: (email: string, password: string, name: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  mockLogin: () => void;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
 }
@@ -25,7 +24,6 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   register: async () => {},
   login: async () => {},
-  mockLogin: () => {},
   logout: async () => {},
   resetPassword: async () => {}
 });
@@ -70,25 +68,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const mockLogin = () => {
-    const mockUser = {
-      uid: 'mock-user-123',
-      email: 'demo@example.com',
-      displayName: 'Demo User',
-      emailVerified: true,
-      phoneNumber: null,
-      photoURL: null,
-      providerId: 'firebase',
-      metadata: {
-        creationTime: new Date().toISOString(),
-        lastSignInTime: new Date().toISOString()
-      }
-    } as unknown as User;
-    
-    setCurrentUser(mockUser);
-    setLoading(false);
-  };
-
   const logout = async () => {
     try {
       await signOut(auth);
@@ -112,7 +91,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loading,
     register,
     login,
-    mockLogin,
     logout,
     resetPassword
   };

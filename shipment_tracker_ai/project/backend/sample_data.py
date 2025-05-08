@@ -3,186 +3,52 @@ import os
 from datetime import datetime, timedelta
 import random
 
-def create_sample_data():
-    """Create sample data for the application."""
-    
-    # Get the absolute path to the data directory
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    shipments_file = os.path.join(base_dir, "data", "shipments.json")
-    users_file = os.path.join(base_dir, "data", "users.json")
-    
-    # Create shipments
-    shipments = [
-        {
-            "id": "1",
-            "name": "Vaccine Delivery",
-            "origin": "Boston, MA",
-            "destination": "New York, NY",
-            "status": "in-transit",
-            "user_id": "1",
-            "createdAt": datetime.now().isoformat(),
-            "estimatedDelivery": (datetime.now() + timedelta(days=5)).isoformat(),
-            "currentTemperature": 5.2,
-            "minTemperature": 2.0,
-            "maxTemperature": 8.0,
-            "currentLocation": {
-                "lat": 40.7128,
-                "lng": -74.006,
-                "address": "Manhattan, NY"
+def generate_sample_data():
+    shipments = []
+    for i in range(1, 6):  # Generate 5 sample shipments
+        shipment = {
+            "id": str(i),
+            "number": f"SHP{i:04d}",
+            "status": random.choice(["in_transit", "delivered", "pending"]),
+            "currentTemperature": round(random.uniform(2, 8), 1),
+            "temperatureThresholds": {
+                "min": 2,
+                "max": 8
             },
-            "temperatureHistory": [
-                {
-                    "timestamp": (datetime.now() - timedelta(hours=4)).isoformat(),
-                    "value": 4.5
-                },
-                {
-                    "timestamp": (datetime.now() - timedelta(hours=3)).isoformat(),
-                    "value": 4.8
-                },
-                {
-                    "timestamp": (datetime.now() - timedelta(hours=2)).isoformat(),
-                    "value": 5.2
-                },
-                {
-                    "timestamp": (datetime.now() - timedelta(hours=1)).isoformat(),
-                    "value": 5.1
-                },
-                {
-                    "timestamp": datetime.now().isoformat(),
-                    "value": 5.3
-                }
-            ],
-            "alerts": [
-                {
-                    "id": "alert-1",
-                    "type": "info",
-                    "message": "Shipment has departed from Boston",
-                    "timestamp": (datetime.now() - timedelta(hours=4)).isoformat(),
-                    "location": "Boston, MA",
-                    "read": True
-                }
-            ]
-        },
-        {
-            "id": "2",
-            "name": "Blood Samples Delivery",
-            "origin": "Chicago, IL",
-            "destination": "Milwaukee, WI",
-            "status": "in-transit",
-            "user_id": "1",
-            "createdAt": (datetime.now() - timedelta(days=2)).isoformat(),
-            "estimatedDelivery": (datetime.now() + timedelta(days=1)).isoformat(),
-            "currentTemperature": 3.8,
-            "minTemperature": 2.0,
-            "maxTemperature": 6.0,
-            "currentLocation": {
-                "lat": 42.5818,
-                "lng": -87.8286,
-                "address": "Kenosha, WI"
-            },
-            "temperatureHistory": [
-                {
-                    "timestamp": (datetime.now() - timedelta(hours=10)).isoformat(),
-                    "value": 4.0
-                },
-                {
-                    "timestamp": (datetime.now() - timedelta(hours=8)).isoformat(),
-                    "value": 3.8
-                },
-                {
-                    "timestamp": (datetime.now() - timedelta(hours=6)).isoformat(),
-                    "value": 3.9
-                },
-                {
-                    "timestamp": (datetime.now() - timedelta(hours=4)).isoformat(),
-                    "value": 3.7
-                },
-                {
-                    "timestamp": (datetime.now() - timedelta(hours=2)).isoformat(),
-                    "value": 3.8
-                }
-            ],
-            "alerts": []
-        },
-        {
-            "id": "3",
-            "name": "Organ Transport",
-            "origin": "Los Angeles, CA",
-            "destination": "San Francisco, CA",
-            "status": "delivered",
-            "user_id": "1",
-            "createdAt": (datetime.now() - timedelta(days=7)).isoformat(),
-            "estimatedDelivery": (datetime.now() - timedelta(days=6)).isoformat(),
-            "currentTemperature": 4.0,
-            "minTemperature": 2.0,
-            "maxTemperature": 6.0,
-            "currentLocation": {
-                "lat": 37.7749,
-                "lng": -122.4194,
-                "address": "San Francisco, CA"
-            },
-            "temperatureHistory": [
-                {
-                    "timestamp": (datetime.now() - timedelta(days=7, hours=8)).isoformat(),
-                    "value": 4.2
-                },
-                {
-                    "timestamp": (datetime.now() - timedelta(days=7, hours=6)).isoformat(),
-                    "value": 4.0
-                },
-                {
-                    "timestamp": (datetime.now() - timedelta(days=7, hours=4)).isoformat(),
-                    "value": 4.1
-                },
-                {
-                    "timestamp": (datetime.now() - timedelta(days=7, hours=2)).isoformat(),
-                    "value": 3.9
-                },
-                {
-                    "timestamp": (datetime.now() - timedelta(days=7)).isoformat(),
-                    "value": 4.0
-                }
-            ],
-            "alerts": [
-                {
-                    "id": "alert-1",
-                    "type": "info",
-                    "message": "Shipment has departed from Los Angeles",
-                    "timestamp": (datetime.now() - timedelta(days=7, hours=8)).isoformat(),
-                    "location": "Los Angeles, CA",
-                    "read": True
-                },
-                {
-                    "id": "alert-2",
-                    "type": "info",
-                    "message": "Shipment has been delivered successfully",
-                    "timestamp": (datetime.now() - timedelta(days=6)).isoformat(),
-                    "location": "San Francisco, CA",
+            "location": f"Location {i}",
+            "recipientPhone": "+1234567890",
+            "timestamp": (datetime.now() - timedelta(days=random.randint(0, 5))).isoformat(),
+            "alerts": [],
+            "temperatureHistory": []
+        }
+        
+        # Add some temperature history
+        for j in range(24):  # Last 24 hours
+            temp_reading = {
+                "timestamp": (datetime.now() - timedelta(hours=j)).isoformat(),
+                "value": round(random.uniform(1, 9), 1)
+            }
+            shipment["temperatureHistory"].append(temp_reading)
+        
+        # Add some alerts if temperature was out of range
+        for reading in shipment["temperatureHistory"]:
+            if reading["value"] < 2 or reading["value"] > 8:
+                alert = {
+                    "id": f"alert-{len(shipment['alerts']) + 1}",
+                    "type": "temperature",
+                    "message": f"Temperature {'below' if reading['value'] < 2 else 'above'} threshold: {reading['value']}°C",
+                    "timestamp": reading["timestamp"],
+                    "location": shipment["location"],
                     "read": False
                 }
-            ]
-        }
-    ]
+                shipment["alerts"].append(alert)
+        
+        shipments.append(shipment)
     
-    # Create users
-    users = [
-        {
-            "id": "1",
-            "name": "Demo User",
-            "email": "demo@example.com",
-            "password": "password123",  # In real app, hash this!
-            "createdAt": datetime.now().isoformat()
-        }
-    ]
-    
-    # Save to files
-    os.makedirs('backend/data', exist_ok=True)
-    
-    with open(shipments_file, 'w') as f:
-        json.dump(shipments, f, indent=2)
-    
-    with open(users_file, 'w') as f:
-        json.dump(users, f, indent=2)
+    return shipments
+
+def create_sample_data():
+    return generate_sample_data()
 
 def generate_temperature_history(hours, start_temp, peak_temp):
     """Generate a realistic temperature history."""

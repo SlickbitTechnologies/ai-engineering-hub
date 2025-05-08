@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Bell, Phone, Thermometer, Download, Trash2 } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useShipments } from '../contexts/ShipmentContext';
-import { downloadSampleCSV } from '../utils/sampleDataGenerator';
+import { downloadSampleExcel } from '../utils/sampleDataGenerator';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
@@ -211,6 +211,11 @@ const SettingsPage: React.FC = () => {
             if (sheetNames.length > 1) {
               const secondSheet = workbook.Sheets[sheetNames[1]];
               const tempRows = XLSX.utils.sheet_to_json(secondSheet, { defval: '' }) as Record<string, any>[];
+              const alerts: any[] = [];
+              const minTemperatureThreshold = parseFloat(minThreshold);
+              const maxTemperatureThreshold = parseFloat(maxThreshold);
+              let i =0;
+              let lastStaus:number = 0
               console.log("Temp rows:", tempRows);
               const temperatureHistory = tempRows
                 .map((row: Record<string, any>) => {
@@ -222,7 +227,47 @@ const SettingsPage: React.FC = () => {
                   const currentTime = new Date();
                   const readingTime = new Date(timestamp);
                   const status = currentTime < readingTime ? 'upcoming' : 'completed';
+                  const temp_in_celsius = parseFloat(row['Temperature (¬∞C)'] || row['Temperature (°C)'] || row['Temperature (C)'] || '0');
                   
+                  if(temp_in_celsius < minTemperatureThreshold) {
+                    alerts.push({
+                      id: `alert-${Date.now()}${i++}`,
+                      shipmentId: shipment.id,
+                      timestamp: timestamp,
+                      temperature: temp_in_celsius,
+                      status: status,
+                      type:"critical",
+                      location: row['Location'],
+                      message: `Temperature below minimum threshold: ${temp_in_celsius}°C`
+                    });
+                    lastStaus = 1;
+                  }
+                  else if(temp_in_celsius > maxTemperatureThreshold){
+                    lastStaus = 1;
+                    alerts.push({
+                      id: `alert-${Date.now()}${i++}`,
+                      shipmentId: shipment.id,
+                      timestamp: timestamp,
+                      temperature: temp_in_celsius,
+                      status: status,
+                      type:"critical",
+                      location: row['Location'],
+                      message: `Temperature above maximum threshold: ${temp_in_celsius}°C`
+                    });
+                  }
+                  else if(lastStaus === 1){
+                    alerts.push({
+                      id: `alert-${Date.now()}${i++}`,
+                      shipmentId: shipment.id,
+                      timestamp: timestamp,
+                      temperature: temp_in_celsius,
+                      status: status,
+                      type:"info",
+                      location: row['Location'],
+                      message: `Temperature back to normal: ${temp_in_celsius}°C`
+                    });
+                    lastStaus = 0;
+                  }
                   return {
                     timestamp: timestamp,
                     location: row['Location'],
@@ -233,6 +278,7 @@ const SettingsPage: React.FC = () => {
                 });
               console.log("Temperature history:", temperatureHistory);
               shipment.temperatureHistory = temperatureHistory;
+              shipment.alerts = alerts;
               if (temperatureHistory.length > 0) {
                 shipment.currentTemperature = temperatureHistory[temperatureHistory.length - 1].value;
               }
@@ -312,7 +358,7 @@ const SettingsPage: React.FC = () => {
   };
   
   const handleDownloadSample = () => {
-    downloadSampleCSV();
+    downloadSampleExcel();
   };
   
   const handleClearData = async () => {
@@ -483,7 +529,7 @@ const SettingsPage: React.FC = () => {
                 className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500"
               >
                 <Download className="mr-2 h-4 w-4" />
-                Download CSV Template
+                Download Excel Template
               </button>
               
               <button
@@ -497,9 +543,8 @@ const SettingsPage: React.FC = () => {
             
             <div className="mt-4 p-4 bg-gray-50 rounded-md">
               <p className="text-sm text-gray-500">
-                <strong>Note:</strong> Download the CSV template to see the expected data format for your files. 
-                You can upload either CSV files or Excel files with multiple sheets. For Excel files with temperature history, 
-                the second sheet should have columns: shipment_id, timestamp, and value.
+                <strong>Note:</strong> Download the Excel template to see the expected data format for your files. 
+                The template includes two sheets: "Shipment Details" for basic shipment information and "Temperature Readings" for temperature history.
                 Clear all data will remove all shipments from the system.
               </p>
             </div>

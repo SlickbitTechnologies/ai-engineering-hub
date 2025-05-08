@@ -15,14 +15,19 @@ const App: React.FC = () => {
   const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
+    console.log('Auth state:', { currentUser, loading });
     const timer = setTimeout(() => {
+      console.log('Setting app ready');
       setAppReady(true);
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [currentUser, loading]);
+
+  console.log('Render state:', { loading, appReady, currentUser });
 
   if (loading || !appReady) {
+    console.log('Showing loading spinner');
     return <LoadingSpinner fullScreen />;
   }
 
