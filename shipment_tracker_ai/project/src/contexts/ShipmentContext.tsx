@@ -167,7 +167,7 @@ export const ShipmentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 id: doc.id
               })) as Shipment[];
               console.log("Shipment data:", shipmentData);
-        setShipments(shipmentData);
+              setShipments(shipmentData);
               setLoading(false);
               logFirebaseOperation('fetchShipments', false);
             } catch (error: any) {

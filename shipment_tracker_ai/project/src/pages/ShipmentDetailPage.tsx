@@ -3,9 +3,10 @@ import { useParams, Link } from 'react-router-dom';
 import { useShipments } from '../contexts/ShipmentContext';
 import { useSettings } from '../contexts/SettingsContext';
 import LoadingSpinner from '../components/common/LoadingSpinner';
-import { Thermometer, MapPin, Truck, Calendar, Clock, FileText } from 'lucide-react';
+import { Thermometer, MapPin, Truck, Calendar, Clock, FileText, MessageSquare } from 'lucide-react';
 import { formatInTimeZone } from 'date-fns-tz';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import NotificationCenter from '../components/NotificationCenter';
 
 const ShipmentDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -16,7 +17,7 @@ const ShipmentDetailPage: React.FC = () => {
   const [userTimeZone, setUserTimeZone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || import.meta.env.VITE_DEFAULT_TIMEZONE
   );
-  
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   // Check thresholds whenever temperature history changes
   useEffect(() => {
     if (shipment) {
@@ -463,14 +464,23 @@ const ShipmentDetailPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                  <div className='flex flex-row  align-center'>
                   {!alert.read && (
                     <button
                       onClick={() => markAlertAsRead(shipment.id, alert.id)}
-                      className="ml-6 bg-white rounded-md text-sm font-medium text-cyan-600 hover:text-cyan-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500"
+                      className="ml-6 bg-transparent rounded-md text-sm font-medium text-cyan-600 hover:text-cyan-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500"
                     >
                       Mark as read
                     </button>
                   )}
+                  <button
+                      onClick={() => setNotificationsOpen(true)}
+                      className="ml-6 bg-blue-100 p-2 rounded-md text-sm font-medium text-cyan-600 hover:text-cyan-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 flex items-center"
+                    >
+                      <MessageSquare className='h-4 w-4 mr-1'/>
+                      Notify
+                    </button>
+                    </div>
                 </div>
               </div>
             ))
@@ -479,6 +489,10 @@ const ShipmentDetailPage: React.FC = () => {
               No alerts for this shipment
             </div>
           )}
+          <NotificationCenter 
+                          isOpen={notificationsOpen} 
+                          onClose={() => setNotificationsOpen(false)} 
+                        />
         </div>
       </div>
     </div>
