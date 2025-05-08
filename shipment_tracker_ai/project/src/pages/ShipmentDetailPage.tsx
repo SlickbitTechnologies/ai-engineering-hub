@@ -1,10 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useShipments } from '../contexts/ShipmentContext';
 import { useSettings } from '../contexts/SettingsContext';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { Thermometer, MapPin, Truck, Calendar, Clock, FileText } from 'lucide-react';
-import { format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
@@ -25,7 +24,7 @@ const ShipmentDetailPage: React.FC = () => {
       const maxTemp = Number(import.meta.env.VITE_MAX_TEMPERATURE_THRESHOLD) || maxTemperatureThreshold;
       checkTemperatureThresholds(shipment, minTemp, maxTemp);
     }
-  }, [shipment?.temperatureHistory, minTemperatureThreshold, maxTemperatureThreshold, checkTemperatureThresholds]);
+  }, [shipment, minTemperatureThreshold, maxTemperatureThreshold, checkTemperatureThresholds]);
 
   const formatDateTime = (date: Date | string, formatStr: string) => {
     return formatInTimeZone(new Date(date), userTimeZone, formatStr);
@@ -426,17 +425,17 @@ const ShipmentDetailPage: React.FC = () => {
                       alert.type === 'warning' ? 'bg-yellow-100 text-yellow-600' :
                       'bg-blue-100 text-blue-600'
                     }`}>
-                      {alert.type === 'critical' && (
+                      {alert.type.toLowerCase() === 'critical' && (
                         <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                         </svg>
                       )}
-                      {alert.type === 'warning' && (
+                      {alert.type.toLowerCase() === 'warning' && (
                         <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                         </svg>
                       )}
-                      {alert.type === 'info' && (
+                      {alert.type.toLowerCase() === 'info' && (
                         <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9a1 1 0 00-1-1z" clipRule="evenodd" />
                         </svg>

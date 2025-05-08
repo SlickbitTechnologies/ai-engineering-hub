@@ -33,14 +33,20 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     
     if (savedMinTemp) {
       setMinTemperatureThreshold(parseFloat(savedMinTemp));
+    }else{
+      localStorage.setItem('minTemperatureThreshold', defaultSettings.minTemperatureThreshold.toString());
     }
     
     if (savedMaxTemp) {
       setMaxTemperatureThreshold(parseFloat(savedMaxTemp));
+    }else{
+      localStorage.setItem('maxTemperatureThreshold', defaultSettings.maxTemperatureThreshold.toString());
     }
     
     if (savedPhone) {
       setPhoneNumber(savedPhone);
+    }else{
+      localStorage.setItem('phoneNumber', defaultSettings.phoneNumber);
     }
   }, []);
   
