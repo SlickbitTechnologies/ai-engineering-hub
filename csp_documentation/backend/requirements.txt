@@ -4,6 +4,7 @@ python-dotenv==1.0.1
 env
 requests==2.31.0
 PyPDF2==3.0.1
+tiktoken
 google.generativeai 
 groq==0.4.2
 pandas==2.2.0

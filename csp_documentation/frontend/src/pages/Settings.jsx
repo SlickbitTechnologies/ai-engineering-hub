@@ -521,7 +521,7 @@ function Settings() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleSaveTemplate}
-                className="flex-1 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="flex-1 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white  focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"style={{ backgroundColor: '#0098B3' }}
                   >
                 {editingTemplate ? 'Update Template' : 'Save Template'}
               </motion.button>
@@ -564,7 +564,7 @@ function Settings() {
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleEditTemplate(template)}
-                            className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-xs font-medium"
+                            className="px-3 py-1 bg-blue-50 hover:bg-blue-100  rounded text-xs font-medium" style={{ color: '#0098B3' }}
                           >
                             Edit
                           </motion.button>
