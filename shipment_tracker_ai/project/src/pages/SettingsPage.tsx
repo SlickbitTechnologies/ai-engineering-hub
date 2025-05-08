@@ -211,6 +211,11 @@ const SettingsPage: React.FC = () => {
             if (sheetNames.length > 1) {
               const secondSheet = workbook.Sheets[sheetNames[1]];
               const tempRows = XLSX.utils.sheet_to_json(secondSheet, { defval: '' }) as Record<string, any>[];
+              const alerts: any[] = [];
+              const minTemperatureThreshold = parseFloat(minThreshold);
+              const maxTemperatureThreshold = parseFloat(maxThreshold);
+              let i =0;
+              let lastStaus:number = 0
               console.log("Temp rows:", tempRows);
               const temperatureHistory = tempRows
                 .map((row: Record<string, any>) => {
@@ -222,7 +227,47 @@ const SettingsPage: React.FC = () => {
                   const currentTime = new Date();
                   const readingTime = new Date(timestamp);
                   const status = currentTime < readingTime ? 'upcoming' : 'completed';
+                  const temp_in_celsius = parseFloat(row['Temperature (¬∞C)'] || row['Temperature (°C)'] || row['Temperature (C)'] || '0');
                   
+                  if(temp_in_celsius < minTemperatureThreshold) {
+                    alerts.push({
+                      id: `alert-${Date.now()}${i++}`,
+                      shipmentId: shipment.id,
+                      timestamp: timestamp,
+                      temperature: temp_in_celsius,
+                      status: status,
+                      type:"critical",
+                      location: row['Location'],
+                      message: `Temperature below minimum threshold: ${temp_in_celsius}°C`
+                    });
+                    lastStaus = 1;
+                  }
+                  else if(temp_in_celsius > maxTemperatureThreshold){
+                    lastStaus = 1;
+                    alerts.push({
+                      id: `alert-${Date.now()}${i++}`,
+                      shipmentId: shipment.id,
+                      timestamp: timestamp,
+                      temperature: temp_in_celsius,
+                      status: status,
+                      type:"critical",
+                      location: row['Location'],
+                      message: `Temperature above maximum threshold: ${temp_in_celsius}°C`
+                    });
+                  }
+                  else if(lastStaus === 1){
+                    alerts.push({
+                      id: `alert-${Date.now()}${i++}`,
+                      shipmentId: shipment.id,
+                      timestamp: timestamp,
+                      temperature: temp_in_celsius,
+                      status: status,
+                      type:"info",
+                      location: row['Location'],
+                      message: `Temperature back to normal: ${temp_in_celsius}°C`
+                    });
+                    lastStaus = 0;
+                  }
                   return {
                     timestamp: timestamp,
                     location: row['Location'],
@@ -233,6 +278,7 @@ const SettingsPage: React.FC = () => {
                 });
               console.log("Temperature history:", temperatureHistory);
               shipment.temperatureHistory = temperatureHistory;
+              shipment.alerts = alerts;
               if (temperatureHistory.length > 0) {
                 shipment.currentTemperature = temperatureHistory[temperatureHistory.length - 1].value;
               }

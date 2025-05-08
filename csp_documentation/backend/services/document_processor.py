@@ -13,6 +13,8 @@ from urllib.parse import urlparse
 from office365.runtime.auth.client_credential import ClientCredential
 from office365.sharepoint.client_context import ClientContext
 from office365.sharepoint.files.file import File
+import tiktoken
+from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
@@ -35,12 +37,68 @@ class DocumentProcessor:
         if not gemini_api_key:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         genai.configure(api_key=gemini_api_key)
-        self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+        self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
         
         # Initialize template context
         self.template_context = TemplateContext()
 
         self.sharepoint_client = None
+        
+        # Initialize token tracking
+        self.token_tracking = {
+            'total_tokens': 0,
+            'tokens_per_minute': [],
+            'last_minute_tokens': 0,
+            'last_minute_time': datetime.now(),
+            'documents_processed': 0,
+            'documents_exceeding_limit': 0
+        }
+        
+        # Initialize tokenizer
+        self.tokenizer = tiktoken.get_encoding("cl100k_base")  # Using OpenAI's tokenizer as a reference
+        
+        # Token limits
+        self.MAX_TOKENS_PER_MINUTE = 100000  # Adjust this based on your needs
+
+    def _count_tokens(self, text: str) -> int:
+        """Count the number of tokens in a text string."""
+        try:
+            return len(self.tokenizer.encode(text))
+        except Exception as e:
+            logger.error(f"Error counting tokens: {str(e)}")
+            return 0
+
+    def _update_token_tracking(self, tokens: int):
+        """Update token tracking statistics."""
+        current_time = datetime.now()
+        self.token_tracking['total_tokens'] += tokens
+        self.token_tracking['last_minute_tokens'] += tokens
+        
+        # Check if a minute has passed
+        if current_time - self.token_tracking['last_minute_time'] >= timedelta(minutes=1):
+            # Record tokens per minute
+            self.token_tracking['tokens_per_minute'].append({
+                'timestamp': self.token_tracking['last_minute_time'],
+                'tokens': self.token_tracking['last_minute_tokens']
+            })
+            
+            # Check if we exceeded the limit
+            if self.token_tracking['last_minute_tokens'] > self.MAX_TOKENS_PER_MINUTE:
+                self.token_tracking['documents_exceeding_limit'] += 1
+                logger.warning(f"Token limit exceeded in the last minute: {self.token_tracking['last_minute_tokens']} tokens")
+            
+            # Reset for next minute
+            self.token_tracking['last_minute_tokens'] = 0
+            self.token_tracking['last_minute_time'] = current_time
+
+    def get_token_statistics(self) -> Dict:
+        """Get current token usage statistics."""
+        return {
+            'total_tokens': self.token_tracking['total_tokens'],
+            'documents_processed': self.token_tracking['documents_processed'],
+            'documents_exceeding_limit': self.token_tracking['documents_exceeding_limit'],
+            'tokens_per_minute': self.token_tracking['tokens_per_minute'][-5:] if self.token_tracking['tokens_per_minute'] else []
+        }
 
     def _initialize_sharepoint(self, site_url: str):
         """Initialize SharePoint client if not already initialized."""
@@ -182,8 +240,8 @@ class DocumentProcessor:
             url_type = self._get_url_type(url)
             all_metadata = []
             failed_documents = []
-            MAX_FILE_SIZE_MB = 5
-            MAX_PAGES = 180
+            MAX_FILE_SIZE_MB = 20
+            MAX_PAGES = 500
             
             if url_type == 'sharepoint':
                 # Initialize SharePoint client
@@ -322,13 +380,26 @@ class DocumentProcessor:
                 if not text.strip():
                     raise ValueError("No text could be extracted from the document")
                 
-                logger.info(f"Extracted text length: {len(text)} characters")
+                # Count and log tokens in the extracted text
+                text_tokens = self._count_tokens(text)
+                self._update_token_tracking(text_tokens)
+                logger.info(f"Extracted text length: {len(text)} characters, Tokens: {text_tokens}")
                 
                 # Generate prompt with the template fields
                 prompt = self._generate_prompt(text, fields)
                 
+                # Count and log tokens in the prompt
+                prompt_tokens = self._count_tokens(prompt)
+                self._update_token_tracking(prompt_tokens)
+                logger.info(f"Prompt tokens: {prompt_tokens}")
+                
                 # Get metadata from Gemini
                 response = self.gemini_model.generate_content(prompt)
+                
+                # Count and log tokens in the response
+                response_tokens = self._count_tokens(response.text)
+                self._update_token_tracking(response_tokens)
+                logger.info(f"Response tokens: {response_tokens}")
                 
                 # Parse the response
                 metadata = self._parse_response(response.text)
@@ -340,6 +411,17 @@ class DocumentProcessor:
                         result[field_name] = metadata[field_name]
                     else:
                         result[field_name] = "Not found"
+                
+                # Update document count
+                self.token_tracking['documents_processed'] += 1
+                
+                # Add token statistics to result
+                result['token_statistics'] = {
+                    'text_tokens': text_tokens,
+                    'prompt_tokens': prompt_tokens,
+                    'response_tokens': response_tokens,
+                    'total_tokens': text_tokens + prompt_tokens + response_tokens
+                }
                 
                 logger.info(f"Extracted metadata: {json.dumps(result, indent=2)}")
                 return result

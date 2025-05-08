@@ -59,6 +59,8 @@ function Documents() {
   const [uploadError, setUploadError] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const [tokenStats, setTokenStats] = useState(null);
+  const [showTokenStats, setShowTokenStats] = useState(false);
 
   // Load metadata from backend on component mount
   useEffect(() => {
@@ -119,6 +121,26 @@ function Documents() {
     }
     return () => clearInterval(timer);
   }, [timerActive, processingComplete]);
+
+  // // Add useEffect for fetching token statistics
+  // useEffect(() => {
+  //   const fetchTokenStats = async () => {
+  //     try {
+  //       const response = await fetch(`${url}/token-statistics`);
+  //       if (response.ok) {
+  //         const data = await response.json();
+  //         setTokenStats(data.statistics);
+  //       }
+  //     } catch (error) {
+  //       console.error('Error fetching token statistics:', error);
+  //     }
+  //   };
+
+  //   // Fetch token stats every minute
+  //   fetchTokenStats();
+  //   const interval = setInterval(fetchTokenStats, 60000);
+  //   return () => clearInterval(interval);
+  // }, []);
 
   const handleTemplateChange = (e) => {
     const templateId = e.target.value;
@@ -453,13 +475,13 @@ function Documents() {
                 Click here to view the Excel file
               </a>
               
-              <motion.div
+              {/* <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="bg-gray-50 rounded-lg p-4 border border-gray-200"
               >
                 {documents.length} documents processed
-              </motion.div>
+              </motion.div> */}
               
               <div className="flex justify-end space-y-2">
                 <motion.button
@@ -495,6 +517,66 @@ function Documents() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Token Statistics Panel */}
+        {/* <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-800">Token Usage Statistics</h2>
+            <button
+              onClick={() => setShowTokenStats(!showTokenStats)}
+              className="text-[#0098B3] hover:text-[#007A92] transition-colors"
+            >
+              {showTokenStats ? 'Hide Details' : 'Show Details'}
+            </button>
+          </div>
+          
+          {tokenStats && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600">Total Tokens</div>
+                  <div className="text-2xl font-semibold text-gray-800">{tokenStats.total_tokens.toLocaleString()}</div>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600">Documents Processed</div>
+                  <div className="text-2xl font-semibold text-gray-800">{tokenStats.documents_processed}</div>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600">Documents Exceeding Limit</div>
+                  <div className="text-2xl font-semibold text-gray-800">{tokenStats.documents_exceeding_limit}</div>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600">Current Tokens/Minute</div>
+                  <div className="text-2xl font-semibold text-gray-800">
+                    {tokenStats.tokens_per_minute.length > 0 
+                      ? tokenStats.tokens_per_minute[tokenStats.tokens_per_minute.length - 1].tokens.toLocaleString()
+                      : '0'}
+                  </div>
+                </div>
+              </div>
+              
+              {showTokenStats && tokenStats.tokens_per_minute.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">Recent Token Usage</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="space-y-2">
+                      {tokenStats.tokens_per_minute.map((entry, index) => (
+                        <div key={index} className="flex justify-between items-center">
+                          <div className="text-sm text-gray-600">
+                            {new Date(entry.timestamp).toLocaleTimeString()}
+                          </div>
+                          <div className="text-sm font-medium text-gray-800">
+                            {entry.tokens.toLocaleString()} tokens
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div> */}
       </div>
     </div>
   );

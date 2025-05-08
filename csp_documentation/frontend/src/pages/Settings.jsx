@@ -368,8 +368,8 @@ function Settings() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Side: Create New Template Form */}
           <motion.div variants={itemVariants} className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-            <h2 className="text-xl font-semibold text-blue-700 mb-6 flex items-center">
-              <DocumentTextIcon className="h-6 w-6 mr-2 text-blue-500" />
+            <h2 className="text-xl font-semibold  mb-6 flex items-center" style={{ color: '#0098B3' }}>
+              <DocumentTextIcon className="h-6 w-6 mr-2 " style={{ color: '#0098B3' }} />
               {editingTemplate ? 'Edit Template' : 'Create New Template'}
             </h2>
             <div className="grid grid-cols-1 gap-4 mb-4">
@@ -381,7 +381,8 @@ function Settings() {
                   onChange={e => setTemplateName(e.target.value)}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   placeholder="e.g., Clinical Study Report Template"
-                  style={{paddingLeft: '5px'}}
+                  style={{paddingLeft: '5px'} }
+                 
                 />
               </div>
               <div>
@@ -400,13 +401,13 @@ function Settings() {
               <div className="flex items-center space-x-4">
                 <button
                   onClick={handleAddField}
-                  className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
+                  className="flex items-center  text-sm font-medium transition-colors" style={{ color: '#0098B3' }}
                 >
                   <PlusIcon className="h-5 w-5 mr-1" /> Add Field
                 </button>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
+                  className="flex items-center  text-sm font-medium transition-colors" style={{ color: '#0098B3' }}
                 >
                   <ArrowDownTrayIcon className="h-5 w-5 mr-1" /> Import Fields
                 </button>
@@ -499,7 +500,7 @@ function Settings() {
                     >Cancel</button>
                     <button
                       onClick={handleAcceptUploadedFields}
-                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                      className="text-sm  font-medium" style={{ color: '#0098B3' }}
                     >Use These Fields</button>
                   </div>
                 </motion.div>
@@ -521,7 +522,7 @@ function Settings() {
                 whileTap={{ scale: 0.98 }}
                 onClick={handleSaveTemplate}
                 className="flex-1 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
+                  >
                 {editingTemplate ? 'Update Template' : 'Save Template'}
               </motion.button>
             </div>
@@ -529,8 +530,8 @@ function Settings() {
 
           {/* Right Side: Template List */}
           <motion.div variants={itemVariants} className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-            <h2 className="text-xl font-semibold text-blue-700 mb-6 flex items-center">
-              <Cog6ToothIcon className="h-6 w-6 mr-2 text-blue-500" />
+            <h2 className="text-xl font-semibold  mb-6 flex items-center" style={{ color: '#0098B3' }}>
+              <Cog6ToothIcon className="h-6 w-6 mr-2 "  style={{ color: '#0098B3' }}/>
               Existing Templates
             </h2>
 

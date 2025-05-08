@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Phone, AlertTriangle, Loader2, Volume2 } from 'lucide-react';
+import { X, Phone, Loader2, Volume2 } from 'lucide-react';
 import { useShipments } from '../contexts/ShipmentContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { format } from 'date-fns';
