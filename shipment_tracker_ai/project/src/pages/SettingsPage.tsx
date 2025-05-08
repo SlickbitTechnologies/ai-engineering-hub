@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Bell, Phone, Thermometer, Download, Trash2 } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useShipments } from '../contexts/ShipmentContext';
-import { downloadSampleCSV } from '../utils/sampleDataGenerator';
+import { downloadSampleExcel } from '../utils/sampleDataGenerator';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
@@ -312,7 +312,7 @@ const SettingsPage: React.FC = () => {
   };
   
   const handleDownloadSample = () => {
-    downloadSampleCSV();
+    downloadSampleExcel();
   };
   
   const handleClearData = async () => {
@@ -483,7 +483,7 @@ const SettingsPage: React.FC = () => {
                 className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500"
               >
                 <Download className="mr-2 h-4 w-4" />
-                Download CSV Template
+                Download Excel Template
               </button>
               
               <button
@@ -497,9 +497,8 @@ const SettingsPage: React.FC = () => {
             
             <div className="mt-4 p-4 bg-gray-50 rounded-md">
               <p className="text-sm text-gray-500">
-                <strong>Note:</strong> Download the CSV template to see the expected data format for your files. 
-                You can upload either CSV files or Excel files with multiple sheets. For Excel files with temperature history, 
-                the second sheet should have columns: shipment_id, timestamp, and value.
+                <strong>Note:</strong> Download the Excel template to see the expected data format for your files. 
+                The template includes two sheets: "Shipment Details" for basic shipment information and "Temperature Readings" for temperature history.
                 Clear all data will remove all shipments from the system.
               </p>
             </div>

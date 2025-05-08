@@ -8,7 +8,7 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, mockLogin } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,20 +21,6 @@ const LoginPage: React.FC = () => {
       navigate('/dashboard');
     } catch (err: any) {
       setError('Failed to login. ' + (err.message || 'Please check your credentials.'));
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Updated to use mock login
-  const handleDemoLogin = () => {
-    try {
-      setError('');
-      setLoading(true);
-      mockLogin(); // Use our new mockLogin function
-      navigate('/dashboard');
-    } catch {
-      setError('Demo login currently unavailable.');
     } finally {
       setLoading(false);
     }
@@ -131,17 +117,6 @@ const LoginPage: React.FC = () => {
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </div>
-          
-          <div>
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              className="group relative w-full flex justify-center py-2 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500"
-            >
-              Sign in with demo account
-            </button>
-          </div>
-          
           <div className="text-center">
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}

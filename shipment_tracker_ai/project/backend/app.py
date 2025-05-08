@@ -10,6 +10,21 @@ import time
 from sample_data import generate_sample_data
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse, Gather
+from dotenv import load_dotenv
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Load environment variables
+env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+load_dotenv()
+
+# Log environment variables (without sensitive data)
+logger.info("Environment variables loaded:")
+logger.info(f"TWILIO_ACCOUNT_SID exists: {bool(os.getenv('TWILIO_ACCOUNT_SID'))}")
+logger.info(f"TWILIO_AUTH_TOKEN exists: {bool(os.getenv('TWILIO_AUTH_TOKEN'))}")
+logger.info(f"TWILIO_PHONE_NUMBER exists: {bool(os.getenv('TWILIO_PHONE_NUMBER'))}")
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -27,10 +42,6 @@ def root():
         ],
         "status": "OK"
     })
-
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Get absolute base directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -301,140 +312,179 @@ def mark_alert_read(shipment_id, alert_id):
     
     return jsonify({"success": True})
 
-# Twilio configuration - would be in environment variables in production
-TWILIO_ACCOUNT_SID = 'Your_key'  # Set to your actual Twilio account SID in production
-TWILIO_AUTH_TOKEN = 'Your_key'    # Set to your actual Twilio auth token in production
-TWILIO_PHONE_NUMBER = '+15551234567'     # Set to your actual Twilio phone number in production
+# Initialize Twilio client if credentials are available
+twilio_account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+twilio_auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+twilio_phone_number = os.getenv('TWILIO_PHONE_NUMBER')
 
-# Initialize Twilio client
-try:
-    twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+# Log environment variables status
+logger.info("Environment variables loaded:")
+logger.info(f"TWILIO_ACCOUNT_SID exists: {bool(twilio_account_sid)}")
+logger.info(f"TWILIO_AUTH_TOKEN exists: {bool(twilio_auth_token)}")
+logger.info(f"TWILIO_PHONE_NUMBER exists: {bool(twilio_phone_number)}")
+
+# Initialize Twilio client if credentials are available
+if all([twilio_account_sid, twilio_auth_token, twilio_phone_number]):
+    twilio_client = Client(twilio_account_sid, twilio_auth_token)
     logger.info("Twilio client initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize Twilio client: {e}")
+else:
     twilio_client = None
+    logger.warning("Twilio credentials not found in environment variables. Running in development mode.")
 
-# Twilio voice call API endpoint
-@app.route('/api/twilio/call', methods=['POST'])
+# In-memory storage for call history
+call_history = []
+
+def get_call_history():
+    try:
+        if os.path.exists('data/call_history.json'):
+            with open('data/call_history.json', 'r') as f:
+                return json.load(f)
+        return []
+    except Exception as e:
+        logger.error(f"Error reading call history: {str(e)}")
+        return []
+
+def save_call_history(calls):
+    try:
+        os.makedirs('data', exist_ok=True)
+        with open('data/call_history.json', 'w') as f:
+            json.dump(calls, f)
+    except Exception as e:
+        logger.error(f"Error saving call history: {str(e)}")
+
+@app.route('/api/calls', methods=['POST'])
 def make_call():
     try:
         data = request.json
-        to_number = data.get('to')
-        from_number = data.get('from', TWILIO_PHONE_NUMBER)
-        message = data.get('message', 'Alert from Cold Chain Monitor.')
-        
-        if not to_number:
-            return jsonify({"error": "Recipient phone number is required"}), 400
-        
-        # Log the call details
-        logger.info(f"Making call to: {to_number}, message: {message}")
-        
-        # Check if Twilio client is initialized
-        if twilio_client is None:
-            # If Twilio is not configured, return a mock response
-            call_sid = f"CA{uuid.uuid4().hex[:32]}"
-            logger.warning("Twilio client not initialized. Returning mock response.")
+        if not data or 'to' not in data:
             return jsonify({
-                "success": True,
-                "call_sid": call_sid,
-                "status": "queued",
-                "mock": True
+                'success': False,
+                'error': 'Phone number is required'
+            }), 400
+
+        # Format the phone number to ensure it has the country code
+        raw_phone = data['to'].strip()
+        if not raw_phone.startswith('+'):
+            # If number starts with 91, add + prefix
+            if raw_phone.startswith('91'):
+                phone_number = '+' + raw_phone
+            # If number starts with 7, add +91 prefix
+            elif raw_phone.startswith('7'):
+                phone_number = '+91' + raw_phone
+            else:
+                phone_number = '+91' + raw_phone
+        else:
+            phone_number = raw_phone
+
+        message = data.get('message', 'This is a test call from Shipment Tracker AI')
+
+        # List of verified numbers for testing
+        verified_numbers = [
+            '+917993557149',  # Your number
+            '+17859757862'   # Twilio number
+        ]
+
+        if twilio_client:
+            try:
+                # Check if the number is verified (for trial accounts)
+                if phone_number not in verified_numbers:
+                    # For unverified numbers, return a helpful error message
+                    return jsonify({
+                        'success': False,
+                        'error': f'Phone number {phone_number} is not verified. Please use one of the verified numbers: {", ".join(verified_numbers)}',
+                        'verified_numbers': verified_numbers,
+                        'formatted_number': phone_number
+                    }), 400
+
+                # Make real call using Twilio
+                call = twilio_client.calls.create(
+                    to=phone_number,
+                    from_='+17859757862',  # Your Twilio number
+                    twiml=f'<Response><Say>{message}</Say></Response>'
+                )
+                
+                call_data = {
+                    'id': call.sid,
+                    'recipient': phone_number,
+                    'timestamp': datetime.now().isoformat(),
+                    'duration': 0,
+                    'status': call.status,
+                    'message': message
+                }
+
+                # Save to call history
+                call_history = get_call_history()
+                call_history.append(call_data)
+                save_call_history(call_history)
+
+                return jsonify({
+                    'success': True,
+                    'message': 'Call initiated successfully',
+                    'call': call_data
+                })
+
+            except Exception as e:
+                error_message = str(e)
+                logger.error(f"Twilio call error: {error_message}")
+                
+                # Handle specific Twilio errors
+                if "unverified" in error_message.lower():
+                    return jsonify({
+                        'success': False,
+                        'error': f'Phone number {phone_number} needs to be verified in your Twilio account. Please use one of the verified numbers: {", ".join(verified_numbers)}',
+                        'verified_numbers': verified_numbers,
+                        'formatted_number': phone_number,
+                        'help_url': 'https://www.twilio.com/console/phone-numbers/verified'
+                    }), 400
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': error_message
+                    }), 500
+        else:
+            # Development mode: simulate a successful call
+            logger.info(f"Development mode: Simulating call to {phone_number}")
+            call_data = {
+                'id': f'dev_{datetime.now().timestamp()}',
+                'recipient': phone_number,
+                'timestamp': datetime.now().isoformat(),
+                'duration': 30,
+                'status': 'completed',
+                'message': message
+            }
+
+            # Save to call history
+            call_history = get_call_history()
+            call_history.append(call_data)
+            save_call_history(call_history)
+
+            return jsonify({
+                'success': True,
+                'message': 'Call simulated successfully (development mode)',
+                'call': call_data
             })
-            
-        # Use the Twilio SDK to make the call
-        call = twilio_client.calls.create(
-            to=to_number,
-            from_=from_number,
-            url=request.url_root + f"api/twilio/twiml?message={message}"  # URL to TwiML
-        )
-        
-        logger.info(f"Twilio call initiated: {call.sid}")
-        
+
+    except Exception as e:
+        logger.error(f"Error making call: {str(e)}")
         return jsonify({
-            "success": True,
-            "call_sid": call.sid,
-            "status": call.status
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/calls', methods=['GET'])
+def get_calls():
+    try:
+        calls = get_call_history()
+        return jsonify({
+            'success': True,
+            'calls': calls
         })
     except Exception as e:
-        logger.error(f"Error making Twilio call: {e}")
-        return jsonify({"error": str(e)}), 500
-
-# TwiML generation for the call
-@app.route('/api/twilio/twiml', methods=['GET', 'POST'])
-def twiml():
-    # Generate TwiML to control the call
-    message = request.args.get('message', 'Alert from Cold Chain Monitor. Temperature deviation detected in shipment.')
-    
-    response = VoiceResponse()
-    response.say(message)
-    response.pause(length=1)
-    response.say("Press 1 to acknowledge this alert.")
-    
-    gather = Gather(num_digits=1, action="/api/twilio/handle-input", method="POST")
-    response.append(gather)
-    
-    return str(response), 200, {'Content-Type': 'text/xml'}
-
-# Handle input from the call
-@app.route('/api/twilio/handle-input', methods=['POST'])
-def handle_input():
-    digits = request.form.get('Digits', '')
-    response = VoiceResponse()
-    
-    if digits == '1':
-        response.say("Alert acknowledged. Thank you.")
-    else:
-        response.say("Invalid input. Alert status remains active.")
-    
-    return str(response), 200, {'Content-Type': 'text/xml'}
-
-@app.route('/api/twilio/calls', methods=['GET'])
-def get_call_history():
-    # Try to get actual call history from Twilio if client is initialized
-    if twilio_client:
-        try:
-            # Get recent calls from Twilio
-            twilio_calls = twilio_client.calls.list(limit=20)
-            
-            # Format the calls for the frontend
-            call_history = [{
-                "sid": call.sid,
-                "to": call.to,
-                "from": call.from_,
-                "status": call.status,
-                "duration": call.duration,
-                "timestamp": call.start_time.isoformat() if call.start_time else datetime.now().isoformat(),
-                "direction": call.direction
-            } for call in twilio_calls]
-            
-            return jsonify(call_history)
-        except Exception as e:
-            logger.error(f"Error retrieving call history from Twilio: {e}")
-    
-    # Fall back to mock data if Twilio is not available or there's an error
-    # Create some sample call history data
-    call_history = [
-        {
-            "sid": f"CA{uuid.uuid4().hex[:32]}",
-            "to": "+15551234567",
-            "from": TWILIO_PHONE_NUMBER,
-            "status": "completed",
-            "duration": "45",
-            "timestamp": (datetime.now() - timedelta(days=1)).isoformat(),
-            "direction": "outbound-api"
-        },
-        {
-            "sid": f"CA{uuid.uuid4().hex[:32]}",
-            "to": "+15557654321",
-            "from": TWILIO_PHONE_NUMBER,
-            "status": "no-answer",
-            "duration": "0",
-            "timestamp": (datetime.now() - timedelta(days=3)).isoformat(),
-            "direction": "outbound-api"
-        }
-    ]
-    
-    return jsonify(call_history)
+        logger.error(f"Error getting calls: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     # Ensure data directory exists

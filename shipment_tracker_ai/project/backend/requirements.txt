@@ -1,4 +1,4 @@
 Flask==2.0.1
 Flask-Cors==3.0.10
-python-dotenv==1.0.0
-Twilio==8.10.0
+python-dotenv==0.19.0
+Twilio==8.12.0
