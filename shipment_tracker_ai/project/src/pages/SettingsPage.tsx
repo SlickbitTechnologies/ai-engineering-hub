@@ -228,10 +228,12 @@ const SettingsPage: React.FC = () => {
                   const readingTime = new Date(timestamp);
                   const status = currentTime < readingTime ? 'upcoming' : 'completed';
                   const temp_in_celsius = parseFloat(row['Temperature (¬∞C)'] || row['Temperature (°C)'] || row['Temperature (C)'] || '0');
-                  
+                  console.log("Temp in celsius:", temp_in_celsius,minTemperatureThreshold,maxTemperatureThreshold);
+                  console.log("isMin:",temp_in_celsius < minTemperatureThreshold);
+                  console.log("isMax:",temp_in_celsius > maxTemperatureThreshold);
                   if(temp_in_celsius < minTemperatureThreshold) {
                     alerts.push({
-                      id: `alert-${Date.now()}${i++}`,
+                      id: `alert-${Date.now()}${i++}`, 
                       shipmentId: shipment.id,
                       timestamp: timestamp,
                       temperature: temp_in_celsius,

@@ -398,11 +398,17 @@ def make_call():
                         'formatted_number': phone_number
                     }), 400
 
-                # Make real call using Twilio
+                # Get the base URL for status callbacks
+                base_url = request.host_url.rstrip('/')
+                
+                # Make real call using Twilio with status callback
                 call = twilio_client.calls.create(
                     to=phone_number,
                     from_='+13253087816',  # Use the working Twilio number that was successful in testing
-                    twiml=f'<Response><Say>{message}</Say></Response>'
+                    twiml=f'<Response><Say>{message}</Say></Response>',
+                    status_callback=f"{base_url}/api/twilio-status-callback",
+                    status_callback_method='POST',
+                    status_callback_event=['completed', 'answered', 'busy', 'no-answer', 'failed', 'canceled']
                 )
                 
                 call_data = {
@@ -483,6 +489,85 @@ def get_calls():
         })
     except Exception as e:
         logger.error(f"Error getting calls: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# Add a new route for handling Twilio status callbacks
+@app.route('/api/twilio-status-callback', methods=['POST'])
+def twilio_status_callback():
+    try:
+        # Extract status info from Twilio's callback
+        call_sid = request.form.get('CallSid')
+        call_status = request.form.get('CallStatus')
+        call_duration = request.form.get('CallDuration', '0')
+        
+        logger.info(f"Received status callback for call {call_sid}: {call_status}, duration: {call_duration}s")
+        
+        # Update call in history
+        call_history = get_call_history()
+        for call in call_history:
+            if call.get('id') == call_sid:
+                call['status'] = call_status
+                call['duration'] = int(call_duration)
+                break
+        
+        save_call_history(call_history)
+        
+        return '', 204  # Return empty response with status 204 (No Content)
+    except Exception as e:
+        logger.error(f"Error processing Twilio status callback: {str(e)}")
+        return '', 500
+
+# Add a new endpoint to poll and refresh call status for a specific call
+@app.route('/api/calls/<call_sid>/status', methods=['GET'])
+def get_call_status(call_sid):
+    try:
+        # Check if we have this call in our history first
+        call_history = get_call_history()
+        local_call = next((call for call in call_history if call.get('id') == call_sid), None)
+        
+        # If the call exists and we have Twilio client, get the latest status
+        if local_call and twilio_client:
+            try:
+                # Fetch the latest call details from Twilio API
+                call_details = twilio_client.calls(call_sid).fetch()
+                
+                # Update our local record
+                local_call['status'] = call_details.status
+                if hasattr(call_details, 'duration') and call_details.duration:
+                    local_call['duration'] = int(call_details.duration)
+                
+                # Save the updated history
+                save_call_history(call_history)
+                
+                return jsonify({
+                    'success': True,
+                    'call': local_call
+                })
+            except Exception as e:
+                # If we can't reach Twilio, just return what we have
+                logger.error(f"Error fetching call from Twilio: {str(e)}")
+                return jsonify({
+                    'success': True,
+                    'call': local_call,
+                    'note': 'Using cached call data - could not refresh from Twilio'
+                })
+        elif local_call:
+            # If no Twilio client, just return what we have
+            return jsonify({
+                'success': True,
+                'call': local_call
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Call with SID {call_sid} not found'
+            }), 404
+            
+    except Exception as e:
+        logger.error(f"Error getting call status: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)

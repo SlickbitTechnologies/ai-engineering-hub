@@ -53,7 +53,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
         {currentUser && (
           <div className="ml-4 flex items-center md:ml-6">
             {/* Notifications */}
-            <div className="relative ml-3">
+            {/* <div className="relative ml-3">
               <button
                 className="max-w-xs bg-white flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-600"
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
@@ -73,7 +73,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                 isOpen={notificationsOpen} 
                 onClose={() => setNotificationsOpen(false)} 
               />
-            </div>
+            </div> */}
             
             {/* Profile dropdown */}
             <div className="ml-3 relative">

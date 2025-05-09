@@ -29,15 +29,10 @@ const ShipmentDetailPage: React.FC = () => {
   const [userTimeZone, setUserTimeZone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || import.meta.env.VITE_DEFAULT_TIMEZONE
   );
-  console.log(shipment, 'shipmentshipmentshipment')
   const [processedJourney, setProcessedJourney] = useState<any[]>([]);
-  console.log('ShipmentDetailPage',shipment);
- // Dependency: re-run when shipment data changes
-
+  
   // Add state for notification center
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
-  const [notificationPhoneNumber, setNotificationPhoneNumber] = useState('');
-  const [notificationMessage, setNotificationMessage] = useState('');
 
   // Check thresholds whenever temperature history changes
   useEffect(() => {
@@ -50,13 +45,6 @@ const ShipmentDetailPage: React.FC = () => {
 
   const formatDateTime = (date: Date | string, formatStr: string) => {
     return formatInTimeZone(new Date(date), userTimeZone, formatStr);
-  };
-
-  // Function to handle notification center
-  const handleOpenNotificationCenter = (phoneNumber: string, message: string) => {
-    setNotificationPhoneNumber(phoneNumber);
-    setNotificationMessage(message);
-    setIsNotificationCenterOpen(true);
   };
 
   if (loading) {
@@ -84,9 +72,22 @@ const ShipmentDetailPage: React.FC = () => {
   const minTemp = minTemperatureThreshold;
   const maxTemp = maxTemperatureThreshold;
   
+  // Count the number of temperature deviations
+  const deviationCount = shipment.temperatureHistory.filter(t => 
+    t.value > maxTemp || t.value < minTemp
+  ).length;
+  
+  // Count critical temperature alerts
+  const temperatureAlertCount = shipment.alerts.filter(
+    a => a.type === 'critical' && a.message.includes('Temperature')
+  ).length;
+  
+  // Check if alerts match deviations count
+  const needsSync = deviationCount !== temperatureAlertCount;
+  
   return (
     <div className="space-y-6">
-      {/* Add NotificationCenter component */}
+      {/* Notification Center */}
       <NotificationCenter 
         isOpen={isNotificationCenterOpen} 
         onClose={() => setIsNotificationCenterOpen(false)} 
@@ -95,18 +96,28 @@ const ShipmentDetailPage: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-cyan-800">Cold Chain Monitor</h1>
-        {/* <div className="flex items-center space-x-2">
-          <button className="relative p-2 text-gray-400 hover:text-gray-500">
-            <span className="absolute top-0 right-0 h-5 w-5 flex items-center justify-center bg-red-500 text-white text-xs rounded-full">2</span>
+        <div className="flex items-center space-x-2">
+          <button 
+            className="relative p-2 text-gray-400 hover:text-gray-500"
+            onClick={() => setIsNotificationCenterOpen(true)}
+          >
+            {deviationCount > 0 && (
+              <span className="absolute top-0 right-0 h-5 w-5 flex items-center justify-center bg-red-500 text-white text-xs rounded-full">
+                {deviationCount}
+              </span>
+            )}
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
           </button>
-          <button className="p-2 bg-cyan-600 text-white rounded-md flex items-center">
+          <button 
+            className="p-2 bg-cyan-600 text-white rounded-md flex items-center"
+            onClick={() => setIsNotificationCenterOpen(true)}
+          >
             <MessageSquare className="h-5 w-5 mr-1" />
             <span>Notifications</span>
           </button>
-        </div> */}
+        </div>
       </div>
       
       {/* Main dashboard panels */}
@@ -193,9 +204,9 @@ const ShipmentDetailPage: React.FC = () => {
               <Thermometer className="h-5 w-5 text-cyan-700 mr-2" />
               <h2 className="text-lg font-medium text-cyan-800">Temperature History</h2>
             </div>
-            {shipment.temperatureHistory.some(t => t.value > maxTemp || t.value < minTemp) && (
+            {deviationCount > 0 && (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                1 deviation
+                {deviationCount} {deviationCount === 1 ? 'deviation' : 'deviations'}
               </span>
             )}
           </div>
@@ -447,9 +458,26 @@ const ShipmentDetailPage: React.FC = () => {
               </svg>
               <h2 className="text-lg font-medium text-cyan-800">Alerts & Notifications</h2>
             </div>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-              {shipment.alerts.filter(a => !a.read).length} New
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                {deviationCount} Alerts
+              </span>
+              {/* <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                {deviationCount} Deviations
+              </span> */}
+              {needsSync && (
+                <button
+                  onClick={() => {
+                    checkTemperatureThresholds(shipment, minTemp, maxTemp);
+                    // Reload page after a short delay to show new alerts
+                    setTimeout(() => window.location.reload(), 500);
+                  }}
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200"
+                >
+                  Sync Alerts
+                </button>
+              )}
+            </div>
           </div>
           <div className="divide-y divide-gray-200 max-h-[400px] overflow-y-auto">
             {shipment.alerts.length > 0 ? (
@@ -496,12 +524,7 @@ const ShipmentDetailPage: React.FC = () => {
                           {/* Only show Notify button for critical alerts */}
                           {alert.type === 'critical' && (
                             <button
-                              onClick={() => {
-                                const phoneNumber = shipment.contacts?.phone || '+1 (206) 555-0178';
-                                const message = `Alert for shipment ${shipment.number}: ${alert.message}`;
-                                // Open notification center instead of directly making a call
-                                handleOpenNotificationCenter(phoneNumber, message);
-                              }}
+                              onClick={() => setIsNotificationCenterOpen(true)}
                               className="text-xs font-medium bg-red-100 text-red-800 px-2 py-1 rounded hover:bg-red-200"
                             >
                               Notify

@@ -58,9 +58,22 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
 
   const getCallUser = (call: any) => call.recipient || call.to || 'Unknown';
   
-  const mapCallStatus = (twilioStatus: string): 'completed' | 'failed' => {
+  const mapCallStatus = (twilioStatus: string): 'completed' | 'failed' | 'in-progress' => {
     const completedStatuses = ['completed', 'successful', 'success', 'answered'];
-    return completedStatuses.includes((twilioStatus || '').toLowerCase()) ? 'completed' : 'failed';
+    const inProgressStatuses = ['in-progress', 'ringing', 'queued', 'initiated', 'in-progress'];
+    const failedStatuses = ['failed', 'busy', 'no-answer', 'canceled'];
+    
+    const status = (twilioStatus || '').toLowerCase();
+    
+    if (completedStatuses.includes(status)) {
+      return 'completed';
+    } else if (inProgressStatuses.includes(status)) {
+      return 'in-progress';
+    } else if (failedStatuses.includes(status)) {
+      return 'failed';
+    } else {
+      return 'failed';
+    }
   };
 
   const fetchCallHistory = async () => {
@@ -87,10 +100,63 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({ isOpen, onClose
     setCallStartTime(new Date());
     setErrorMessage('');
     setCallStatus('Calling...');
+    
     try {
       const call = await callApi.makeCall(phoneNumberToCall, alertMessage);
-      setCallStatus(call.status || 'Call initiated'); 
-      setCallHistory(prev => [{ ...call, status: mapCallStatus(call.status) }, ...prev]); 
+      setCallStatus(call.status || 'Call initiated');
+      
+      const initialCallRecord = { 
+        ...call, 
+        status: mapCallStatus(call.status),
+        id: call.id || call.sid 
+      };
+      
+      setCallHistory(prev => [initialCallRecord, ...prev]);
+      
+      const maxPolls = 8;
+      let pollCount = 0;
+      
+      const pollStatus = async () => {
+        if (!call.id && !call.sid) return;
+        
+        try {
+          const callId = call.id || call.sid;
+          const updatedCall = await callApi.getCallStatus(callId);
+          
+          if (updatedCall) {
+            const mappedStatus = mapCallStatus(updatedCall.status);
+            setCallStatus(updatedCall.status || 'Call in progress'); 
+            
+            setCallHistory(prev => {
+              const updatedHistory = [...prev];
+              const callIndex = updatedHistory.findIndex(c => (c.id === callId || c.sid === callId));
+              if (callIndex >= 0) {
+                updatedHistory[callIndex] = { 
+                  ...updatedHistory[callIndex], 
+                  ...updatedCall,
+                  status: mappedStatus
+                };
+              }
+              return updatedHistory;
+            });
+            
+            if (mappedStatus === 'completed' || mappedStatus === 'failed') {
+              setCallActive(false);
+              return;
+            }
+          }
+          
+          pollCount++;
+          if (pollCount < maxPolls && callActive) {
+            setTimeout(pollStatus, 5000);
+          }
+        } catch (error) {
+          console.error('Error polling call status:', error);
+        }
+      };
+      
+      setTimeout(pollStatus, 5000);
+      
     } catch (error) {
       console.error('Error making call:', error);
       setErrorMessage('Failed to make call. Please check the number and try again.');

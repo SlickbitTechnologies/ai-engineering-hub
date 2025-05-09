@@ -567,30 +567,33 @@ export const ShipmentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const checkTemperatureThresholds = useCallback(async (shipment: Shipment, minThreshold: number, maxThreshold: number) => {
     if (!shipment.temperatureHistory?.length) return;
 
-    const latestReading = shipment.temperatureHistory[shipment.temperatureHistory.length - 1];
-    const temperature = latestReading.value;
-    const location = shipment.origin?.city || 'Unknown';
-
-    // Check if temperature is out of range
-    if (temperature > maxThreshold || temperature < minThreshold) {
-      // Check for existing unread alerts within the last hour
-      const existingAlert = shipment.alerts?.find(
-        a => a.type === 'critical' && 
-        a.message.includes('Temperature') &&
-        !a.read &&
-        new Date(a.timestamp).getTime() > Date.now() - 1000 * 60 * 60 // Within last hour
+    // Count temperature deviations in history
+    const deviations = shipment.temperatureHistory.filter(
+      reading => reading.value > maxThreshold || reading.value < minThreshold
+    );
+    
+    // Count existing temperature alerts
+    const existingAlerts = shipment.alerts.filter(
+      alert => alert.type === 'critical' && alert.message.includes('Temperature')
+    );
+    
+    // If we have more deviations than alerts, create alerts for the missing ones
+    if (deviations.length > existingAlerts.length) {
+      const location = shipment.origin?.city || 'Unknown';
+      const missingAlertsCount = deviations.length - existingAlerts.length;
+      
+      // Create new alerts for each missing deviation
+      const newAlerts = deviations.slice(-missingAlertsCount).map(deviation => 
+        createTemperatureAlert(deviation.value, minThreshold, maxThreshold, location)
       );
-
-      if (!existingAlert) {
-        const newAlert = createTemperatureAlert(temperature, minThreshold, maxThreshold, location);
-        
-        const updatedShipment = {
-          ...shipment,
-          alerts: [...(shipment.alerts || []), newAlert]
-        };
-
-        await updateShipment(updatedShipment);
-      }
+      
+      // Update the shipment with new alerts
+      const updatedShipment = {
+        ...shipment,
+        alerts: [...shipment.alerts, ...newAlerts]
+      };
+      
+      await updateShipment(updatedShipment);
     }
   }, []);
 
