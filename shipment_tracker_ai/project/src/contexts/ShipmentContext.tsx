@@ -364,23 +364,27 @@ export const ShipmentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Create journey points if missing
         console.log(`Creating journey points for shipment ${shipment.departureTime} to ${shipment.estimatedDelivery}`);
         const currentTimestamp = new Date().getTime();
-        const departureTime = new Date(shipment.departureTime || currentTimestamp).getTime();
-        const estimatedDelivery = new Date(shipment.estimatedDelivery || currentTimestamp + 7 * 24 * 60 * 60 * 1000).getTime();
-        const journey = shipment.journey || [
-          { 
-            location: typeof shipment.origin === 'string' ? shipment.origin : shipment.origin?.city || 'Unknown', 
-            timestamp: shipment.departureTime || new Date().toISOString(),
-            temperature: parseFloat(shipment.currentTemperature || 5), 
-            status:currentTimestamp < departureTime ? 'upcoming' : 'completed' 
-          },
-          { 
-            location: typeof shipment.destination === 'string' ? shipment.destination : shipment.destination?.city || 'Unknown', 
-            timestamp: shipment.estimatedDelivery || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), 
-            temperature: 0, 
-            status: currentTimestamp < estimatedDelivery ? 'upcoming' : 'completed'
-          }
-        ];
         
+        let journey = shipment.journey || temperatureHistory.map((temp: any)=>{
+          const timestamp = new Date(temp.timestamp).getTime();
+          return {
+            location:temp.location,
+            timestamp:timestamp,
+            temperature:temp.value,
+            status:currentTimestamp < timestamp ? 'upcoming' : 'completed'
+          }
+        });
+        let uniqueLocations:any[] = [];
+        for(let point of journey){
+          let index = uniqueLocations.findIndex((location:any)=>location.location === point.location);
+          if(index === -1){
+            uniqueLocations.push(point);
+          }else{
+            uniqueLocations[index] = point;
+          }
+        }
+        journey = uniqueLocations
+          
         // Normalize origin and destination to match expected structure
         const origin = typeof shipment.origin === 'string' 
           ? { city: shipment.origin, country: 'Unknown' } 
