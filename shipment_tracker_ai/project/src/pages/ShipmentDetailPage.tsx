@@ -411,7 +411,7 @@ const ShipmentDetailPage: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Email</p>
-                    <p className="text-gray-900">{shipment.contacts?.email || 'NA'}</p>
+                    <p className="text-gray-900">{shipment.email || 'NA'}</p>
                   </div>
                 </div>
               </div>
