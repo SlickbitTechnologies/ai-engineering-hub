@@ -7,6 +7,7 @@ import { Thermometer, MapPin, Truck, Calendar, Clock, FileText, MessageSquare, U
 import { formatInTimeZone } from 'date-fns-tz';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import NotificationCenter from '../components/NotificationCenter';
+import { callApi } from '../services/api';
 
 // Define our extended Shipment type that includes contacts
 type ExtendedShipment = Shipment & {
@@ -33,6 +34,11 @@ const ShipmentDetailPage: React.FC = () => {
   console.log('ShipmentDetailPage',shipment);
  // Dependency: re-run when shipment data changes
 
+  // Add state for notification center
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  const [notificationPhoneNumber, setNotificationPhoneNumber] = useState('');
+  const [notificationMessage, setNotificationMessage] = useState('');
+
   // Check thresholds whenever temperature history changes
   useEffect(() => {
     if (shipment) {
@@ -44,6 +50,13 @@ const ShipmentDetailPage: React.FC = () => {
 
   const formatDateTime = (date: Date | string, formatStr: string) => {
     return formatInTimeZone(new Date(date), userTimeZone, formatStr);
+  };
+
+  // Function to handle notification center
+  const handleOpenNotificationCenter = (phoneNumber: string, message: string) => {
+    setNotificationPhoneNumber(phoneNumber);
+    setNotificationMessage(message);
+    setIsNotificationCenterOpen(true);
   };
 
   if (loading) {
@@ -73,10 +86,16 @@ const ShipmentDetailPage: React.FC = () => {
   
   return (
     <div className="space-y-6">
+      {/* Add NotificationCenter component */}
+      <NotificationCenter 
+        isOpen={isNotificationCenterOpen} 
+        onClose={() => setIsNotificationCenterOpen(false)} 
+      />
+      
       {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-cyan-800">Cold Chain Monitor</h1>
-        <div className="flex items-center space-x-2">
+        {/* <div className="flex items-center space-x-2">
           <button className="relative p-2 text-gray-400 hover:text-gray-500">
             <span className="absolute top-0 right-0 h-5 w-5 flex items-center justify-center bg-red-500 text-white text-xs rounded-full">2</span>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -87,7 +106,7 @@ const ShipmentDetailPage: React.FC = () => {
             <MessageSquare className="h-5 w-5 mr-1" />
             <span>Notifications</span>
           </button>
-        </div>
+        </div> */}
       </div>
       
       {/* Main dashboard panels */}
@@ -473,14 +492,30 @@ const ShipmentDetailPage: React.FC = () => {
                             {formatDateTime(alert.timestamp, 'MMM d, h:mm a')}
                           </p>
                         </div>
-                        {!alert.read && (
-                          <button
-                            onClick={() => markAlertAsRead(shipment.id, alert.id)}
-                            className="text-xs font-medium text-cyan-600 hover:text-cyan-500"
-                          >
-                            Mark read
-                          </button>
-                        )}
+                        <div className="flex space-x-2">
+                          {/* Only show Notify button for critical alerts */}
+                          {alert.type === 'critical' && (
+                            <button
+                              onClick={() => {
+                                const phoneNumber = shipment.contacts?.phone || '+1 (206) 555-0178';
+                                const message = `Alert for shipment ${shipment.number}: ${alert.message}`;
+                                // Open notification center instead of directly making a call
+                                handleOpenNotificationCenter(phoneNumber, message);
+                              }}
+                              className="text-xs font-medium bg-red-100 text-red-800 px-2 py-1 rounded hover:bg-red-200"
+                            >
+                              Notify
+                            </button>
+                          )}
+                          {!alert.read && (
+                            <button
+                              onClick={() => markAlertAsRead(shipment.id, alert.id)}
+                              className="text-xs font-medium text-cyan-600 hover:text-cyan-500"
+                            >
+                              Mark read
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <p className="mt-1 text-sm text-gray-900">{alert.message}</p>
                       {alert.location && (

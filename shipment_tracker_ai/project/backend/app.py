@@ -363,13 +363,15 @@ def make_call():
             }), 400
 
         # Format the phone number to ensure it has the country code
-        raw_phone = data['to'].strip()
+        raw_phone = data['to'].strip() if isinstance(data['to'], str) else str(data['to'])
+        
+        # Safer phone number formatting
         if not raw_phone.startswith('+'):
             # If number starts with 91, add + prefix
             if raw_phone.startswith('91'):
                 phone_number = '+' + raw_phone
-            # If number starts with 7, add +91 prefix
-            elif raw_phone.startswith('7'):
+            # If number starts with 7, 8, or 9, add +91 prefix (for Indian numbers)
+            elif len(raw_phone) > 0 and raw_phone[0] in ['7', '8', '9']:
                 phone_number = '+91' + raw_phone
             else:
                 phone_number = '+91' + raw_phone
@@ -380,8 +382,8 @@ def make_call():
 
         # List of verified numbers for testing
         verified_numbers = [
-            '+917993557149',  # Your number
-            '+17859757862'   # Twilio number
+            '+918074928240',  # Your number
+            '+13253087816'    # Twilio number
         ]
 
         if twilio_client:
@@ -399,7 +401,7 @@ def make_call():
                 # Make real call using Twilio
                 call = twilio_client.calls.create(
                     to=phone_number,
-                    from_='+17859757862',  # Your Twilio number
+                    from_='+13253087816',  # Use the working Twilio number that was successful in testing
                     twiml=f'<Response><Say>{message}</Say></Response>'
                 )
                 

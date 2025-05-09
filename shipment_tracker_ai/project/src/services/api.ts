@@ -54,7 +54,28 @@ export const callApi = {
       return response.data.call;
     } catch (error) {
       console.error('Error making call:', error);
-      throw error;
+      
+      // Create a fallback call record instead of throwing an error
+      const fallbackCall: Call = {
+        sid: `local_${Date.now()}`,
+        to: to,
+        from: 'system',
+        status: 'failed',
+        duration: 0,
+        timestamp: new Date().toISOString(),
+        message: message || 'Call failed - server error'
+      };
+      
+      // Store in localStorage as a backup
+      try {
+        const storedCalls = JSON.parse(localStorage.getItem('fallbackCalls') || '[]');
+        storedCalls.push(fallbackCall);
+        localStorage.setItem('fallbackCalls', JSON.stringify(storedCalls));
+      } catch (e) {
+        console.warn('Could not store fallback call in localStorage');
+      }
+      
+      return fallbackCall;
     }
   },
 
@@ -64,7 +85,15 @@ export const callApi = {
       return response.data.calls;
     } catch (error) {
       console.error('Error getting calls:', error);
-      throw error;
+      
+      // Return fallback calls from localStorage if the API fails
+      try {
+        const fallbackCalls = JSON.parse(localStorage.getItem('fallbackCalls') || '[]');
+        return fallbackCalls;
+      } catch (e) {
+        console.warn('Could not retrieve fallback calls from localStorage');
+        return [];
+      }
     }
   },
 };
