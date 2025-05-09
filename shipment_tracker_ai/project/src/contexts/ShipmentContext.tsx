@@ -64,6 +64,11 @@ export interface Shipment {
     city: string;
     country: string;
   };
+  designation:string;
+  senderContactName:string;
+  organization:string;
+  phoneNumber:string;
+  email:string;
   departureTime: string;
   estimatedDelivery: string;
   carrier: string;

@@ -67,7 +67,7 @@ const ShipmentDetailPage: React.FC = () => {
     fullTime: formatDateTime(point.timestamp, 'MMM d, h:mm a'),
     value: point.value
   }));
-  
+  console.log("SHIPMENT", shipment);
   const minTemp = minTemperatureThreshold;
   const maxTemp = maxTemperatureThreshold;
   
