@@ -356,7 +356,10 @@ def save_call_history(calls):
 def make_call():
     try:
         data = request.json
+        logger.info(f"Call request data: {data}")
+        
         if not data or 'to' not in data:
+            logger.error("Missing 'to' field in call request")
             return jsonify({
                 'success': False,
                 'error': 'Phone number is required'
@@ -378,7 +381,43 @@ def make_call():
         else:
             phone_number = raw_phone
 
-        message = data.get('message', 'This is a test call from Shipment Tracker AI')
+        # Get shipment details from the request
+        shipment_details = data.get('shipmentDetails', {})
+        logger.info(f"Using shipment details: {shipment_details}")
+        
+        # Extract values with better error handling and explicit defaults
+        try:
+            detected_temp = shipment_details.get('detectedTemperature', 'N/A')
+            # Strip the °C suffix if present
+            if isinstance(detected_temp, str) and '°C' in detected_temp:
+                detected_temp = detected_temp.replace('°C', '')
+            
+            time_date = shipment_details.get('timeDate', 'N/A')
+            temp_range = shipment_details.get('temperatureRange', 'N/A')
+            person_name = shipment_details.get('personName', 'there')
+            shipment_number = shipment_details.get('shipmentNumber', 'N/A')
+            
+            logger.info(f"Parsed call details - temp: {detected_temp}, time: {time_date}, range: {temp_range}, shipment: {shipment_number}")
+        except Exception as e:
+            logger.error(f"Error parsing shipment details: {e}")
+            detected_temp = 'N/A'
+            time_date = 'N/A'
+            temp_range = 'N/A'
+            person_name = 'there'
+            shipment_number = 'N/A'
+        
+        logger.info(f"Final call details - to: {phone_number}, temp: {detected_temp}, time: {time_date}, range: {temp_range}")
+
+        # Construct the conversation flow
+        conversation = f"""
+        <Response>
+            <Say>Hello {person_name}, this is a call regarding your shipment with the details {shipment_number}. I'm reaching out because we noticed a temperature spike that's a bit outside the recommended range.</Say>
+            <Pause length="2"/>
+            <Say>The temperature hit {detected_temp} degrees at around {time_date}. The recommended range is {temp_range}, so we just wanted to make sure you're aware and can check on it.</Say>
+            <Pause length="2"/>
+            <Say>Thank you for your attention to this matter.</Say>
+        </Response>
+        """
 
         # List of verified numbers for testing
         verified_numbers = [
@@ -405,7 +444,7 @@ def make_call():
                 call = twilio_client.calls.create(
                     to=phone_number,
                     from_='+13253087816',  # Use the working Twilio number that was successful in testing
-                    twiml=f'<Response><Say>{message}</Say></Response>',
+                    twiml=conversation,
                     status_callback=f"{base_url}/api/twilio-status-callback",
                     status_callback_method='POST',
                     status_callback_event=['completed', 'answered', 'busy', 'no-answer', 'failed', 'canceled']
@@ -417,7 +456,14 @@ def make_call():
                     'timestamp': datetime.now().isoformat(),
                     'duration': 0,
                     'status': call.status,
-                    'message': message
+                    'message': conversation,
+                    'shipmentDetails': shipment_details,
+                    'metadata': {
+                        'detectedTemperature': detected_temp,
+                        'timeDate': time_date,
+                        'temperatureRange': temp_range,
+                        'shipmentNumber': shipment_number
+                    }
                 }
 
                 # Save to call history
@@ -458,7 +504,14 @@ def make_call():
                 'timestamp': datetime.now().isoformat(),
                 'duration': 30,
                 'status': 'completed',
-                'message': message
+                'message': conversation,
+                'shipmentDetails': shipment_details,
+                'metadata': {
+                    'detectedTemperature': detected_temp,
+                    'timeDate': time_date,
+                    'temperatureRange': temp_range,
+                    'shipmentNumber': shipment_number
+                }
             }
 
             # Save to call history
@@ -565,7 +618,6 @@ def get_call_status(call_sid):
                 'success': False,
                 'error': f'Call with SID {call_sid} not found'
             }), 404
-            
     except Exception as e:
         logger.error(f"Error getting call status: {str(e)}")
         return jsonify({

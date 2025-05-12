@@ -29,7 +29,7 @@ function excelDateToJSDate(serial: number): string {
 }
 
 const SettingsPage: React.FC = () => {
-  const [phoneNumber, setPhoneNumber] = useState('7993557149');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -45,15 +45,25 @@ const SettingsPage: React.FC = () => {
     clearAllShipments, 
     uploadShipmentFile } = useShipments();
   
-  // Initialize state from context
-  const [minThreshold, setMinThreshold] = useState<string>(minTemperatureThreshold.toString());
-  const [maxThreshold, setMaxThreshold] = useState<string>(maxTemperatureThreshold.toString());
+  // Initialize state as empty strings to show empty input fields
+  const [minThreshold, setMinThreshold] = useState<string>('');
+  const [maxThreshold, setMaxThreshold] = useState<string>('');
   
-  // Update local state when context values change
+  // Update local state when context values change, but only if they haven't been set yet
   useEffect(() => {
-    setMinThreshold(minTemperatureThreshold.toString());
-    setMaxThreshold(maxTemperatureThreshold.toString());
-  }, [minTemperatureThreshold, maxTemperatureThreshold]);
+    if (minTemperatureThreshold !== 0 && minThreshold === '') {
+      setMinThreshold(minTemperatureThreshold.toString());
+    }
+    if (maxTemperatureThreshold !== 0 && maxThreshold === '') {
+      setMaxThreshold(maxTemperatureThreshold.toString());
+    }
+  }, [minTemperatureThreshold, maxTemperatureThreshold, minThreshold, maxThreshold]);
+  
+  // Check if threshold save button should be enabled
+  const isThresholdButtonEnabled = minThreshold !== '' && maxThreshold !== '';
+  
+  // Check if phone save button should be enabled
+  const isPhoneButtonEnabled = phoneNumber !== '';
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUploadError(null);
@@ -388,31 +398,21 @@ const SettingsPage: React.FC = () => {
   
   const handlePhoneSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Update phone number in settings context
-    updatePhoneNumber(phoneNumber);
-    alert('Phone number updated successfully! This number will be used for alert notifications.');
+    if (phoneNumber.trim() !== '') {
+      updatePhoneNumber(phoneNumber);
+      alert('Phone number updated successfully');
+    }
   };
   
   const handleThresholdSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const min = parseFloat(minThreshold);
-    const max = parseFloat(maxThreshold);
-    
-    if (isNaN(min) || isNaN(max)) {
-      alert('Please enter valid threshold values');
-      return;
+    if (minThreshold.trim() !== '' && maxThreshold.trim() !== '') {
+      updateTemperatureThresholds(
+        parseFloat(minThreshold), 
+        parseFloat(maxThreshold)
+      );
+      alert('Temperature thresholds updated successfully');
     }
-    
-    if (min >= max) {
-      alert('Minimum threshold must be less than maximum threshold');
-      return;
-    }
-    
-    // Update the thresholds in the context
-    updateTemperatureThresholds(min, max);
-    
-    alert(`Temperature thresholds updated: Min ${min}°C, Max ${max}°C`);
   };
   
   return (
@@ -566,36 +566,27 @@ const SettingsPage: React.FC = () => {
           </p>
         </div>
         <div className="p-6">
-          <form onSubmit={handlePhoneSubmit}>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="phone-number" className="block text-sm font-medium text-gray-700">
-                  <div className="flex items-center">
-                    <Phone className="h-4 w-4 text-gray-400 mr-2" />
-                    <span>Contact Number for Notifications</span>
-                  </div>
-                </label>
-                <div className="mt-1">
-                  <input
-                    type="tel"
-                    name="phone-number"
-                    id="phone-number"
-                    className="shadow-sm focus:ring-cyan-500 focus:border-cyan-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                    placeholder="+1 (123) 456-7890"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                  />
-                </div>
+          <form onSubmit={handlePhoneSubmit} className="space-y-3">
+            <div className="mt-1 relative rounded-md shadow-sm">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <Phone className="h-4 w-4 text-gray-400" />
               </div>
-              <div>
-                <button
-                  type="submit"
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500"
-                >
-                  Save Phone Number
-                </button>
-              </div>
+              <input
+                type="tel"
+                id="phone-number"
+                className="focus:ring-cyan-500 focus:border-cyan-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+                placeholder="+1 (555) 987-6543"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+              />
             </div>
+            <button
+              type="submit"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!isPhoneButtonEnabled}
+            >
+              Save Phone Number
+            </button>
           </form>
           
           <div className="mt-8 border-t border-gray-200 pt-6">
@@ -603,49 +594,44 @@ const SettingsPage: React.FC = () => {
               <Thermometer className="h-4 w-4 text-gray-400 mr-2" />
               <h4 className="text-base font-medium text-gray-900">Temperature Thresholds</h4>
             </div>
-            <form onSubmit={handleThresholdSubmit}>
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="min-threshold" className="block text-sm font-medium text-gray-700">
-                    Minimum Temperature (°C)
-                  </label>
-                  <div className="mt-1">
+            <form onSubmit={handleThresholdSubmit} className="space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <label htmlFor="min-threshold" className="block text-sm font-medium text-gray-700 mb-1">Min Threshold (°C)</label>
+                  <div className="mt-1 relative rounded-md shadow-sm">
                     <input
                       type="number"
-                      name="min-threshold"
-                      id="min-threshold"
                       step="0.1"
-                      className="shadow-sm focus:ring-cyan-500 focus:border-cyan-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                      id="min-threshold"
+                      className="focus:ring-cyan-500 focus:border-cyan-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                      placeholder="0.0"
                       value={minThreshold}
                       onChange={(e) => setMinThreshold(e.target.value)}
                     />
                   </div>
                 </div>
-                <div>
-                  <label htmlFor="max-threshold" className="block text-sm font-medium text-gray-700">
-                    Maximum Temperature (°C)
-                  </label>
-                  <div className="mt-1">
+                <div className="flex-1">
+                  <label htmlFor="max-threshold" className="block text-sm font-medium text-gray-700 mb-1">Max Threshold (°C)</label>
+                  <div className="mt-1 relative rounded-md shadow-sm">
                     <input
                       type="number"
-                      name="max-threshold"
-                      id="max-threshold"
                       step="0.1"
-                      className="shadow-sm focus:ring-cyan-500 focus:border-cyan-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                      id="max-threshold"
+                      className="focus:ring-cyan-500 focus:border-cyan-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                      placeholder="0.0"
                       value={maxThreshold}
                       onChange={(e) => setMaxThreshold(e.target.value)}
                     />
                   </div>
                 </div>
               </div>
-              <div className="mt-5">
-                <button
-                  type="submit"
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500"
-                >
-                  Save Thresholds
-                </button>
-              </div>
+              <button
+                type="submit"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!isThresholdButtonEnabled}
+              >
+                Save Thresholds
+              </button>
             </form>
           </div>
         </div>

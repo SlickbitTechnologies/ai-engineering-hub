@@ -37,6 +37,14 @@ api.interceptors.response.use(
   }
 );
 
+export interface ShipmentDetails {
+  shipmentNumber: string;
+  detectedTemperature: string;
+  timeDate: string;
+  temperatureRange: string;
+  personName: string;
+}
+
 export interface Call {
   sid: string;
   id?: string;  // Add id field which may be present in some API responses
@@ -47,13 +55,21 @@ export interface Call {
   timestamp: string;
   message: string;
   recipient?: string; // Used in some places
+  shipmentDetails?: ShipmentDetails;
 }
 
 export const callApi = {
-  makeCall: async (to: string, message?: string): Promise<Call> => {
+  makeCall: async (to: string, message?: string, shipmentDetails?: ShipmentDetails): Promise<Call> => {
     try {
-      const response = await api.post(getApiUrl(API_CONFIG.ENDPOINTS.CALLS), { to, message });
+      console.log("Making call with shipment details:", shipmentDetails);
+      
+      const response = await api.post(getApiUrl(API_CONFIG.ENDPOINTS.CALLS), { 
+        to, 
+        message,
+        shipmentDetails 
+      });
       const callData = response.data.call;
+      console.log("Call API response:", callData);
       
       // Set up status polling if we have a valid call SID
       if (callData && callData.id) {
@@ -92,7 +108,8 @@ export const callApi = {
         status: 'failed',
         duration: 0,
         timestamp: new Date().toISOString(),
-        message: message || 'Call failed - server error'
+        message: message || 'Call failed - server error',
+        shipmentDetails
       };
       
       // Store in localStorage as a backup
