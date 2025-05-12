@@ -1,21 +1,26 @@
 export interface Shipment {
   id: string;
+  number: string;
+  status: 'pending' | 'in_transit' | 'delivered' | 'delayed';
+  currentLocation: string;
+  estimatedDelivery: string;
+  recipientName: string;
   recipientPhone: string;
   currentTemperature: number;
-  temperatureThresholds: {
-    min: number;
-    max: number;
-  };
-  status: string;
-  location: string;
-  timestamp: string;
+  minTemperature: number;
+  maxTemperature: number;
+  temperatureHistory: {
+    timestamp: string;
+    temperature: number;
+  }[];
   alerts: Alert[];
+  lastUpdated: string;
 }
 
 export interface Alert {
   id: string;
-  type: 'temperature' | 'location' | 'other';
+  type: 'critical' | 'warning' | 'info';
   message: string;
   timestamp: string;
-  isRead: boolean;
+  read: boolean;
 } 

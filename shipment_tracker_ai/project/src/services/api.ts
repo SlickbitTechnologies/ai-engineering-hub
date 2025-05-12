@@ -37,24 +37,115 @@ api.interceptors.response.use(
   }
 );
 
+export interface ShipmentDetails {
+  shipmentNumber: string;
+  detectedTemperature: string;
+  timeDate: string;
+  temperatureRange: string;
+  personName: string;
+}
+
 export interface Call {
   sid: string;
+  id?: string;  // Add id field which may be present in some API responses
   to: string;
   from: string;
   status: string;
   duration: number;
   timestamp: string;
   message: string;
+  recipient?: string; // Used in some places
+  shipmentDetails?: ShipmentDetails;
 }
 
 export const callApi = {
-  makeCall: async (to: string, message?: string): Promise<Call> => {
+  makeCall: async (to: string, message?: string, shipmentDetails?: ShipmentDetails): Promise<Call> => {
     try {
-      const response = await api.post(getApiUrl(API_CONFIG.ENDPOINTS.CALLS), { to, message });
-      return response.data.call;
+      console.log("Making call with shipment details:", shipmentDetails);
+      
+      const response = await api.post(getApiUrl(API_CONFIG.ENDPOINTS.CALLS), { 
+        to, 
+        message,
+        shipmentDetails 
+      });
+      const callData = response.data.call;
+      console.log("Call API response:", callData);
+      
+      // Set up status polling if we have a valid call SID
+      if (callData && callData.id) {
+        // Poll status a few times, then stop
+        let pollCount = 0;
+        const pollStatus = async () => {
+          try {
+            if (pollCount < 5) { // Try up to 5 times
+              const updatedCall = await callApi.getCallStatus(callData.id);
+              if (updatedCall && updatedCall.status && updatedCall.status !== 'queued' && updatedCall.status !== 'ringing') {
+                // Got a terminal status, no need to poll more
+                return;
+              }
+              // Schedule next poll
+              pollCount++;
+              setTimeout(pollStatus, 5000); // Poll every 5 seconds
+            }
+          } catch (e) {
+            console.warn('Error polling call status:', e);
+          }
+        };
+        
+        // Start polling after a delay
+        setTimeout(pollStatus, 5000);
+      }
+      
+      return callData;
     } catch (error) {
       console.error('Error making call:', error);
-      throw error;
+      
+      // Create a fallback call record instead of throwing an error
+      const fallbackCall: Call = {
+        sid: `local_${Date.now()}`,
+        to: to,
+        from: 'system',
+        status: 'failed',
+        duration: 0,
+        timestamp: new Date().toISOString(),
+        message: message || 'Call failed - server error',
+        shipmentDetails
+      };
+      
+      // Store in localStorage as a backup
+      try {
+        const storedCalls = JSON.parse(localStorage.getItem('fallbackCalls') || '[]');
+        storedCalls.push(fallbackCall);
+        localStorage.setItem('fallbackCalls', JSON.stringify(storedCalls));
+      } catch (e) {
+        console.warn('Could not store fallback call in localStorage');
+      }
+      
+      return fallbackCall;
+    }
+  },
+
+  getCallStatus: async (callSid: string): Promise<Call | null> => {
+    try {
+      const response = await api.get(getApiUrl(`${API_CONFIG.ENDPOINTS.CALLS}/${callSid}/status`));
+      if (response.data.success && response.data.call) {
+        // Update the call in localStorage cache as well
+        try {
+          const storedCalls = JSON.parse(localStorage.getItem('fallbackCalls') || '[]');
+          const callIndex = storedCalls.findIndex((c: Call) => c.sid === callSid);
+          if (callIndex >= 0) {
+            storedCalls[callIndex] = response.data.call;
+            localStorage.setItem('fallbackCalls', JSON.stringify(storedCalls));
+          }
+        } catch (e) {
+          console.warn('Could not update call in localStorage');
+        }
+        return response.data.call;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting call status:', error);
+      return null;
     }
   },
 
@@ -64,7 +155,15 @@ export const callApi = {
       return response.data.calls;
     } catch (error) {
       console.error('Error getting calls:', error);
-      throw error;
+      
+      // Return fallback calls from localStorage if the API fails
+      try {
+        const fallbackCalls = JSON.parse(localStorage.getItem('fallbackCalls') || '[]');
+        return fallbackCalls;
+      } catch (e) {
+        console.warn('Could not retrieve fallback calls from localStorage');
+        return [];
+      }
     }
   },
 };

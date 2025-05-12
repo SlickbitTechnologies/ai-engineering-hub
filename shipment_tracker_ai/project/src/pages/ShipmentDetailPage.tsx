@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useShipments, Shipment } from '../contexts/ShipmentContext';
 import { useSettings } from '../contexts/SettingsContext';
@@ -7,6 +7,7 @@ import { Thermometer, MapPin, Truck, Calendar, Clock, FileText, MessageSquare, U
 import { formatInTimeZone } from 'date-fns-tz';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import NotificationCenter from '../components/NotificationCenter';
+import { callApi, ShipmentDetails } from '../services/api';
 
 // Define our extended Shipment type that includes contacts
 type ExtendedShipment = Shipment & {
@@ -28,10 +29,16 @@ const ShipmentDetailPage: React.FC = () => {
   const [userTimeZone, setUserTimeZone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone || import.meta.env.VITE_DEFAULT_TIMEZONE
   );
-  console.log(shipment, 'shipmentshipmentshipment')
   const [processedJourney, setProcessedJourney] = useState<any[]>([]);
-  console.log('ShipmentDetailPage',shipment);
- // Dependency: re-run when shipment data changes
+  
+  // Add state for notification center
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  
+  // Reference to the notification center
+  const notificationCenterRef = useRef<any>(null);
+  
+  // Add state to track if call should be enabled
+  const [callEnabled, setCallEnabled] = useState(false);
 
   // Check thresholds whenever temperature history changes
   useEffect(() => {
@@ -44,6 +51,40 @@ const ShipmentDetailPage: React.FC = () => {
 
   const formatDateTime = (date: Date | string, formatStr: string) => {
     return formatInTimeZone(new Date(date), userTimeZone, formatStr);
+  };
+  
+  // Function to initiate a call with current shipment details
+  const initiateAlertCall = (phoneNumber: string) => {
+    if (!shipment) return;
+    
+    // Find the most recent temperature alert
+    const tempAlert = shipment.alerts
+      .filter(alert => alert.type === 'critical' && alert.message.includes('Temperature'))
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+    
+    // Format the shipment details for the call
+    const shipmentDetails: ShipmentDetails = {
+      shipmentNumber: shipment.number,
+      detectedTemperature: `${shipment.currentTemperature}°C`,
+      timeDate: tempAlert ? formatDateTime(tempAlert.timestamp, 'MM/dd/yyyy, h:mm:ss a') : formatDateTime(new Date(), 'MM/dd/yyyy, h:mm:ss a'),
+      temperatureRange: `${minTemperatureThreshold}°C - ${maxTemperatureThreshold}°C`,
+      personName: 'there'
+    };
+    
+    console.log("Making call with shipment details:", shipmentDetails);
+    
+    // Enable call and open notification center
+    setCallEnabled(true);
+    setIsNotificationCenterOpen(true);
+    
+    // Directly make the call via the API
+    callApi.makeCall(phoneNumber, undefined, shipmentDetails)
+      .then(result => {
+        console.log("Call initiated successfully:", result);
+      })
+      .catch(error => {
+        console.error("Failed to initiate call:", error);
+      });
   };
 
   if (loading) {
@@ -71,21 +112,53 @@ const ShipmentDetailPage: React.FC = () => {
   const minTemp = minTemperatureThreshold;
   const maxTemp = maxTemperatureThreshold;
   
+  // Count the number of temperature deviations
+  const deviationCount = shipment.temperatureHistory.filter(t => 
+    t.value > maxTemp || t.value < minTemp
+  ).length;
+  
+  // Count critical temperature alerts
+  const temperatureAlertCount = shipment.alerts.filter(
+    a => a.type === 'critical' && a.message.includes('Temperature')
+  ).length;
+  
+  // Check if alerts match deviations count
+  const needsSync = deviationCount !== temperatureAlertCount;
+  
   return (
     <div className="space-y-6">
+      {/* Notification Center */}
+      <NotificationCenter 
+        ref={notificationCenterRef}
+        isOpen={isNotificationCenterOpen} 
+        onClose={() => {
+          setIsNotificationCenterOpen(false);
+          setCallEnabled(false); // Reset call enabled state when closing
+        }}
+        currentShipment={shipment}
+        enableCall={callEnabled}
+      />
+      
       {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-cyan-800">Cold Chain Monitor</h1>
         <div className="flex items-center space-x-2">
-          <button className="relative p-2 text-gray-400 hover:text-gray-500">
-            <span className="absolute top-0 right-0 h-5 w-5 flex items-center justify-center bg-red-500 text-white text-xs rounded-full">2</span>
+          <button 
+            className="relative p-2 text-gray-400 hover:text-gray-500"
+            onClick={() => {
+              // Open notification center without enabling calls when clicking the bell icon
+              setCallEnabled(false);
+              setIsNotificationCenterOpen(true);
+            }}
+          >
+            {deviationCount > 0 && (
+              <span className="absolute top-0 right-0 h-5 w-5 flex items-center justify-center bg-red-500 text-white text-xs rounded-full">
+                {deviationCount}
+              </span>
+            )}
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
-          </button>
-          <button className="p-2 bg-cyan-600 text-white rounded-md flex items-center">
-            <MessageSquare className="h-5 w-5 mr-1" />
-            <span>Notifications</span>
           </button>
         </div>
       </div>
@@ -174,9 +247,9 @@ const ShipmentDetailPage: React.FC = () => {
               <Thermometer className="h-5 w-5 text-cyan-700 mr-2" />
               <h2 className="text-lg font-medium text-cyan-800">Temperature History</h2>
             </div>
-            {shipment.temperatureHistory.some(t => t.value > maxTemp || t.value < minTemp) && (
+            {deviationCount > 0 && (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                1 deviation
+                {deviationCount} {deviationCount === 1 ? 'deviation' : 'deviations'}
               </span>
             )}
           </div>
@@ -380,8 +453,8 @@ const ShipmentDetailPage: React.FC = () => {
                     <User className="h-5 w-5 text-cyan-600" />
                   </div>
                   <div>
-                    <h3 className="text-base font-medium text-gray-900">{shipment.contacts?.name || 'Dr. Sarah Chen'}</h3>
-                    <p className="text-sm text-gray-500">{shipment.contacts?.role || 'Supply Chain Manager'}</p>
+                    <h3 className="text-base font-medium text-gray-900">{shipment.senderContactName}</h3>
+                    <p className="text-sm text-gray-500">{shipment.designation}</p>
                   </div>
                 </div>
                 
@@ -391,7 +464,7 @@ const ShipmentDetailPage: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Organization</p>
-                    <p className="text-gray-900">{shipment.contacts?.organization || 'PharmaHealth Solutions Inc.'}</p>
+                    <p className="text-gray-900">{shipment.organization}</p>
                   </div>
                 </div>
                 
@@ -401,7 +474,7 @@ const ShipmentDetailPage: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Phone Number</p>
-                    <p className="text-gray-900">{shipment.contacts?.phone || '+1 (206) 555-0178'}</p>
+                    <p className="text-gray-900">{shipment.phoneNumber}</p>
                   </div>
                 </div>
                 
@@ -428,9 +501,26 @@ const ShipmentDetailPage: React.FC = () => {
               </svg>
               <h2 className="text-lg font-medium text-cyan-800">Alerts & Notifications</h2>
             </div>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-              {shipment.alerts.filter(a => !a.read).length} New
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                {temperatureAlertCount} Alerts
+              </span>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                {deviationCount} Deviations
+              </span>
+              {needsSync && (
+                <button
+                  onClick={() => {
+                    checkTemperatureThresholds(shipment, minTemp, maxTemp);
+                    // Reload page after a short delay to show new alerts
+                    setTimeout(() => window.location.reload(), 500);
+                  }}
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200"
+                >
+                  Sync Alerts
+                </button>
+              )}
+            </div>
           </div>
           <div className="divide-y divide-gray-200 max-h-[400px] overflow-y-auto">
             {shipment.alerts.length > 0 ? (
@@ -473,14 +563,54 @@ const ShipmentDetailPage: React.FC = () => {
                             {formatDateTime(alert.timestamp, 'MMM d, h:mm a')}
                           </p>
                         </div>
-                        {!alert.read && (
-                          <button
-                            onClick={() => markAlertAsRead(shipment.id, alert.id)}
-                            className="text-xs font-medium text-cyan-600 hover:text-cyan-500"
-                          >
-                            Mark read
-                          </button>
-                        )}
+                        <div className="flex space-x-2">
+                          {/* Only show Notify button for critical alerts */}
+                          {alert.type === 'critical' && (
+                            <button
+                              onClick={() => {
+                                // Enable calls ONLY when clicked through Notify button
+                                setCallEnabled(true);
+                                
+                                // Extract temperature from alert message
+                                let alertTemp = shipment.currentTemperature;
+                                if (alert.message && alert.message.includes('Temperature')) {
+                                  const tempMatch = alert.message.match(/threshold: ([\d\.]+)°C/);
+                                  if (tempMatch && tempMatch[1]) {
+                                    alertTemp = parseFloat(tempMatch[1]);
+                                  }
+                                }
+                                
+                                // Get person name from the shipment data
+                                const personName = shipment.senderContactName || 
+                                                  shipment.designation || 
+                                                  (shipment.contacts && shipment.contacts.name) || 
+                                                  'there';
+                                
+                                // Store the selected alert data in sessionStorage
+                                sessionStorage.setItem('selectedAlert', JSON.stringify({
+                                  id: alert.id,
+                                  message: alert.message,
+                                  timestamp: alert.timestamp,
+                                  temperature: alertTemp,
+                                  personName: personName
+                                }));
+                                
+                                setIsNotificationCenterOpen(true);
+                              }}
+                              className="text-xs font-medium bg-red-100 text-red-800 px-2 py-1 rounded hover:bg-red-200"
+                            >
+                              Notify
+                            </button>
+                          )}
+                          {!alert.read && (
+                            <button
+                              onClick={() => markAlertAsRead(shipment.id, alert.id)}
+                              className="text-xs font-medium text-cyan-600 hover:text-cyan-500"
+                            >
+                              Mark read
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <p className="mt-1 text-sm text-gray-900">{alert.message}</p>
                       {alert.location && (
