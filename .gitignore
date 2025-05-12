@@ -12,3 +12,4 @@ pharma-redact/.env
 !**/.env.example
 /csp_documentation/backend/output
 /csp_documentation/backend/templates
+/price_comparison/.next

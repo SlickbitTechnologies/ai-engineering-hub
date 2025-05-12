@@ -379,9 +379,9 @@ export const ShipmentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             status:currentTimestamp < timestamp ? 'upcoming' : 'completed'
           }
         });
-        let uniqueLocations:any[] = [];
-        for(let point of journey){
-          let index = uniqueLocations.findIndex((location:any)=>location.location === point.location);
+        const uniqueLocations:any[] = [];
+        for(const point of journey){
+          const index = uniqueLocations.findIndex((location:any)=>location.location === point.location);
           if(index === -1){
             uniqueLocations.push(point);
           }else{
