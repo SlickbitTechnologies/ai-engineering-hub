@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useShipments, Shipment } from '../contexts/ShipmentContext';
 import { useSettings } from '../contexts/SettingsContext';
@@ -43,8 +43,8 @@ const ShipmentDetailPage: React.FC = () => {
   // Check thresholds whenever temperature history changes
   useEffect(() => {
     if (shipment) {
-      const minTemp = minTemperatureThreshold ?? Number(import.meta.env.VITE_MIN_TEMPERATURE_THRESHOLD) ?? 2;
-      const maxTemp = maxTemperatureThreshold ?? Number(import.meta.env.VITE_MAX_TEMPERATURE_THRESHOLD) ?? 8;
+      const minTemp = Number(import.meta.env.VITE_MIN_TEMPERATURE_THRESHOLD) || minTemperatureThreshold;
+      const maxTemp = Number(import.meta.env.VITE_MAX_TEMPERATURE_THRESHOLD) || maxTemperatureThreshold;
       checkTemperatureThresholds(shipment, minTemp, maxTemp);
     }
   }, [shipment?.temperatureHistory, minTemperatureThreshold, maxTemperatureThreshold, checkTemperatureThresholds]);
@@ -62,17 +62,13 @@ const ShipmentDetailPage: React.FC = () => {
       .filter(alert => alert.type === 'critical' && alert.message.includes('Temperature'))
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
     
-    // Use nullish coalescing for safe defaults
-    const safeMinTemp = minTemperatureThreshold ?? 2;
-    const safeMaxTemp = maxTemperatureThreshold ?? 8;
-    
     // Format the shipment details for the call
     const shipmentDetails: ShipmentDetails = {
       shipmentNumber: shipment.number,
       detectedTemperature: `${shipment.currentTemperature}°C`,
       timeDate: tempAlert ? formatDateTime(tempAlert.timestamp, 'MM/dd/yyyy, h:mm:ss a') : formatDateTime(new Date(), 'MM/dd/yyyy, h:mm:ss a'),
-      temperatureRange: `${safeMinTemp}°C - ${safeMaxTemp}°C`,
-      personName: shipment.senderContactName || 'there'
+      temperatureRange: `${minTemperatureThreshold}°C - ${maxTemperatureThreshold}°C`,
+      personName: 'there'
     };
     
     console.log("Making call with shipment details:", shipmentDetails);
@@ -112,14 +108,9 @@ const ShipmentDetailPage: React.FC = () => {
     fullTime: formatDateTime(point.timestamp, 'MMM d, h:mm a'),
     value: point.value
   }));
-  
-  // Use nullish coalescing operators to provide default values
-  const minTemp = minTemperatureThreshold ?? 2;
-  const maxTemp = maxTemperatureThreshold ?? 8;
-
-  // Reference lines need to be numbers, not possibly null
-  const minRefLine = minTemp;
-  const maxRefLine = maxTemp;
+  console.log("SHIPMENT", shipment);
+  const minTemp = minTemperatureThreshold;
+  const maxTemp = maxTemperatureThreshold;
   
   // Count the number of temperature deviations
   const deviationCount = shipment.temperatureHistory.filter(t => 
@@ -290,12 +281,12 @@ const ShipmentDetailPage: React.FC = () => {
                     }}
                   />
                   <ReferenceLine 
-                    y={minRefLine} 
+                    y={minTemp} 
                     stroke="#ef4444" 
                     strokeDasharray="3 3" 
                   />
                   <ReferenceLine 
-                    y={maxRefLine} 
+                    y={maxTemp} 
                     stroke="#ef4444" 
                     strokeDasharray="3 3" 
                   />

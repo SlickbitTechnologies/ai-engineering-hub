@@ -1,22 +1,19 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useAuth } from './AuthContext';
 
 interface SettingsContextType {
-  minTemperatureThreshold: number | null;
-  maxTemperatureThreshold: number | null;
+  minTemperatureThreshold: number;
+  maxTemperatureThreshold: number;
   phoneNumber: string;
-  updateTemperatureThresholds: (min: number | null, max: number | null) => void;
+  updateTemperatureThresholds: (min: number, max: number) => void;
   updatePhoneNumber: (phone: string) => void;
-  clearAllSettings: () => void;
 }
 
 const defaultSettings = {
-  minTemperatureThreshold: null as number | null,
-  maxTemperatureThreshold: null as number | null,
+  minTemperatureThreshold: 2,
+  maxTemperatureThreshold: 8,
   phoneNumber: '',
   updateTemperatureThresholds: () => {},
-  updatePhoneNumber: () => {},
-  clearAllSettings: () => {}
+  updatePhoneNumber: () => {}
 };
 
 const SettingsContext = createContext<SettingsContextType>(defaultSettings);
@@ -24,36 +21,53 @@ const SettingsContext = createContext<SettingsContextType>(defaultSettings);
 export const useSettings = () => useContext(SettingsContext);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [minTemperatureThreshold, setMinTemperatureThreshold] = useState<number | null>(defaultSettings.minTemperatureThreshold);
-  const [maxTemperatureThreshold, setMaxTemperatureThreshold] = useState<number | null>(defaultSettings.maxTemperatureThreshold);
+  const [minTemperatureThreshold, setMinTemperatureThreshold] = useState<number>(defaultSettings.minTemperatureThreshold);
+  const [maxTemperatureThreshold, setMaxTemperatureThreshold] = useState<number>(defaultSettings.maxTemperatureThreshold);
   const [phoneNumber, setPhoneNumber] = useState<string>(defaultSettings.phoneNumber);
-  const { currentUser } = useAuth();
   
-  // Reset settings when user changes or logs out
+  // Load settings from localStorage on mount
   useEffect(() => {
-    setMinTemperatureThreshold(null);
-    setMaxTemperatureThreshold(null);
-    setPhoneNumber('');
-  }, [currentUser]);
+    const savedMinTemp = localStorage.getItem('minTemperatureThreshold');
+    const savedMaxTemp = localStorage.getItem('maxTemperatureThreshold');
+    const savedPhone = localStorage.getItem('phoneNumber');
+    
+    if (savedMinTemp) {
+      setMinTemperatureThreshold(parseFloat(savedMinTemp));
+    }else{
+      localStorage.setItem('minTemperatureThreshold', defaultSettings.minTemperatureThreshold.toString());
+    }
+    
+    if (savedMaxTemp) {
+      setMaxTemperatureThreshold(parseFloat(savedMaxTemp));
+    }else{
+      localStorage.setItem('maxTemperatureThreshold', defaultSettings.maxTemperatureThreshold.toString());
+    }
+    
+    if (savedPhone) {
+      setPhoneNumber(savedPhone);
+    }else{
+      localStorage.setItem('phoneNumber', defaultSettings.phoneNumber);
+    }
+  }, []);
   
-  const updateTemperatureThresholds = (min: number | null, max: number | null) => {
+  const updateTemperatureThresholds = (min: number, max: number) => {
     setMinTemperatureThreshold(min);
     setMaxTemperatureThreshold(max);
     
-    // We no longer save to localStorage to ensure fresh settings on each login
+    // Save to localStorage
+    localStorage.setItem('minTemperatureThreshold', min.toString());
+    localStorage.setItem('maxTemperatureThreshold', max.toString());
+    
+    // In a real app, you might also save to a backend/Firebase here
   };
   
   const updatePhoneNumber = (phone: string) => {
     setPhoneNumber(phone);
     
-    // We no longer save to localStorage to ensure fresh settings on each login
-  };
-  
-  // Add function to clear all settings
-  const clearAllSettings = () => {
-    setMinTemperatureThreshold(null);
-    setMaxTemperatureThreshold(null);
-    setPhoneNumber('');
+    // Save to localStorage
+    localStorage.setItem('phoneNumber', phone);
+    
+    // In a real app, you might also save to a backend/Firebase here
   };
   
   const value = {
@@ -61,8 +75,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     maxTemperatureThreshold,
     phoneNumber,
     updateTemperatureThresholds,
-    updatePhoneNumber,
-    clearAllSettings
+    updatePhoneNumber
   };
   
   return (
