@@ -45,22 +45,70 @@ const SettingsPage: React.FC = () => {
     clearAllShipments, 
     uploadShipmentFile } = useShipments();
   
-  // Initialize state as empty strings to show empty input fields
+  // Initialize state as empty strings to show empty input fields with placeholders
   const [minThreshold, setMinThreshold] = useState<string>('');
   const [maxThreshold, setMaxThreshold] = useState<string>('');
   
-  // Update local state when context values change, but only if they haven't been set yet
+  // State for validation error messages
+  const [minThresholdError, setMinThresholdError] = useState<string>('');
+  const [maxThresholdError, setMaxThresholdError] = useState<string>('');
+  
+  // Update local state only once when the component mounts, but don't overwrite user changes
   useEffect(() => {
-    if (minTemperatureThreshold !== 0 && minThreshold === '') {
+    // Only set values from context if they're not null and we haven't set values yet
+    if (minTemperatureThreshold !== null && minThreshold === '') {
       setMinThreshold(minTemperatureThreshold.toString());
     }
-    if (maxTemperatureThreshold !== 0 && maxThreshold === '') {
+    if (maxTemperatureThreshold !== null && maxThreshold === '') {
       setMaxThreshold(maxTemperatureThreshold.toString());
     }
-  }, [minTemperatureThreshold, maxTemperatureThreshold, minThreshold, maxThreshold]);
+  }, [minTemperatureThreshold, maxTemperatureThreshold]);
   
-  // Check if threshold save button should be enabled
-  const isThresholdButtonEnabled = minThreshold !== '' && maxThreshold !== '';
+  // Handle validation on change
+  const handleMinThresholdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setMinThreshold(value);
+    
+    if (value.trim() !== '' && maxThreshold.trim() !== '') {
+      const minVal = parseFloat(value);
+      const maxVal = parseFloat(maxThreshold);
+      
+      if (minVal >= maxVal) {
+        setMinThresholdError('Min temperature must be lower than max');
+      } else {
+        setMinThresholdError('');
+        setMaxThresholdError('');
+      }
+    } else {
+      setMinThresholdError('');
+    }
+  };
+  
+  const handleMaxThresholdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setMaxThreshold(value);
+    
+    if (value.trim() !== '' && minThreshold.trim() !== '') {
+      const minVal = parseFloat(minThreshold);
+      const maxVal = parseFloat(value);
+      
+      if (minVal >= maxVal) {
+        setMaxThresholdError('Max temperature must be higher than min');
+      } else {
+        setMinThresholdError('');
+        setMaxThresholdError('');
+      }
+    } else {
+      setMaxThresholdError('');
+    }
+  };
+  
+  // Update check for threshold save button
+  const isThresholdButtonEnabled = 
+    minThreshold.trim() !== '' && 
+    maxThreshold.trim() !== '' && 
+    !minThresholdError && 
+    !maxThresholdError;
   
   // Check if phone save button should be enabled
   const isPhoneButtonEnabled = phoneNumber !== '';
@@ -93,6 +141,17 @@ const SettingsPage: React.FC = () => {
     e.preventDefault();
     
     if (!file) return;
+    
+    // Check if temperature thresholds and phone number are set
+    if (!phoneNumber) {
+      alert('Please set your phone number in the Notification Settings section before uploading files.');
+      return;
+    }
+    
+    if (minTemperatureThreshold === null || maxTemperatureThreshold === null) {
+      alert('Please set both minimum and maximum temperature thresholds in the Notification Settings section before uploading files.');
+      return;
+    }
     
     try {
       setIsUploading(true);
@@ -406,13 +465,20 @@ const SettingsPage: React.FC = () => {
   
   const handleThresholdSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (minThreshold.trim() !== '' && maxThreshold.trim() !== '') {
-      updateTemperatureThresholds(
-        parseFloat(minThreshold), 
-        parseFloat(maxThreshold)
-      );
-      alert('Temperature thresholds updated successfully');
+    
+    // Parse the threshold values, checking for valid numbers
+    const minValue = minThreshold.trim() !== '' ? parseFloat(minThreshold) : null;
+    const maxValue = maxThreshold.trim() !== '' ? parseFloat(maxThreshold) : null;
+    
+    // Validate the values
+    if (minValue !== null && maxValue !== null && minValue >= maxValue) {
+      alert('Minimum temperature must be lower than maximum temperature.');
+      return;
     }
+    
+    // Update the temperature thresholds
+    updateTemperatureThresholds(minValue, maxValue);
+    alert('Temperature thresholds updated successfully');
   };
   
   return (
@@ -433,7 +499,12 @@ const SettingsPage: React.FC = () => {
         <div className="p-6">
           <div className="mb-8">
             <h4 className="text-base font-medium text-gray-900 mb-3">Data Upload</h4>
-          <form onSubmit={handleUpload}>
+            <div className="bg-blue-50 rounded-md p-4 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> Please set your phone number and temperature thresholds below before uploading files for proper temperature monitoring and alerts.
+              </p>
+            </div>
+            <form onSubmit={handleUpload}>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Upload Shipment File
@@ -507,15 +578,25 @@ const SettingsPage: React.FC = () => {
             <div className="mt-5">
               <button
                 type="submit"
-                  disabled={!file || isUploading || uploadSuccess}
+                disabled={!file || isUploading || uploadSuccess || !phoneNumber || minTemperatureThreshold === null || maxTemperatureThreshold === null}
                 className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-                    file && !isUploading && !uploadSuccess ? 'bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500' : 'bg-gray-300 cursor-not-allowed'
+                  file && !isUploading && !uploadSuccess && phoneNumber && minTemperatureThreshold !== null && maxTemperatureThreshold !== null
+                    ? 'bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500'
+                    : 'bg-gray-300 cursor-not-allowed'
                 }`}
               >
                 <Upload className="mr-2 h-4 w-4" />
-                  {isUploading ? 'Uploading...' : 'Upload File'}
-                </button>
-              </div>
+                {isUploading ? 'Uploading...' : 'Upload File'}
+              </button>
+              {(!phoneNumber || minTemperatureThreshold === null || maxTemperatureThreshold === null) && file && (
+                <p className="text-xs text-red-500 mt-2">
+                  Please set {!phoneNumber ? 'phone number' : ''} 
+                  {!phoneNumber && (minTemperatureThreshold === null || maxTemperatureThreshold === null) ? ' and ' : ''}
+                  {minTemperatureThreshold === null || maxTemperatureThreshold === null ? 'temperature thresholds' : ''} 
+                  in the Notification Settings section below.
+                </p>
+              )}
+            </div>
             </form>
           </div>
           
@@ -592,45 +673,52 @@ const SettingsPage: React.FC = () => {
           <div className="mt-8 border-t border-gray-200 pt-6">
             <div className="flex items-center mb-4">
               <Thermometer className="h-4 w-4 text-gray-400 mr-2" />
-              <h4 className="text-base font-medium text-gray-900">Temperature Thresholds</h4>
+              <h4 className="text-base font-medium text-gray-900">Temperature Alert Thresholds</h4>
             </div>
+            <p className="text-sm text-gray-500 mb-4">Set the minimum and maximum temperature values that will trigger alerts.</p>
             <form onSubmit={handleThresholdSubmit} className="space-y-3">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
-                  <label htmlFor="min-threshold" className="block text-sm font-medium text-gray-700 mb-1">Min Threshold (°C)</label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <input
-                      type="number"
-                      step="0.1"
-                      id="min-threshold"
-                      className="focus:ring-cyan-500 focus:border-cyan-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                      placeholder="0.0"
-                      value={minThreshold}
-                      onChange={(e) => setMinThreshold(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <label htmlFor="max-threshold" className="block text-sm font-medium text-gray-700 mb-1">Max Threshold (°C)</label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <input
-                      type="number"
-                      step="0.1"
-                      id="max-threshold"
-                      className="focus:ring-cyan-500 focus:border-cyan-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                      placeholder="0.0"
-                      value={maxThreshold}
-                      onChange={(e) => setMaxThreshold(e.target.value)}
-                    />
-                  </div>
-                </div>
+              <div className="mt-4">
+                <label htmlFor="min-threshold" className="block text-sm font-medium text-gray-700">
+                  Minimum Temperature Threshold (°C)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  id="min-threshold"
+                  className={`focus:ring-cyan-500 focus:border-cyan-500 block w-full sm:text-sm border-gray-300 rounded-md ${minThresholdError ? 'border-red-300' : ''}`}
+                  placeholder="00"
+                  value={minThreshold}
+                  onChange={handleMinThresholdChange}
+                />
+                {minThresholdError && (
+                  <p className="mt-1 text-sm text-red-600">{minThresholdError}</p>
+                )}
+              </div>
+              <div className="mt-4">
+                <label htmlFor="max-threshold" className="block text-sm font-medium text-gray-700">
+                  Maximum Temperature Threshold (°C)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  id="max-threshold"
+                  className={`focus:ring-cyan-500 focus:border-cyan-500 block w-full sm:text-sm border-gray-300 rounded-md ${maxThresholdError ? 'border-red-300' : ''}`}
+                  placeholder="00"
+                  value={maxThreshold}
+                  onChange={handleMaxThresholdChange}
+                />
+                {maxThresholdError && (
+                  <p className="mt-1 text-sm text-red-600">{maxThresholdError}</p>
+                )}
               </div>
               <button
                 type="submit"
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 ${
+                  !isThresholdButtonEnabled ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
                 disabled={!isThresholdButtonEnabled}
               >
-                Save Thresholds
+                Save Temperature Thresholds
               </button>
             </form>
           </div>

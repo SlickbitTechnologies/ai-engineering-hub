@@ -3,6 +3,7 @@ import { Bell, Menu, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useShipments } from '../contexts/ShipmentContext';
+import { useSettings } from '../contexts/SettingsContext';
 import NotificationCenter from './NotificationCenter';
 import Logo from '../assets/slickbitLogo.png';
 
@@ -13,6 +14,7 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   const { currentUser, logout } = useAuth();
   const { shipments } = useShipments();
+  const { clearAllSettings } = useSettings();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -24,6 +26,9 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   
   const handleLogout = async () => {
     try {
+      // Clear all settings first
+      clearAllSettings();
+      // Then logout
       await logout();
       navigate('/login');
     } catch (error) {
