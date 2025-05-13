@@ -198,6 +198,40 @@ async function scrapeTarget(query: string){
     return null;
   }
 }
+async function scrapeWallmartCrawler(query: string) {
+  try{
+  const targetUrl = `https://www.walmart.com/search?q=${encodeURIComponent(query)}`;
+  const url = `https://api.crawlbase.com/?token=${CRAWLBASE_API_KEY}&url=${targetUrl}`
+  console.log(url)
+  const {data: html} = await axios.get(url)
+  console.log("Crawlbase response received");
+  const $ = cheerio.load(html);
+  let results: ScrapedProduct[] = [];
+  $('[data-testid="list-view"]').each((i, el) => {
+    const name = $(el).find('[data-automation-id="product-title"]').text().trim();
+    const priceText = $(el).find('[data-automation-id="product-price"] > span').text().trim().replace('$', '');
+    const link = $(el).find('a').attr('href');
+    const match = priceText.match(/\$([\d.]+)/);
+    const price = match ? parseFloat(match[1]) : null;
+    if (name && price && link) {
+      results.push({
+        name,
+        price,
+        link: link.startsWith('http') ? link : `https://www.target.com${link}`
+      });
+    }
+  });
+  if(results.length > 0){
+    console.log("Target price:", results[0]);
+    return results[0]?.price;
+  }else{
+    return null;
+  }
+}catch(err:any){
+  console.error('Price scraper error:', err.message);
+    return null;
+}
+}
 async function scrapeWalmart(query: string) {
   const walmartUrl = `https://api.scraperapi.com/structured/walmart/search?api_key=${SCRAPER_API_KEY}&query=${encodeURIComponent(query)}&limit=5`;
   
@@ -249,7 +283,7 @@ async function getPrices(item: RequestItem) {
     }
 
     const [walmartResult, targetResult]: [number | null, number | null] = await Promise.all([
-      walmartPrice === null ? scrapeWalmart(searchQuery) : Promise.resolve(walmartPrice),
+      walmartPrice === null ? scrapeWallmartCrawler(searchQuery) : Promise.resolve(walmartPrice),
       targetPrice === null ? scrapeTarget(searchQuery) : Promise.resolve(targetPrice)
     ]);
 
