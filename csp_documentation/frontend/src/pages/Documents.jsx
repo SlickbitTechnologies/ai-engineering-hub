@@ -122,25 +122,25 @@ function Documents() {
     return () => clearInterval(timer);
   }, [timerActive, processingComplete]);
 
-  // // Add useEffect for fetching token statistics
-  // useEffect(() => {
-  //   const fetchTokenStats = async () => {
-  //     try {
-  //       const response = await fetch(`${url}/token-statistics`);
-  //       if (response.ok) {
-  //         const data = await response.json();
-  //         setTokenStats(data.statistics);
-  //       }
-  //     } catch (error) {
-  //       console.error('Error fetching token statistics:', error);
-  //     }
-  //   };
+  // Add useEffect for fetching token statistics
+  useEffect(() => {
+    const fetchTokenStats = async () => {
+      try {
+        const response = await fetch(`${url}/token-statistics`);
+        if (response.ok) {
+          const data = await response.json();
+          setTokenStats(data.statistics);
+        }
+      } catch (error) {
+        console.error('Error fetching token statistics:', error);
+      }
+    };
 
-  //   // Fetch token stats every minute
-  //   fetchTokenStats();
-  //   const interval = setInterval(fetchTokenStats, 60000);
-  //   return () => clearInterval(interval);
-  // }, []);
+    // Fetch token stats every minute
+    fetchTokenStats();
+    const interval = setInterval(fetchTokenStats, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleTemplateChange = (e) => {
     const templateId = e.target.value;
@@ -519,7 +519,7 @@ function Documents() {
         </AnimatePresence>
 
         {/* Token Statistics Panel */}
-        {/* <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+        <div className="mt-8 bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-800">Token Usage Statistics</h2>
             <button
@@ -576,7 +576,7 @@ function Documents() {
               )}
             </div>
           )}
-        </div> */}
+        </div>
       </div>
     </div>
   );

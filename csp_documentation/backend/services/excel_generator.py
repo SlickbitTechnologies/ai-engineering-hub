@@ -359,62 +359,62 @@ class ExcelGenerator:
     def get_current_excel_path(self, template_id: str) -> str:
         return self._get_excel_path(template_id)
 
-    def clear_data(self, template_id: str = None) -> None:
-        if template_id:
-            # Clear data for specific template
-            self.metadata_list = [doc for doc in self.metadata_list if doc.get('Template ID') != template_id]
-            self.document_urls = [url for url in self.document_urls if url not in [doc.get('File Name') for doc in self.metadata_list if doc.get('Template ID') == template_id]]
-            excel_path = self._get_excel_path(template_id)
-            if os.path.exists(excel_path):
-                os.remove(excel_path)
-        else:
-            # Clear all data
-            self.metadata_list = []
-            self.document_urls = []
-            for excel_path in self.template_excel_files.values():
-                if os.path.exists(excel_path):
-                    os.remove(excel_path)
-            self.template_excel_files = {}
-        self.metadata_storage._save_metadata()
-        logger.info("Cleared stored data")
+    # def clear_data(self, template_id: str = None) -> None:
+    #     if template_id:
+    #         # Clear data for specific template
+    #         self.metadata_list = [doc for doc in self.metadata_list if doc.get('Template ID') != template_id]
+    #         self.document_urls = [url for url in self.document_urls if url not in [doc.get('File Name') for doc in self.metadata_list if doc.get('Template ID') == template_id]]
+    #         excel_path = self._get_excel_path(template_id)
+    #         if os.path.exists(excel_path):
+    #             os.remove(excel_path)
+    #     else:
+    #         # Clear all data
+    #         self.metadata_list = []
+    #         self.document_urls = []
+    #         for excel_path in self.template_excel_files.values():
+    #             if os.path.exists(excel_path):
+    #                 os.remove(excel_path)
+    #         self.template_excel_files = {}
+    #     self.metadata_storage._save_metadata()
+    #     logger.info("Cleared stored data")
 
-    def delete_metadata(self, document_url: str, template_id: str) -> str:
-        """
-        Delete metadata for a specific document from the Excel file.
+    # def delete_metadata(self, document_url: str, template_id: str) -> str:
+    #     """
+    #     Delete metadata for a specific document from the Excel file.
         
-        Args:
-            document_url (str): URL of the document to delete
-            template_id (str): ID of the template
+    #     Args:
+    #         document_url (str): URL of the document to delete
+    #         template_id (str): ID of the template
             
-        Returns:
-            str: Path to the updated Excel file
-        """
-        try:
-            # Extract file name from URL
-            if 'sharepoint.com' in document_url.lower():
-                try:
-                    file_name = document_url.split('Documents/')[-1]
-                    file_name = file_name.replace('%20', ' ')
-                except:
-                    file_name = os.path.basename(document_url)
-            else:
-                file_name = os.path.basename(document_url)
+    #     Returns:
+    #         str: Path to the updated Excel file
+    #     """
+    #     try:
+    #         # Extract file name from URL
+    #         if 'sharepoint.com' in document_url.lower():
+    #             try:
+    #                 file_name = document_url.split('Documents/')[-1]
+    #                 file_name = file_name.replace('%20', ' ')
+    #             except:
+    #                 file_name = os.path.basename(document_url)
+    #         else:
+    #             file_name = os.path.basename(document_url)
             
-            # Remove from metadata list and document URLs
-            self.metadata_list = [doc for doc in self.metadata_list if doc.get('File Name') != file_name]
-            self.document_urls = [url for url in self.document_urls if url != file_name]
+    #         # Remove from metadata list and document URLs
+    #         self.metadata_list = [doc for doc in self.metadata_list if doc.get('File Name') != file_name]
+    #         self.document_urls = [url for url in self.document_urls if url != file_name]
             
-            # If no metadata left for this template, remove the Excel file
-            template_metadata = [doc for doc in self.metadata_list if doc.get('Template ID') == template_id]
-            if not template_metadata:
-                excel_path = self._get_excel_path(template_id)
-                if os.path.exists(excel_path):
-                    os.remove(excel_path)
-                return excel_path
+    #         # If no metadata left for this template, remove the Excel file
+    #         template_metadata = [doc for doc in self.metadata_list if doc.get('Template ID') == template_id]
+    #         if not template_metadata:
+    #             excel_path = self._get_excel_path(template_id)
+    #             if os.path.exists(excel_path):
+    #                 os.remove(excel_path)
+    #             return excel_path
             
-            # Generate updated Excel file with remaining metadata
-            return self.generate_excel(template_id)
+    #         # Generate updated Excel file with remaining metadata
+    #         return self.generate_excel(template_id)
             
-        except Exception as e:
-            logger.error(f"Error deleting metadata: {str(e)}")
-            raise
+    #     except Exception as e:
+    #         logger.error(f"Error deleting metadata: {str(e)}")
+    #         raise

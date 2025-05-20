@@ -15,6 +15,14 @@ from office365.sharepoint.client_context import ClientContext
 from office365.sharepoint.files.file import File
 import tiktoken
 from datetime import datetime, timedelta
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import time
+from queue import Queue
+import threading
+from functools import partial
+import tempfile
+import uuid
 
 # Load environment variables
 load_dotenv()
@@ -55,10 +63,28 @@ class DocumentProcessor:
         }
         
         # Initialize tokenizer
-        self.tokenizer = tiktoken.get_encoding("cl100k_base")  # Using OpenAI's tokenizer as a reference
+        self.tokenizer = tiktoken.get_encoding("cl100k_base") 
         
-        # Token limits
-        self.MAX_TOKENS_PER_MINUTE = 100000  # Adjust this based on your needs
+        # Token limits and batch settings
+        self.MAX_TOKENS_PER_BATCH = 900000  # 0.9 million tokens per batch
+        self.MAX_BATCH_SIZE = 10  # Maximum number of documents per batch
+        self.BATCH_PROCESSING_TIMEOUT = 120  # 2 minutes timeout for batch processing
+        
+        # Initialize queues and thread pools
+        self.document_queue = Queue()
+        self.result_queue = Queue()
+        
+        # Thread pool for processing
+        self.process_pool = ThreadPoolExecutor(max_workers=4)
+        
+        # Lock for thread-safe operations
+        self.token_lock = threading.Lock()
+
+    def _get_temp_file_path(self) -> str:
+        """Generate a unique temporary file path."""
+        temp_dir = tempfile.gettempdir()
+        unique_id = str(uuid.uuid4())
+        return os.path.join(temp_dir, f"temp_document_{unique_id}.pdf")
 
     def _count_tokens(self, text: str) -> int:
         """Count the number of tokens in a text string."""
@@ -83,7 +109,7 @@ class DocumentProcessor:
             })
             
             # Check if we exceeded the limit
-            if self.token_tracking['last_minute_tokens'] > self.MAX_TOKENS_PER_MINUTE:
+            if self.token_tracking['last_minute_tokens'] > self.MAX_TOKENS_PER_BATCH:
                 self.token_tracking['documents_exceeding_limit'] += 1
                 logger.warning(f"Token limit exceeded in the last minute: {self.token_tracking['last_minute_tokens']} tokens")
             
@@ -158,36 +184,169 @@ class DocumentProcessor:
         else:
             return 'document'
 
-    def download_document(self, document_url: str) -> str:
+    async def process_documents(self, url: str, template_id: str) -> List[Dict]:
+        """
+        Process multiple documents in parallel using queues and thread pools.
+        """
+        try:
+            url_type = self._get_url_type(url)
+            all_metadata = []
+            failed_documents = []
+            
+            if url_type == 'sharepoint':
+                self._initialize_sharepoint(url)
+                files = self._get_sharepoint_files(url)
+                if not files:
+                    raise ValueError("No files found in the SharePoint folder")
+                
+                logger.info(f"Found {len(files)} files to process")
+                
+                # Start parallel processing
+                start_time = time.time()
+                
+                # Start worker threads
+                workers = []
+                for _ in range(4):  # 4 worker threads
+                    worker = threading.Thread(
+                        target=self._process_document_worker,
+                        args=(template_id,)
+                    )
+                    worker.start()
+                    workers.append(worker)
+                
+                # Add documents to queue
+                for file in files:
+                    self.document_queue.put(file)
+                
+                # Add None to signal end of documents
+                for _ in range(4):
+                    self.document_queue.put(None)
+                
+                # Wait for all workers to complete
+                for worker in workers:
+                    worker.join()
+                
+                # Collect results
+                while not self.result_queue.empty():
+                    result = self.result_queue.get()
+                    if isinstance(result, dict):
+                        all_metadata.append(result)
+                    else:
+                        failed_documents.append(result)
+                
+                processing_time = time.time() - start_time
+                logger.info(f"Processed {len(all_metadata)} documents in {processing_time:.2f} seconds")
+                
+            else:
+                # Single document processing
+                metadata = await self.process_document(url, template_id)
+                all_metadata.append(metadata)
+            
+            return all_metadata
+            
+        except Exception as e:
+            logger.error(f"Error processing documents: {str(e)}")
+            raise
+
+    def _process_document_worker(self, template_id: str):
+        """
+        Worker thread for processing documents from the queue.
+        """
+        while True:
+            file = self.document_queue.get()
+            if file is None:
+                break
+                
+            temp_file_path = None
+            try:
+                # Generate unique temp file path
+                temp_file_path = self._get_temp_file_path()
+                
+                # Download document
+                self.download_document(file['url'], temp_file_path)
+                
+                # Extract text
+                text = self.extract_text(temp_file_path)
+                
+                # Count tokens
+                text_tokens = self._count_tokens(text)
+                with self.token_lock:
+                    self._update_token_tracking(text_tokens)
+                
+                # Generate prompt
+                template = self.template_context.get_template(template_id)
+                fields = template.get('metadataFields', [])
+                prompt = self._generate_prompt(text, fields)
+                
+                # Count prompt tokens
+                prompt_tokens = self._count_tokens(prompt)
+                with self.token_lock:
+                    self._update_token_tracking(prompt_tokens)
+                
+                # Get metadata from Gemini
+                response = self.gemini_model.generate_content(prompt)
+                
+                # Count response tokens
+                response_tokens = self._count_tokens(response.text)
+                with self.token_lock:
+                    self._update_token_tracking(response_tokens)
+                
+                # Parse response
+                metadata = self._parse_response(response.text)
+                
+                # Add token statistics
+                metadata['token_statistics'] = {
+                    'text_tokens': text_tokens,
+                    'prompt_tokens': prompt_tokens,
+                    'response_tokens': response_tokens,
+                    'total_tokens': text_tokens + prompt_tokens + response_tokens
+                }
+                
+                # Update document count
+                with self.token_lock:
+                    self.token_tracking['documents_processed'] += 1
+                
+                # Add result to queue
+                self.result_queue.put(metadata)
+                
+            except Exception as e:
+                logger.error(f"Error processing document {file.get('name', 'unknown')}: {str(e)}")
+                self.result_queue.put({
+                    'error': str(e),
+                    'file': file.get('name', 'unknown')
+                })
+            finally:
+                # Clean up temporary file
+                if temp_file_path and os.path.exists(temp_file_path):
+                    try:
+                        os.remove(temp_file_path)
+                    except Exception as e:
+                        logger.warning(f"Could not remove temporary file {temp_file_path}: {str(e)}")
+                
+                self.document_queue.task_done()
+
+    def download_document(self, document_url: str, temp_file_path: str) -> None:
         """
         Download a document from various sources (PDF URL, SharePoint).
         
         Args:
             document_url (str): URL of the document
-            
-        Returns:
-            str: Path to the downloaded document
+            temp_file_path (str): Path to save the downloaded document
         """
         try:
-            # Create a temporary file
-            temp_file = "temp_document.pdf"
-            
             if "sharepoint.com" in document_url:
                 # Handle SharePoint URL
                 if not self.sharepoint_service:
                     raise ValueError("SharePoint service not configured")
-                return self.sharepoint_service.download_file(document_url, temp_file)
-                
+                self.sharepoint_service.download_file(document_url, temp_file_path)
             else:
                 # Handle regular PDF URL
                 response = requests.get(document_url, stream=True)
                 response.raise_for_status()
                 
-                with open(temp_file, 'wb') as f:
+                with open(temp_file_path, 'wb') as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
-                
-                return temp_file
                 
         except Exception as e:
             logger.error(f"Error downloading document: {str(e)}")
@@ -196,18 +355,11 @@ class DocumentProcessor:
     def extract_text(self, file_path: str) -> str:
         """
         Extract text from a PDF file.
-        
-        Args:
-            file_path (str): Path to the PDF file
-            
-        Returns:
-            str: Extracted text
         """
         try:
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"File not found: {file_path}")
                 
-            # Check if file is a PDF
             if not file_path.lower().endswith('.pdf'):
                 raise ValueError("Only PDF files are supported")
                 
@@ -216,257 +368,6 @@ class DocumentProcessor:
                 pdf_reader = PdfReader(file)
                 for page in pdf_reader.pages:
                     text += page.extract_text() + "\n"
-            
-            if not text.strip():
-                raise ValueError("No text could be extracted from the PDF")
-                
-            return text
-        except Exception as e:
-            logger.error(f"Failed to extract text from document: {str(e)}")
-            raise
-
-    async def process_documents(self, url: str, template_id: str) -> List[Dict]:
-        """
-        Process one or more documents based on the URL type.
-        
-        Args:
-            url (str): URL of the document or SharePoint folder
-            template_id (str): ID of the template to use for processing
-            
-        Returns:
-            List[Dict]: List of metadata for all processed documents
-        """
-        try:
-            url_type = self._get_url_type(url)
-            all_metadata = []
-            failed_documents = []
-            MAX_FILE_SIZE_MB = 20
-            MAX_PAGES = 500
-            
-            if url_type == 'sharepoint':
-                # Initialize SharePoint client
-                self._initialize_sharepoint(url)
-                
-                # Get all files from the SharePoint folder
-                files = self._get_sharepoint_files(url)
-                if not files:
-                    raise ValueError("No files found in the SharePoint folder")
-                
-                logger.info(f"Found {len(files)} files to process")
-                
-                # Process each document asynchronously
-                total_files = len(files)
-                processed_files = 0
-                
-                for file in files:
-                    try:
-                        logger.info(f"Processing file {processed_files + 1}/{total_files}: {file['name']}")
-                        # Download the document to check size and pages
-                        file_path = self.download_document(file['url'])
-                        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-                        num_pages = 0
-                        try:
-                            with open(file_path, 'rb') as f:
-                                pdf_reader = PdfReader(f)
-                                num_pages = len(pdf_reader.pages)
-                        except Exception as e:
-                            logger.warning(f"Could not read PDF pages for {file['name']}: {str(e)}")
-                        if file_size_mb > MAX_FILE_SIZE_MB or num_pages > MAX_PAGES:
-                            logger.warning(f"Skipping {file['name']} (size: {file_size_mb:.2f} MB, pages: {num_pages}) - exceeds limits.")
-                            if os.path.exists(file_path):
-                                os.remove(file_path)
-                            processed_files += 1
-                            continue
-                        # Process each document
-                        metadata = await self.process_document(file['url'], template_id)
-                        # Add document URL to metadata
-                        metadata['Document URL'] = file['url']
-                        # Add to list of all metadata
-                        all_metadata.append(metadata)
-                        # Update progress
-                        processed_files += 1
-                        progress = (processed_files / total_files) * 100
-                        logger.info(f"Progress: {progress:.2f}% ({processed_files}/{total_files} files processed)")
-                        # Log success
-                        logger.info(f"Successfully processed document: {file['name']}")
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
-                    except Exception as e:
-                        logger.error(f"Error processing SharePoint file {file['name']}: {str(e)}")
-                        failed_documents.append({
-                            'name': file['name'],
-                            'url': file['url'],
-                            'error': str(e)
-                        })
-                        continue
-            else:  # Single document
-                try:
-                    # Download the document to check size and pages
-                    file_path = self.download_document(url)
-                    file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-                    num_pages = 0
-                    try:
-                        with open(file_path, 'rb') as f:
-                            pdf_reader = PdfReader(f)
-                            num_pages = len(pdf_reader.pages)
-                    except Exception as e:
-                        logger.warning(f"Could not read PDF pages for {url}: {str(e)}")
-                    if file_size_mb > MAX_FILE_SIZE_MB or num_pages > MAX_PAGES:
-                        logger.warning(f"Skipping {url} (size: {file_size_mb:.2f} MB, pages: {num_pages}) - exceeds limits.")
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
-                    else:
-                        metadata = await self.process_document(url, template_id)
-                        metadata['Document URL'] = url
-                        all_metadata.append(metadata)
-                        logger.info(f"Successfully processed document from URL: {url}")
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                except Exception as e:
-                    logger.error(f"Error processing document: {str(e)}")
-                    failed_documents.append({
-                        'name': os.path.basename(url),
-                        'url': url,
-                        'error': str(e)
-                    })
-            # Log summary of processing
-            logger.info(f"Total documents processed: {len(all_metadata)}")
-            if failed_documents:
-                logger.warning(f"Failed to process {len(failed_documents)} documents:")
-                for doc in failed_documents:
-                    logger.warning(f"- {doc['name']}: {doc['error']}")
-            return all_metadata
-        except Exception as e:
-            logger.error(f"Error processing documents: {str(e)}")
-            raise
-
-    async def process_document(self, document_url: str, template_id: str) -> dict:
-        """
-        Process a document and extract metadata using fields from the selected template.
-        
-        Args:
-            document_url (str): URL of the document to process
-            template_id (str): ID of the template to use
-            
-        Returns:
-            dict: Extracted metadata with only the fields from the template
-        """
-        result = {}
-        try:
-            logger.info(f"Processing document from URL: {document_url}")
-            
-            # Get template and its fields
-            template = self.template_context.get_template(template_id)
-            if not template:
-                raise ValueError(f"Template with ID {template_id} not found")
-            
-            # Get fields from the selected template
-            fields = template.get('metadataFields', [])
-            if not fields:
-                raise ValueError(f"No metadata fields found in template {template_id}")
-            
-            logger.info(f"Using template fields: {[field['name'] for field in fields]}")
-            
-            # Initialize result with all fields set to "Not found"
-            for field in fields:
-                result[field['name']] = "Not found"
-            
-            # Download the document
-            file_path = self.download_document(document_url)
-            
-            try:
-                # Extract text asynchronously
-                text = await self.extract_text_async(file_path)
-                if not text.strip():
-                    raise ValueError("No text could be extracted from the document")
-                
-                # Count and log tokens in the extracted text
-                text_tokens = self._count_tokens(text)
-                self._update_token_tracking(text_tokens)
-                logger.info(f"Extracted text length: {len(text)} characters, Tokens: {text_tokens}")
-                
-                # Generate prompt with the template fields
-                prompt = self._generate_prompt(text, fields)
-                
-                # Count and log tokens in the prompt
-                prompt_tokens = self._count_tokens(prompt)
-                self._update_token_tracking(prompt_tokens)
-                logger.info(f"Prompt tokens: {prompt_tokens}")
-                
-                # Get metadata from Gemini
-                response = self.gemini_model.generate_content(prompt)
-                
-                # Count and log tokens in the response
-                response_tokens = self._count_tokens(response.text)
-                self._update_token_tracking(response_tokens)
-                logger.info(f"Response tokens: {response_tokens}")
-                
-                # Parse the response
-                metadata = self._parse_response(response.text)
-                
-                # Update result with extracted values
-                for field in fields:
-                    field_name = field['name']
-                    if field_name in metadata:
-                        result[field_name] = metadata[field_name]
-                    else:
-                        result[field_name] = "Not found"
-                
-                # Update document count
-                self.token_tracking['documents_processed'] += 1
-                
-                # Add token statistics to result
-                result['token_statistics'] = {
-                    'text_tokens': text_tokens,
-                    'prompt_tokens': prompt_tokens,
-                    'response_tokens': response_tokens,
-                    'total_tokens': text_tokens + prompt_tokens + response_tokens
-                }
-                
-                logger.info(f"Extracted metadata: {json.dumps(result, indent=2)}")
-                return result
-                
-            finally:
-                # Clean up the temporary file
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    
-        except Exception as e:
-            logger.error(f"Failed to process document: {str(e)}")
-            raise ValueError(f"Failed to process document: {str(e)}")
-
-    async def extract_text_async(self, file_path: str) -> str:
-        """
-        Extract text from a PDF file asynchronously.
-        
-        Args:
-            file_path (str): Path to the PDF file
-            
-        Returns:
-            str: Extracted text
-        """
-        try:
-            if not os.path.exists(file_path):
-                raise FileNotFoundError(f"File not found: {file_path}")
-                
-            # Check if file is a PDF
-            if not file_path.lower().endswith('.pdf'):
-                raise ValueError("Only PDF files are supported")
-                
-            text = ""
-            with open(file_path, 'rb') as file:
-                pdf_reader = PdfReader(file)
-                total_pages = len(pdf_reader.pages)
-                
-                for page_num, page in enumerate(pdf_reader.pages, 1):
-                    # Extract text from current page
-                    page_text = page.extract_text()
-                    text += page_text + "\n"
-                    
-                    # Log progress every 10 pages
-                    if page_num % 10 == 0 or page_num == total_pages:
-                        progress = (page_num / total_pages) * 100
-                        logger.info(f"Text extraction progress: {progress:.2f}% ({page_num}/{total_pages} pages processed)")
             
             if not text.strip():
                 raise ValueError("No text could be extracted from the PDF")

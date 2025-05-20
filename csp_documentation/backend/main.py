@@ -61,13 +61,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Initialize document processor
 document_processor = DocumentProcessor()
-
 # Initialize ExcelGenerator
 excel_generator = ExcelGenerator(output_dir="output")
-
 # Initialize metadata storage
 metadata_storage = MetadataStorage()
 
