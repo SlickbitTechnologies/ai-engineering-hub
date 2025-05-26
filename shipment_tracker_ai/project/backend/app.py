@@ -421,8 +421,8 @@ def make_call():
 
         # List of verified numbers for testing
         verified_numbers = [
-            '+918074928240',  # Your number
-            '+13253087816'    # Twilio number
+            '+919542757209',  # Your number
+            '+16067071774'    # Twilio number
         ]
 
         if twilio_client:
@@ -443,7 +443,8 @@ def make_call():
                 # Make real call using Twilio with status callback
                 call = twilio_client.calls.create(
                     to=phone_number,
-                    from_='+13253087816',  # Use the working Twilio number that was successful in testing
+                    # from_='+13253087816',
+                    from_="+16067071774",  # Use the working Twilio number that was successful in testing
                     twiml=conversation,
                     status_callback=f"{base_url}/api/twilio-status-callback",
                     status_callback_method='POST',

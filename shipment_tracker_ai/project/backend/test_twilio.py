@@ -22,8 +22,9 @@ try:
     print("Initiating call...")
     call = client.calls.create(
         twiml="<Response><Say>This is a test call from your shipment tracker application.</Say></Response>",
-        to="+918074928240",  # Your number
-        from_="+13253087816"  # Make sure this is a Twilio number you've purchased
+        to="+919542757209",  # Your number
+        # from_="+13253087816"  # Make sure this is a Twilio number you've purchased
+        from_="+16067071774"
     )
     
     print(f"Call initiated! Call SID: {call.sid}")
