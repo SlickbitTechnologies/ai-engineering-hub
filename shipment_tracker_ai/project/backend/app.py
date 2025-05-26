@@ -29,6 +29,16 @@ logger.info(f"TWILIO_PHONE_NUMBER exists: {bool(os.getenv('TWILIO_PHONE_NUMBER')
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
+
+@app.route("/voice", methods=["GET", "POST"])
+def voice_webhook():
+    response = """<?xml version="1.0" encoding="UTF-8"?>
+    <Response>
+        <Say>Hello, this is a shipment alert call from Slickbit.</Say>
+    </Response>"""
+    return Response(response, mimetype='application/xml')
+
+
 # Add a root route for debugging
 @app.route('/')
 def root():
