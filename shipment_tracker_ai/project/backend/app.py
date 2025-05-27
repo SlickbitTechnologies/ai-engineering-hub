@@ -432,6 +432,8 @@ def make_call():
         # List of verified numbers for testing
         verified_numbers = [
             '+919542757209',  # Your number
+            "+916303142612",
+            "+918885627274",
             '+16067071774'    # Twilio number
         ]
 

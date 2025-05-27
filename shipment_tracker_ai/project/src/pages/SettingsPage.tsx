@@ -49,15 +49,11 @@ const SettingsPage: React.FC = () => {
   const [minThreshold, setMinThreshold] = useState<string>('');
   const [maxThreshold, setMaxThreshold] = useState<string>('');
   
-  // Update local state when context values change, but only if they haven't been set yet
+  // Update local state when context values change
   useEffect(() => {
-    if (minTemperatureThreshold !== 0 && minThreshold === '') {
-      setMinThreshold(minTemperatureThreshold.toString());
-    }
-    if (maxTemperatureThreshold !== 0 && maxThreshold === '') {
-      setMaxThreshold(maxTemperatureThreshold.toString());
-    }
-  }, [minTemperatureThreshold, maxTemperatureThreshold, minThreshold, maxThreshold]);
+    setMinThreshold(minTemperatureThreshold.toString());
+    setMaxThreshold(maxTemperatureThreshold.toString());
+  }, [minTemperatureThreshold, maxTemperatureThreshold]);
   
   // Check if threshold save button should be enabled
   const isThresholdButtonEnabled = minThreshold !== '' && maxThreshold !== '';
