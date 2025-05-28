@@ -519,7 +519,7 @@ function Documents() {
         </AnimatePresence>
 
         {/* Token Statistics Panel */}
-        <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+        {/* <div className="mt-8 bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-800">Token Usage Statistics</h2>
             <button
@@ -576,10 +576,9 @@ function Documents() {
               )}
             </div>
           )}
-        </div>
-      </div>
+        </div>*/}
+      </div> 
     </div>
   );
 }
-
 export default Documents; 
