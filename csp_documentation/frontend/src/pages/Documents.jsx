@@ -123,24 +123,24 @@ function Documents() {
   }, [timerActive, processingComplete]);
 
   // Add useEffect for fetching token statistics
-  useEffect(() => {
-    const fetchTokenStats = async () => {
-      try {
-        const response = await fetch(`${url}/token-statistics`);
-        if (response.ok) {
-          const data = await response.json();
-          setTokenStats(data.statistics);
-        }
-      } catch (error) {
-        console.error('Error fetching token statistics:', error);
-      }
-    };
+  // useEffect(() => {
+  //   const fetchTokenStats = async () => {
+  //     try {
+  //       const response = await fetch(`${url}/token-statistics`);
+  //       if (response.ok) {
+  //         const data = await response.json();
+  //         setTokenStats(data.statistics);
+  //       }
+  //     } catch (error) {
+  //       console.error('Error fetching token statistics:', error);
+  //     }
+  //   };
 
-    // Fetch token stats every minute
-    fetchTokenStats();
-    const interval = setInterval(fetchTokenStats, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  //   // Fetch token stats every minute
+  //   fetchTokenStats();
+  //   const interval = setInterval(fetchTokenStats, 60000);
+  //   return () => clearInterval(interval);
+  // }, []);
 
   const handleTemplateChange = (e) => {
     const templateId = e.target.value;
