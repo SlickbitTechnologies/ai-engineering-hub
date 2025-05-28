@@ -401,7 +401,12 @@ class DocumentProcessor:
             f"2. Look for variations (e.g., '{field['name'].lower()}', '{field['name'].replace('/', ' or ')}')\n" +
             f"3. Look for related terms and synonyms\n" +
             f"4. Check nearby paragraphs and sections\n" +
-            f"5. Extract ALL relevant information found"
+            f"5. Extract ALL relevant information found\n" +
+            f"6. Look for information in tables, lists, and formatted sections\n" +
+            f"7. Check for information in headers and footers\n" +
+            f"8. Look for information in any part of the document\n" +
+            f"9. Consider context and surrounding information\n" +
+            f"10. Extract partial information when available"
             for field in fields
         ])
 
@@ -430,6 +435,22 @@ For each field, you must:
 10. Look for information in tables, lists, and formatted sections
 11. Consider information that might be spread across multiple locations
 12. Look for information in both structured and unstructured parts
+13. Check for information in bullet points and lists
+14. Look for information in parentheses or brackets
+15. Check for information after colons or semicolons
+16. Look for information in headers and subheaders
+17. Check for information in footnotes or references
+18. Look for information in appendices or supplementary sections
+19. Check for information in any part of the document
+20. Consider variations in how information might be presented
+21. Extract partial information when available
+22. Look for related terms and synonyms
+23. Consider context and surrounding information
+24. For dates, extract any date format you find
+25. For names and organizations, include all variations you find
+26. For IDs and numbers, capture all numeric identifiers
+27. If you find multiple values, include them all
+28. Only use "Not found" if you are absolutely certain the information is not present after thorough searching
 
 Fields to extract:
 {field_descriptions}
@@ -497,6 +518,20 @@ CRITICAL INSTRUCTIONS:
     - Include partial information
     - Never assume information is not present
     - Always double-check before marking as "Not found"
+17. If you find any information that might be related to a field, include it
+18. Look for information in any format or structure
+19. Consider all possible ways the information might be presented
+20. Extract any information that might be relevant
+21. Include all variations and forms of the information
+22. Look for information in any part of the document
+23. Consider all possible locations and formats
+24. Extract all relevant details and variations
+25. Include partial information when available
+26. Never assume information is not present
+27. Always double-check before marking as "Not found"
+28. Look for information in any way it might be presented
+29. Consider all possible variations and forms
+30. Extract all relevant information found
 """
         return prompt
 
@@ -510,7 +545,19 @@ CRITICAL INSTRUCTIONS:
             try:
                 data = json.loads(response)
                 if isinstance(data, dict):
-                    return data
+                    # Clean up the data
+                    cleaned_data = {}
+                    for key, value in data.items():
+                        if value and value.lower() != "not found":
+                            cleaned_data[key] = value
+                        else:
+                            # Try to find partial matches in the original text
+                            partial_matches = self._find_partial_matches(key, response)
+                            if partial_matches:
+                                cleaned_data[key] = partial_matches
+                            else:
+                                cleaned_data[key] = "Not found"
+                    return cleaned_data
             except json.JSONDecodeError:
                 pass
             
@@ -523,7 +570,19 @@ CRITICAL INSTRUCTIONS:
                 try:
                     data = json.loads(json_str)
                     if isinstance(data, dict):
-                        return data
+                        # Clean up the data
+                        cleaned_data = {}
+                        for key, value in data.items():
+                            if value and value.lower() != "not found":
+                                cleaned_data[key] = value
+                            else:
+                                # Try to find partial matches in the original text
+                                partial_matches = self._find_partial_matches(key, response)
+                                if partial_matches:
+                                    cleaned_data[key] = partial_matches
+                                else:
+                                    cleaned_data[key] = "Not found"
+                        return cleaned_data
                 except json.JSONDecodeError:
                     pass
             
@@ -538,7 +597,15 @@ CRITICAL INSTRUCTIONS:
                         key = key.strip().strip('"\'')
                         value = value.strip().strip('"\'')
                         if key and value:  # Only add non-empty key-value pairs
-                            metadata[key] = value
+                            if value.lower() != "not found":
+                                metadata[key] = value
+                            else:
+                                # Try to find partial matches in the original text
+                                partial_matches = self._find_partial_matches(key, response)
+                                if partial_matches:
+                                    metadata[key] = partial_matches
+                                else:
+                                    metadata[key] = "Not found"
                     except:
                         continue
             
@@ -547,7 +614,46 @@ CRITICAL INSTRUCTIONS:
         except Exception as e:
             logger.error(f"Error parsing response: {str(e)}")
             logger.error(f"Original response: {response}")
-            return {}  # Return empty dict instead of raising error 
+            return {}  # Return empty dict instead of raising error
+
+    def _find_partial_matches(self, field_name: str, text: str) -> str:
+        """Find partial matches for a field in the text."""
+        try:
+            # Convert field name to lowercase for case-insensitive matching
+            field_lower = field_name.lower()
+            
+            # Look for variations of the field name
+            variations = [
+                field_lower,
+                field_lower.replace('/', ' or '),
+                field_lower.replace('_', ' '),
+                field_lower.replace('-', ' '),
+                field_lower.replace(' and ', ' & '),
+                field_lower.replace(' & ', ' and ')
+            ]
+            
+            # Look for the field name and its variations in the text
+            for variation in variations:
+                if variation in text.lower():
+                    # Find the context around the match
+                    start_idx = text.lower().find(variation)
+                    if start_idx != -1:
+                        # Get some context before and after the match
+                        context_start = max(0, start_idx - 100)
+                        context_end = min(len(text), start_idx + len(variation) + 100)
+                        context = text[context_start:context_end]
+                        
+                        # Extract the most relevant part
+                        lines = context.split('\n')
+                        for line in lines:
+                            if variation in line.lower():
+                                return line.strip()
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error finding partial matches: {str(e)}")
+            return None
 
     def get_files_to_process(self, url: str) -> list:
         """
