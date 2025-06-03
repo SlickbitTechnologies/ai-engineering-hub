@@ -218,7 +218,7 @@ def process_input():
                 speech_timeout='auto',
                 language='en-US'
             )
-            gather.say("Yes, the temperature remained elevated for about 15 minutes.")
+            gather.say(" The temperature remained elevated for about 15 minutes.")
             gather.say("We recommend checking the packaging and documenting any signs of spoilage or compromise.")
             response.append(gather)
             logger.info("Sent duration response")
@@ -836,7 +836,7 @@ def get_calls():
         }), 500
 
 # Add a new route for handling Twilio status callbacks
-@app.route('/api/twilio-status-callback', methods=['POST'])
+@app.route('/api/twilio-status-callback', methods=['POST','GET'])
 def twilio_status_callback():
     try:
         # Extract status info from Twilio's callback
