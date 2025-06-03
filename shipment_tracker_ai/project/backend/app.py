@@ -32,37 +32,37 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 app.secret_key = os.urandom(24)  # Required for session
 
-# # Initialize ngrok
-# try:
-#     # Kill any existing ngrok processes
-#     try:
-#         import psutil
-#         for proc in psutil.process_iter(['name']):
-#             if proc.info['name'] and 'ngrok' in proc.info['name'].lower():
-#                 proc.kill()
-#     except Exception as e:
-#         logger.warning(f"Could not kill existing ngrok processes: {e}")
+# Initialize ngrok
+try:
+    # Kill any existing ngrok processes
+    try:
+        import psutil
+        for proc in psutil.process_iter(['name']):
+            if proc.info['name'] and 'ngrok' in proc.info['name'].lower():
+                proc.kill()
+    except Exception as e:
+        logger.warning(f"Could not kill existing ngrok processes: {e}")
 
-#     # Configure ngrok with auth token
-#     ngrok_auth_token = os.getenv('NGROK_AUTH_TOKEN')
-#     if ngrok_auth_token:
-#         ngrok.set_auth_token(ngrok_auth_token)
-#         logger.info("ngrok auth token configured successfully")
-#     else:
-#         logger.warning("NGROK_AUTH_TOKEN not found in environment variables")
+    # Configure ngrok with auth token
+    ngrok_auth_token = os.getenv('NGROK_AUTH_TOKEN')
+    if ngrok_auth_token:
+        ngrok.set_auth_token(ngrok_auth_token)
+        logger.info("ngrok auth token configured successfully")
+    else:
+        logger.warning("NGROK_AUTH_TOKEN not found in environment variables")
 
-#     # Kill any existing tunnels
-#     try:
-#         ngrok.kill()
-#     except:
-#         pass
+    # Kill any existing tunnels
+    try:
+        ngrok.kill()
+    except:
+        pass
 
-#     # Open a ngrok tunnel to the HTTP server
-#     public_url = ngrok.connect(5000).public_url
-#     logger.info(f"ngrok tunnel established at: {public_url}")
-# except Exception as e:
-#     logger.error(f"Failed to establish ngrok tunnel: {e}")
-#     public_url = None
+    # Open a ngrok tunnel to the HTTP server
+    public_url = ngrok.connect(5000).public_url
+    logger.info(f"ngrok tunnel established at: {public_url}")
+except Exception as e:
+    logger.error(f"Failed to establish ngrok tunnel: {e}")
+    public_url = None
 
 # Dummy store functions
 def get_call_history():
