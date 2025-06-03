@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, session
 import os
 import json
 from flask_cors import CORS
@@ -11,6 +11,7 @@ from sample_data import create_sample_data
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from dotenv import load_dotenv
+from pyngrok import ngrok
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -25,19 +26,274 @@ logger.info("Environment variables loaded:")
 logger.info(f"TWILIO_ACCOUNT_SID exists: {bool(os.getenv('TWILIO_ACCOUNT_SID'))}")
 logger.info(f"TWILIO_AUTH_TOKEN exists: {bool(os.getenv('TWILIO_AUTH_TOKEN'))}")
 logger.info(f"TWILIO_PHONE_NUMBER exists: {bool(os.getenv('TWILIO_PHONE_NUMBER'))}")
+# logger.info(f"NGROK_AUTH_TOKEN exists: {bool(os.getenv('NGROK_AUTH_TOKEN'))}")
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+app.secret_key = os.urandom(24)  # Required for session
 
+# # Initialize ngrok
+# try:
+#     # Kill any existing ngrok processes
+#     try:
+#         import psutil
+#         for proc in psutil.process_iter(['name']):
+#             if proc.info['name'] and 'ngrok' in proc.info['name'].lower():
+#                 proc.kill()
+#     except Exception as e:
+#         logger.warning(f"Could not kill existing ngrok processes: {e}")
 
-@app.route("/voice", methods=["GET", "POST"])
-def voice_webhook():
-    response = """<?xml version="1.0" encoding="UTF-8"?>
-    <Response>
-        <Say>Hello, this is a shipment alert call from Slickbit.</Say>
-    </Response>"""
-    return Response(response, mimetype='application/xml')
+#     # Configure ngrok with auth token
+#     ngrok_auth_token = os.getenv('NGROK_AUTH_TOKEN')
+#     if ngrok_auth_token:
+#         ngrok.set_auth_token(ngrok_auth_token)
+#         logger.info("ngrok auth token configured successfully")
+#     else:
+#         logger.warning("NGROK_AUTH_TOKEN not found in environment variables")
 
+#     # Kill any existing tunnels
+#     try:
+#         ngrok.kill()
+#     except:
+#         pass
+
+#     # Open a ngrok tunnel to the HTTP server
+#     public_url = ngrok.connect(5000).public_url
+#     logger.info(f"ngrok tunnel established at: {public_url}")
+# except Exception as e:
+#     logger.error(f"Failed to establish ngrok tunnel: {e}")
+#     public_url = None
+
+# Dummy store functions
+def get_call_history():
+    try:
+        with open("call_history.json", "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return []
+
+def save_call_history(data):
+    with open("call_history.json", "w") as f:
+        json.dump(data, f, indent=2)
+
+@app.route("/voice", methods=["POST"])
+def voice():
+    """Initial voice prompt"""
+    try:
+        # Get call parameters
+        call_sid = request.values.get('CallSid')
+        shipment_number = request.values.get('shipment_number', 'N/A')
+        date_time = request.values.get('date_time', 'N/A')
+        detected_temp = request.values.get('detected_temp', 'N/A')
+        min_temp = request.values.get('min_temp', '2')
+        max_temp = request.values.get('max_temp', '8')
+        origin_location = request.values.get('origin_location', 'N/A')
+        delivery_location = request.values.get('delivery_location', 'N/A')
+
+        # Initialize or get call context
+        call_context = {
+            'call_sid': call_sid,
+            'shipment_number': shipment_number,
+            'date_time': date_time,
+            'detected_temp': detected_temp,
+            'min_temp': min_temp,
+            'max_temp': max_temp,
+            'origin_location': origin_location,
+            'delivery_location': delivery_location
+        }
+
+        # Save initial context
+        call_history = get_call_history()
+        
+        # Check if call already exists
+        existing_call = next((call for call in call_history if call.get('id') == call_sid), None)
+        if existing_call:
+            logger.info(f"Found existing call {call_sid}, updating context")
+            existing_call['metadata'] = call_context
+            existing_call['transcript'] = existing_call.get('transcript', [])
+        else:
+            logger.info(f"Creating new call record for {call_sid}")
+            call_history.append({
+                'id': call_sid,
+                'timestamp': datetime.now().isoformat(),
+                'status': 'in-progress',
+                'transcript': [],
+                'metadata': call_context
+            })
+        
+        save_call_history(call_history)
+        logger.info(f"Initialized call context for {call_sid}")
+
+        response = VoiceResponse()
+        gather = Gather(
+            input="speech",
+            action="/process_input?step=initial_question",
+            method="POST",
+            timeout=5,
+            speech_timeout='auto',
+            language='en-US'
+        )
+        gather.say("Hi, this is an automated shipment alert from Slickbit's AI Monitoring System.")
+        gather.say("We've detected a temperature deviation in your incoming shipment.")
+        response.append(gather)
+        response.redirect("/voice")  # If no input
+        return Response(str(response), mimetype="application/xml")
+
+    except Exception as e:
+        logger.error(f"Error in /voice: {str(e)}")
+        response = VoiceResponse()
+        response.say("We're experiencing technical difficulties. Please try again later.")
+        response.hangup()
+        return Response(str(response), mimetype="application/xml")
+
+@app.route("/process_input", methods=["POST"])
+def process_input():
+    try:
+        step = request.args.get("step", "initial")
+        speech_result = request.values.get("SpeechResult", "").strip()
+        call_sid = request.values.get('CallSid')
+
+        logger.info(f"Processing input - Step: {step}, Speech: {speech_result}")
+
+        # Get call history
+        call_history = get_call_history()
+        current_call = next((call for call in call_history if call.get('id') == call_sid), None)
+        
+        if not current_call:
+            logger.error(f"Call {call_sid} not found in history")
+            response = VoiceResponse()
+            response.say("Error: Call session not found.")
+            response.hangup()
+            return Response(str(response), mimetype="application/xml")
+
+        # Initialize transcript list if it doesn't exist
+        if 'transcript' not in current_call:
+            current_call['transcript'] = []
+
+        # Update transcript
+        if speech_result:
+            transcript_entry = {
+                'step': step,
+                'speech': speech_result,
+                'timestamp': datetime.now().isoformat()
+            }
+            current_call['transcript'].append(transcript_entry)
+            save_call_history(call_history)
+            logger.info(f"Added transcript entry: {transcript_entry}")
+
+        response = VoiceResponse()
+        speech_lower = speech_result.lower()
+
+        # Keywords for different questions
+        shipment_id_keywords = ['which shipment', 'tell me which shipment', 'what shipment', 'shipment id', 'shipment number']
+        duration_keywords = ['how long', 'stayed above', 'stayed above the range', 'duration', 'time period']
+        acknowledgment_keywords = ['got it', 'thanks', 'thank you', 'thanks for letting me know']
+        shipment_details_keywords = ['share the shipment details', 'share shipment details', 'shipment details']
+        brief_dip_keywords = ['brief dip', 'sustained', 'was it a brief dip', 'was it sustained']
+        understood_keywords = ['understood', 'make a note', 'i\'ll make a note', 'i will make a note']
+
+        # First conversation flow
+        if any(keyword in speech_lower for keyword in shipment_id_keywords):
+            logger.info("Asked about shipment ID")
+            gather = Gather(
+                input="speech",
+                action="/process_input?step=shipment_question",
+                method="POST",
+                timeout=5,
+                speech_timeout='auto',
+                language='en-US'
+            )
+            gather.say(f"It's Shipment ID {current_call['metadata']['shipment_number']}, expected to arrive today at {current_call['metadata']['date_time']}.")
+            gather.say(f"The temperature was recorded at {current_call['metadata']['detected_temp']}°C, above the acceptable range of {current_call['metadata']['min_temp']} to {current_call['metadata']['max_temp']}°C.")
+            response.append(gather)
+            logger.info("Sent shipment ID response")
+
+        elif any(keyword in speech_lower for keyword in duration_keywords):
+            logger.info("Asked about duration")
+            gather = Gather(
+                input="speech",
+                action="/process_input?step=duration_question",
+                method="POST",
+                timeout=5,
+                speech_timeout='auto',
+                language='en-US'
+            )
+            gather.say("Yes, the temperature remained elevated for about 15 minutes.")
+            gather.say("We recommend checking the packaging and documenting any signs of spoilage or compromise.")
+            response.append(gather)
+            logger.info("Sent duration response")
+
+        elif any(keyword in speech_lower for keyword in acknowledgment_keywords):
+            logger.info("Information acknowledged")
+            response.say("You're welcome. This was an automated alert to help ensure safe and timely handling.")
+            response.say("Have a good day.")
+            current_call['status'] = 'completed'
+            current_call['completed_at'] = datetime.now().isoformat()
+            save_call_history(call_history)
+            response.hangup()
+
+        # Second conversation flow
+        elif any(keyword in speech_lower for keyword in shipment_details_keywords):
+            logger.info("Asked about shipment details")
+            gather = Gather(
+                input="speech",
+                action="/process_input?step=shipment_question",
+                method="POST",
+                timeout=5,
+                speech_timeout='auto',
+                language='en-US'
+            )
+            gather.say(f"The shipment is {current_call['metadata']['shipment_number']}, traveling from {current_call['metadata']['origin_location']} to {current_call['metadata']['delivery_location']}.")
+            gather.say(f"At {current_call['metadata']['date_time']}, the temperature dropped to {current_call['metadata']['detected_temp']}°C, which is below the acceptable {current_call['metadata']['min_temp']} to {current_call['metadata']['max_temp']}°C range.")
+            response.append(gather)
+            logger.info("Sent shipment details response")
+
+        elif any(keyword in speech_lower for keyword in brief_dip_keywords):
+            logger.info("Asked about duration type")
+            gather = Gather(
+                input="speech",
+                action="/process_input?step=duration_type_question",
+                method="POST",
+                timeout=5,
+                speech_timeout='auto',
+                language='en-US'
+            )
+            gather.say("The drop lasted approximately 15 minutes and has since stabilized.")
+            gather.say("This alert is for your awareness to help ensure downstream quality checks.")
+            response.append(gather)
+            logger.info("Sent duration type response")
+
+        elif any(keyword in speech_lower for keyword in understood_keywords):
+            logger.info("Information acknowledged")
+            response.say("Thank you. This concludes the alert. Have a good day.")
+            current_call['status'] = 'completed'
+            current_call['completed_at'] = datetime.now().isoformat()
+            save_call_history(call_history)
+            response.hangup()
+
+        # If we don't understand the question
+        else:
+            logger.info("Waiting for question")
+            gather = Gather(
+                input="speech",
+                action="/process_input?step=general_question",
+                method="POST",
+                timeout=5,
+                speech_timeout='auto',
+                language='en-US'
+            )
+            gather.say("I can provide information about the shipment ID, temperature deviation, and duration. Please ask your question.")
+            response.append(gather)
+
+        logger.info(f"Generated response: {str(response)}")
+        return Response(str(response), mimetype="application/xml")
+
+    except Exception as e:
+        logger.error(f"Error in /process_input: {str(e)}")
+        response = VoiceResponse()
+        response.say("We're experiencing technical difficulties. Please try again later.")
+        response.hangup()
+        return Response(str(response), mimetype="application/xml")
 
 # Add a root route for debugging
 @app.route('/')
@@ -395,6 +651,13 @@ def make_call():
         shipment_details = data.get('shipmentDetails', {})
         logger.info(f"Using shipment details: {shipment_details}")
         
+        # Get shipment data from the shipments file
+        shipments = get_shipments()
+        shipment_number = shipment_details.get('shipmentNumber', 'N/A')
+        
+        # Find the shipment in our data
+        shipment = next((s for s in shipments if s.get('number') == shipment_number), None)
+        
         # Extract values with better error handling and explicit defaults
         try:
             detected_temp = shipment_details.get('detectedTemperature', 'N/A')
@@ -405,29 +668,33 @@ def make_call():
             time_date = shipment_details.get('timeDate', 'N/A')
             temp_range = shipment_details.get('temperatureRange', 'N/A')
             person_name = shipment_details.get('personName', 'there')
-            shipment_number = shipment_details.get('shipmentNumber', 'N/A')
             
-            logger.info(f"Parsed call details - temp: {detected_temp}, time: {time_date}, range: {temp_range}, shipment: {shipment_number}")
+            # Get origin and destination from shipment data if available
+            origin_location = shipment.get('origin', 'N/A') if shipment else 'N/A'
+            delivery_location = shipment.get('destination', 'N/A') if shipment else 'N/A'
+            
+            # Parse temperature range
+            min_temp = '2'  # Default minimum temperature
+            max_temp = '8'  # Default maximum temperature
+            if isinstance(temp_range, str) and '-' in temp_range:
+                try:
+                    min_temp, max_temp = temp_range.split('-')
+                    min_temp = min_temp.strip().replace('°C', '')
+                    max_temp = max_temp.strip().replace('°C', '')
+                except:
+                    pass
+            
+            logger.info(f"Parsed call details - temp: {detected_temp}, time: {time_date}, range: {temp_range}, shipment: {shipment_number}, origin: {origin_location}, delivery: {delivery_location}")
         except Exception as e:
             logger.error(f"Error parsing shipment details: {e}")
             detected_temp = 'N/A'
             time_date = 'N/A'
-            temp_range = 'N/A'
+            min_temp = '2'
+            max_temp = '8'
             person_name = 'there'
             shipment_number = 'N/A'
-        
-        logger.info(f"Final call details - to: {phone_number}, temp: {detected_temp}, time: {time_date}, range: {temp_range}")
-
-        # Construct the conversation flow
-        conversation = f"""
-        <Response>
-            <Say>Hello {person_name}, this is a call regarding your shipment with the details {shipment_number}. I'm reaching out because we noticed a temperature spike that's a bit outside the recommended range.</Say>
-            <Pause length="2"/>
-            <Say>The temperature hit {detected_temp} degrees at around {time_date}. The recommended range is {temp_range}, so we just wanted to make sure you're aware and can check on it.</Say>
-            <Pause length="2"/>
-            <Say>Thank you for your attention to this matter.</Say>
-        </Response>
-        """
+            origin_location = 'N/A'
+            delivery_location = 'N/A'
 
         # List of verified numbers for testing
         verified_numbers = [
@@ -435,6 +702,7 @@ def make_call():
             "+916303142612",
             "+918885627274",
             "+919502960560",
+            "+917261963896",
             '+16067071774'    # Twilio number
         ]
 
@@ -442,7 +710,6 @@ def make_call():
             try:
                 # Check if the number is verified (for trial accounts)
                 if phone_number not in verified_numbers:
-                    # For unverified numbers, return a helpful error message
                     return jsonify({
                         'success': False,
                         'error': f'Phone number {phone_number} is not verified. Please use one of the verified numbers: {", ".join(verified_numbers)}',
@@ -450,15 +717,21 @@ def make_call():
                         'formatted_number': phone_number
                     }), 400
 
-                # Get the base URL for status callbacks
-                base_url = request.host_url.rstrip('/')
+                # Use ngrok URL if available, otherwise use the request host
+                base_url = public_url if public_url else request.host_url.rstrip('/')
+                logger.info(f"Using base URL: {base_url}")
                 
-                # Make real call using Twilio with status callback
+                # URL encode the parameters
+                from urllib.parse import quote
+                voice_url = f"{base_url}/voice?shipment_number={quote(shipment_number)}&date_time={quote(time_date)}&detected_temp={quote(detected_temp)}&min_temp={quote(min_temp)}&max_temp={quote(max_temp)}&origin_location={quote(origin_location)}&delivery_location={quote(delivery_location)}"
+                
+                logger.info(f"Using voice URL: {voice_url}")
+                
+                # Make real call using Twilio with status callback and parameters
                 call = twilio_client.calls.create(
                     to=phone_number,
-                    # from_='+13253087816',
-                    from_="+16067071774",  # Use the working Twilio number that was successful in testing
-                    twiml=conversation,
+                    from_="+16067071774",  # Use the working Twilio number
+                    url=voice_url,
                     status_callback=f"{base_url}/api/twilio-status-callback",
                     status_callback_method='POST',
                     status_callback_event=['completed', 'answered', 'busy', 'no-answer', 'failed', 'canceled']
@@ -470,13 +743,14 @@ def make_call():
                     'timestamp': datetime.now().isoformat(),
                     'duration': 0,
                     'status': call.status,
-                    'message': conversation,
                     'shipmentDetails': shipment_details,
                     'metadata': {
                         'detectedTemperature': detected_temp,
                         'timeDate': time_date,
                         'temperatureRange': temp_range,
-                        'shipmentNumber': shipment_number
+                        'shipmentNumber': shipment_number,
+                        'originLocation': origin_location,
+                        'deliveryLocation': delivery_location
                     }
                 }
 
@@ -495,7 +769,6 @@ def make_call():
                 error_message = str(e)
                 logger.error(f"Twilio call error: {error_message}")
                 
-                # Handle specific Twilio errors
                 if "unverified" in error_message.lower():
                     return jsonify({
                         'success': False,
@@ -518,13 +791,14 @@ def make_call():
                 'timestamp': datetime.now().isoformat(),
                 'duration': 30,
                 'status': 'completed',
-                'message': conversation,
                 'shipmentDetails': shipment_details,
                 'metadata': {
                     'detectedTemperature': detected_temp,
                     'timeDate': time_date,
                     'temperatureRange': temp_range,
-                    'shipmentNumber': shipment_number
+                    'shipmentNumber': shipment_number,
+                    'originLocation': origin_location,
+                    'deliveryLocation': delivery_location
                 }
             }
 
@@ -591,49 +865,22 @@ def twilio_status_callback():
 @app.route('/api/calls/<call_sid>/status', methods=['GET'])
 def get_call_status(call_sid):
     try:
-        # Check if we have this call in our history first
         call_history = get_call_history()
-        local_call = next((call for call in call_history if call.get('id') == call_sid), None)
+        call = next((call for call in call_history if call.get('id') == call_sid), None)
         
-        # If the call exists and we have Twilio client, get the latest status
-        if local_call and twilio_client:
-            try:
-                # Fetch the latest call details from Twilio API
-                call_details = twilio_client.calls(call_sid).fetch()
-                
-                # Update our local record
-                local_call['status'] = call_details.status
-                if hasattr(call_details, 'duration') and call_details.duration:
-                    local_call['duration'] = int(call_details.duration)
-                
-                # Save the updated history
-                save_call_history(call_history)
-                
-                return jsonify({
-                    'success': True,
-                    'call': local_call
-                })
-            except Exception as e:
-                # If we can't reach Twilio, just return what we have
-                logger.error(f"Error fetching call from Twilio: {str(e)}")
-                return jsonify({
-                    'success': True,
-                    'call': local_call,
-                    'note': 'Using cached call data - could not refresh from Twilio'
-                })
-        elif local_call:
-            # If no Twilio client, just return what we have
-            return jsonify({
-                'success': True,
-                'call': local_call
-            })
-        else:
+        if not call:
             return jsonify({
                 'success': False,
-                'error': f'Call with SID {call_sid} not found'
+                'error': f'Call {call_sid} not found'
             }), 404
+
+        return jsonify({
+            'success': True,
+            'call': call
+        })
+
     except Exception as e:
-        logger.error(f"Error getting call status: {str(e)}")
+        logger.error(f"Error getting call status: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

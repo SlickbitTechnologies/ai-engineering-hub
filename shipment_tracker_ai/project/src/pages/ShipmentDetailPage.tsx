@@ -68,7 +68,9 @@ const ShipmentDetailPage: React.FC = () => {
       detectedTemperature: `${shipment.currentTemperature}°C`,
       timeDate: tempAlert ? formatDateTime(tempAlert.timestamp, 'MM/dd/yyyy, h:mm:ss a') : formatDateTime(new Date(), 'MM/dd/yyyy, h:mm:ss a'),
       temperatureRange: `${minTemperatureThreshold}°C - ${maxTemperatureThreshold}°C`,
-      personName: 'there'
+      personName: 'there',
+      originLocation: typeof shipment.origin === 'string' ? shipment.origin : `${shipment.origin.city}, ${shipment.origin.country}`,
+      deliveryLocation: typeof shipment.destination === 'string' ? shipment.destination : `${shipment.destination.city}, ${shipment.destination.country}`
     };
     
     console.log("Making call with shipment details:", shipmentDetails);

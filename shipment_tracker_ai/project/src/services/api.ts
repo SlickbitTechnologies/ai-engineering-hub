@@ -43,6 +43,8 @@ export interface ShipmentDetails {
   timeDate: string;
   temperatureRange: string;
   personName: string;
+  originLocation: string;
+  deliveryLocation: string;
 }
 
 export interface Call {
