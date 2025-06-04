@@ -836,30 +836,34 @@ def get_calls():
         }), 500
 
 # Add a new route for handling Twilio status callbacks
-@app.route('/api/twilio-status-callback', methods=['POST','GET'])
+@app.route('/api/twilio-status-callback', methods=['POST', 'GET'])
 def twilio_status_callback():
     try:
-        # Extract status info from Twilio's callback
-        call_sid = request.form.get('CallSid')
-        call_status = request.form.get('CallStatus')
-        call_duration = request.form.get('CallDuration', '0')
-        
+        # Handle both GET and POST
+        call_sid = request.values.get('CallSid')
+        call_status = request.values.get('CallStatus')
+        call_duration = request.values.get('CallDuration', '0')
+
         logger.info(f"Received status callback for call {call_sid}: {call_status}, duration: {call_duration}s")
-        
+
+        if not call_sid:
+            logger.warning("CallSid not found in callback request.")
+            return '', 400
+
         # Update call in history
         call_history = get_call_history()
         for call in call_history:
             if call.get('id') == call_sid:
                 call['status'] = call_status
-                call['duration'] = int(call_duration)
+                call['duration'] = int(call_duration) if call_duration.isdigit() else 0
                 break
-        
+
         save_call_history(call_history)
-        
-        return '', 204  # Return empty response with status 204 (No Content)
+        return '', 204  # No Content
     except Exception as e:
         logger.error(f"Error processing Twilio status callback: {str(e)}")
         return '', 500
+
 
 # Add a new endpoint to poll and refresh call status for a specific call
 @app.route('/api/calls/<call_sid>/status', methods=['GET'])
