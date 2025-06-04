@@ -836,21 +836,23 @@ def get_calls():
         }), 500
 
 # Add a new route for handling Twilio status callbacks
-@app.route('/api/twilio-status-callback', methods=['POST', 'GET'])
+@app.route('/api/twilio-status-callback', methods=['GET', 'POST'])
 def twilio_status_callback():
     try:
-        # Handle both GET and POST
+        logger.info(f"Method: {request.method}")
+        logger.info(f"Query Params: {request.args}")
+        logger.info(f"Form Data: {request.form}")
+        logger.info(f"Headers: {dict(request.headers)}")
+        logger.info(f"Raw Data: {request.get_data(as_text=True)}")
+
         call_sid = request.values.get('CallSid')
         call_status = request.values.get('CallStatus')
         call_duration = request.values.get('CallDuration', '0')
 
-        logger.info(f"Received status callback for call {call_sid}: {call_status}, duration: {call_duration}s")
-
         if not call_sid:
-            logger.warning("CallSid not found in callback request.")
-            return '', 400
+            logger.warning("Missing CallSid")
+            return 'Missing CallSid', 400
 
-        # Update call in history
         call_history = get_call_history()
         for call in call_history:
             if call.get('id') == call_sid:
@@ -859,10 +861,11 @@ def twilio_status_callback():
                 break
 
         save_call_history(call_history)
-        return '', 204  # No Content
+        return '', 204
     except Exception as e:
-        logger.error(f"Error processing Twilio status callback: {str(e)}")
-        return '', 500
+        logger.error(f"Exception in /api/twilio-status-callback: {str(e)}")
+        return f"Internal Server Error: {str(e)}", 500
+
 
 
 # Add a new endpoint to poll and refresh call status for a specific call
