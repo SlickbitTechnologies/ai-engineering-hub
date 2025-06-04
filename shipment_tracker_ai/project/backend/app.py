@@ -76,7 +76,7 @@ def save_call_history(data):
     with open("call_history.json", "w") as f:
         json.dump(data, f, indent=2)
 
-@app.route("/voice", methods=["POST"])
+@app.route("/voice", methods=["POST","GET"])
 def voice():
     """Initial voice prompt"""
     try:

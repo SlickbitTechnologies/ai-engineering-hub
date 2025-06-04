@@ -510,7 +510,7 @@ const ShipmentDetailPage: React.FC = () => {
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                 {deviationCount} Deviations
               </span>
-              {needsSync && (
+              {/* {needsSync && (
                 <button
                   onClick={() => {
                     checkTemperatureThresholds(shipment, minTemp, maxTemp);
@@ -521,7 +521,7 @@ const ShipmentDetailPage: React.FC = () => {
                 >
                   Sync Alerts
                 </button>
-              )}
+              )} */}
             </div>
           </div>
           <div className="divide-y divide-gray-200 max-h-[400px] overflow-y-auto">
