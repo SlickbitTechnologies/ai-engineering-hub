@@ -109,15 +109,19 @@ class ExcelGenerator:
 
     def add_metadata(self, metadata: Dict, document_url: str, template_id: str) -> str:
         try:
-            # Extract file name from webUrl after Documents/
-            if 'sharepoint.com' in document_url.lower():
-                try:
-                    file_name = document_url.split('Documents/')[-1]
-                    file_name = file_name.replace('%20', ' ')
-                except:
-                    file_name = os.path.basename(document_url)
+            # Prefer explicit file name present in metadata; fallback to URL extraction
+            if isinstance(metadata, dict) and metadata.get('File Name'):
+                file_name = str(metadata.get('File Name'))
             else:
-                file_name = os.path.basename(document_url)
+                # Extract file name from webUrl after Documents/
+                if 'sharepoint.com' in document_url.lower():
+                    try:
+                        file_name = document_url.split('Documents/')[-1]
+                        file_name = file_name.replace('%20', ' ')
+                    except:
+                        file_name = os.path.basename(document_url)
+                else:
+                    file_name = os.path.basename(document_url)
             
             # Get template fields from template context
             from context.template_context import TemplateContext
